@@ -27,3 +27,6 @@ dist-ssr
 data/
 backups/
 .env
+
+# Artefacts locaux de l'outil Claude Code
+.claude/

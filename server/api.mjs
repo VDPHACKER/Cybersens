@@ -4,6 +4,8 @@ import crypto from 'node:crypto';
 import { promisify } from 'node:util';
 import { db, transaction, getServerSecret } from './db.mjs';
 import { getCourse, isValidLesson, gradeExam } from './courses.mjs';
+import { HttpError } from './httpError.mjs';
+import { checkOrigin } from './csrf.mjs';
 
 const scrypt = promisify(crypto.scrypt);
 
@@ -18,13 +20,6 @@ const LOGIN_MAX_FAILURES = 5;
 const LOGIN_LOCK_MS = 15 * 60_000;
 const ROLES = new Set(['Particulier', 'Étudiant', 'Professionnel', 'Entreprise']);
 const QUIZ_MODES = new Set(['Solo', 'Multi']);
-
-class HttpError extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
-  }
-}
 
 // ---------- Utilitaires HTTP ----------
 const send = (res, status, data, headers = {}) => {
@@ -83,19 +78,6 @@ const clientIp = (req, trustProxy) =>
 
 const isHttps = (req, trustProxy) =>
   req.socket.encrypted || (trustProxy && req.headers['x-forwarded-proto'] === 'https');
-
-// Protection CSRF : les requêtes qui modifient des données doivent venir de ce site
-const checkOrigin = (req) => {
-  const origin = req.headers.origin;
-  if (!origin) return; // clients non-navigateurs (pas de risque CSRF)
-  let host;
-  try {
-    host = new URL(origin).host;
-  } catch {
-    throw new HttpError(403, 'Origine refusée');
-  }
-  if (host !== req.headers.host) throw new HttpError(403, 'Origine refusée');
-};
 
 // Limitation de débit en mémoire par clé (IP ou utilisateur)
 const buckets = new Map();

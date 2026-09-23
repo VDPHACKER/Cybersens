@@ -223,6 +223,18 @@ test('sécurité : CSRF, validation, injection SQL, IA réservée', async () => 
     ).status,
     401,
   );
+  assert.equal(
+    (
+      await call(
+        'POST',
+        '/api/gemini/v1beta/models/gemini-3.8-flash:generateContent',
+        { contents: [] },
+        { origin: 'https://malveillant.example' },
+      )
+    ).status,
+    403,
+    'le relais Gemini doit aussi rejeter une origine étrangère, même avec une session valide',
+  );
 });
 
 test('déconnexion, connexion, anti-énumération et verrouillage', async () => {

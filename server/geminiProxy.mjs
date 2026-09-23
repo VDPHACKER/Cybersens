@@ -1,6 +1,8 @@
 // Relais sécurisé vers l'API Gemini : la clé reste côté serveur et n'est jamais envoyée au navigateur.
 // Utilisé par le serveur de développement Vite (vite.config.ts) et par le serveur de production (server/index.mjs).
 
+import { checkOrigin } from './csrf.mjs';
+
 const UPSTREAM = 'https://generativelanguage.googleapis.com';
 export const PROXY_PREFIX = '/api/gemini';
 
@@ -76,6 +78,12 @@ export const handleGeminiProxy = async (req, res, apiKey, isAuthorized = () => t
   }
 
   if (req.method !== 'POST') return (sendJson(res, 405, 'Méthode non autorisée'), true);
+
+  try {
+    checkOrigin(req);
+  } catch (err) {
+    return (sendJson(res, err.status || 403, err.message || 'Origine refusée'), true);
+  }
 
   // L'assistant IA est réservé aux utilisateurs connectés (évite un relais ouvert à tous)
   if (!isAuthorized(req))
