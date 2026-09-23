@@ -58,3 +58,12 @@ body {
   background: rgba(14, 165, 233, 0.2);
   border-radius: 10px;
 }
+
+/* Défilement horizontal sans barre visible (listes d'onglets, carrousels) */
+.scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Edge legacy */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}

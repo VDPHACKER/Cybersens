@@ -164,10 +164,10 @@ const QuizContainer: React.FC<QuizContainerProps> = ({ onBack }) => {
     <div className="max-w-md mx-auto px-4 py-6 sm:py-8 space-y-6 animate-in fade-in">
       {/* Header */}
       <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
           Quiz CyberSens
         </h1>
-        <p className="text-xs sm:text-sm text-slate-400 mt-1">
+        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
           Teste tes connaissances et renforce tes réflexes de défense.
         </p>
       </div>
