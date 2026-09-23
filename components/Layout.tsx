@@ -208,27 +208,31 @@ const Layout: React.FC<LayoutProps> = ({
             </div>
           </div>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-1">
-            {primaryTabs.map((tab) => {
-              const Icon = tab.icon;
-              const active = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  title={tab.label}
-                  className={`px-2 lg:px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                    active
-                      ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
-                      : `${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-900' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span className="hidden lg:inline">{tab.label}</span>
-                </button>
-              );
-            })}
+          {/* Desktop Navigation — Profil est déjà accessible via le menu avatar, pas besoin de le dupliquer ici.
+              N'apparaît qu'à partir de lg : en dessous, la nav mobile (icônes + libellés courts) prend le relais,
+              plutôt que de comprimer 6 libellés complets dans une largeur insuffisante. */}
+          <nav className="hidden lg:flex items-center gap-1">
+            {primaryTabs
+              .filter((tab) => tab.id !== AppTab.PROFILE)
+              .map((tab) => {
+                const Icon = tab.icon;
+                const active = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    title={tab.label}
+                    className={`px-2.5 lg:px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      active
+                        ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
+                        : `${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-900' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
 
             {/* Desktop Labos & IA Dropdown */}
             <div className="relative">
@@ -244,7 +248,7 @@ const Layout: React.FC<LayoutProps> = ({
                 title="Laboratoires & Défis IA"
               >
                 <Bot className="w-4 h-4 text-cyan-400" />
-                <span className="hidden lg:inline">Labos & IA</span>
+                <span>Labos & IA</span>
                 <ChevronDown className="w-3 h-3 text-slate-400" />
               </button>
 
@@ -487,11 +491,11 @@ const Layout: React.FC<LayoutProps> = ({
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl mx-auto w-full p-3 md:p-6 pb-24 md:pb-8">{children}</main>
+      <main className="flex-1 max-w-7xl mx-auto w-full p-3 md:p-6 pb-24 lg:pb-8">{children}</main>
 
-      {/* Mobile Bottom Navigation */}
+      {/* Mobile & Tablet Bottom Navigation (jusqu'à lg : voir la nav desktop ci-dessus) */}
       <nav
-        className={`md:hidden fixed bottom-0 left-0 right-0 border-t px-1 py-1 flex justify-around items-center z-[100] transition-colors safe-area-bottom shadow-2xl backdrop-blur-xl ${
+        className={`lg:hidden fixed bottom-0 left-0 right-0 border-t px-1 py-1 flex justify-around items-center z-[100] transition-colors safe-area-bottom shadow-2xl backdrop-blur-xl ${
           isDark ? 'bg-slate-950/95 border-slate-800/80' : 'bg-white/95 border-slate-200 shadow-md'
         }`}
       >
@@ -528,6 +532,18 @@ const Layout: React.FC<LayoutProps> = ({
           );
         })}
       </nav>
+
+      {/* Bouton flottant Assistant IA : accès direct au chat CyberGuard depuis n'importe quel écran */}
+      {activeTab !== AppTab.AI_CHAT && (
+        <button
+          onClick={() => setActiveTab(AppTab.AI_CHAT)}
+          title="Discuter avec l'assistant IA CyberGuard"
+          className="fixed z-[95] bottom-20 lg:bottom-6 right-4 lg:right-6 flex items-center gap-2 pl-4 pr-5 py-3.5 rounded-full bg-gradient-to-r from-sky-500 to-cyan-500 text-white font-bold text-sm shadow-2xl shadow-sky-500/40 hover:brightness-110 active:scale-95 transition-all"
+        >
+          <Bot className="w-5 h-5" />
+          <span className="hidden sm:inline">Assistant IA</span>
+        </button>
+      )}
 
       {/* Notifications Drawer Modal */}
       {showNotificationsModal && (

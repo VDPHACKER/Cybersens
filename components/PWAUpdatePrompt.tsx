@@ -50,7 +50,7 @@ export const PWAUpdatePrompt: React.FC = () => {
     <div
       role="status"
       aria-live="polite"
-      className="fixed z-[60] bottom-24 md:bottom-6 left-4 right-4 md:left-6 md:right-auto md:max-w-sm p-4 rounded-2xl bg-slate-900 text-white border border-slate-700 shadow-2xl flex items-start gap-3"
+      className="fixed z-[60] bottom-24 lg:bottom-6 left-4 right-4 lg:left-6 lg:right-auto lg:max-w-sm p-4 rounded-2xl bg-slate-900 text-white border border-slate-700 shadow-2xl flex items-start gap-3"
     >
       <div className="p-2 rounded-xl bg-sky-500/15 text-sky-400 shrink-0">
         {needRefresh ? <RefreshCw className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}

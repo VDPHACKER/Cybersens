@@ -631,8 +631,17 @@ const AIChat: React.FC<AIChatProps> = ({ onBack, initialPrompt }) => {
       ]);
       setStreamingMessage(null);
     } catch (error) {
-      const errMsg =
-        language === 'en'
+      // Le modèle IA est temporairement surchargé côté fournisseur (503/UNAVAILABLE) :
+      // message distinct d'une panne réseau, pour ne pas orienter l'utilisateur vers son wifi à tort.
+      const overloaded =
+        error instanceof Error && /503|UNAVAILABLE|overloaded|high demand/i.test(error.message);
+      const errMsg = overloaded
+        ? language === 'en'
+          ? "The AI assistant is temporarily overloaded on the provider's side. Please try again in a moment."
+          : language === 'es'
+            ? 'El asistente IA está temporalmente saturado del lado del proveedor. Inténtalo de nuevo en un momento.'
+            : "L'assistant IA est momentanément surchargé côté fournisseur (forte demande). Réessayez dans quelques instants."
+        : language === 'en'
           ? 'Sorry, the security intelligence connection was interrupted. Please retry.'
           : language === 'es'
             ? 'Lo sentimos, se interrumpió la conexión con la inteligencia de seguridad. Por favor, inténtalo de nuevo.'
