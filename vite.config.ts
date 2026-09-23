@@ -35,6 +35,9 @@ const pwaPlugin = () =>
   VitePWA({
     registerType: 'prompt', // l'utilisateur choisit quand appliquer une nouvelle version
     injectRegister: false, // enregistrement fait par components/PWAUpdatePrompt.tsx
+    // Active le service worker et le manifeste aussi en développement (npm run dev),
+    // pour pouvoir tester installabilité et hors-ligne sans build de production.
+    devOptions: { enabled: true },
     includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon-180x180.png'],
     manifest: {
       id: '/',
