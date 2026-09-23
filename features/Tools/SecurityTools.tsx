@@ -78,18 +78,18 @@ const SecurityTools: React.FC<SecurityToolsProps> = ({ onBack }) => {
         <span className="text-xl">←</span> {t('common.back', 'Retour')}
       </button>
 
-      <div className="flex overflow-x-auto pb-4 gap-2 md:gap-3 scrollbar-hide -mx-4 px-4 snap-x">
+      <div className="flex flex-wrap gap-2">
         {tools.map((tool) => (
           <button
             key={tool.id}
             onClick={() => setActiveTool(tool.id as ToolTab)}
-            className={`flex-none px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-bold transition-all border-2 whitespace-nowrap flex items-center gap-2 snap-start ${
+            className={`flex-none px-3.5 py-2.5 md:px-4 md:py-2.5 rounded-xl font-bold transition-all border-2 whitespace-nowrap flex items-center gap-2 ${
               activeTool === tool.id
                 ? 'bg-cyan-600 border-cyan-400 text-white shadow-lg shadow-cyan-600/20'
                 : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-600'
             }`}
           >
-            <span className="text-base md:text-xl">{tool.icon}</span>{' '}
+            <span className="text-base">{tool.icon}</span>
             <span className="text-xs md:text-sm">{tool.label}</span>
           </button>
         ))}
