@@ -1,0 +1,6 @@
+{
+  "name": "CyberSens - Sensibiliser • Protéger • Agir",
+  "description": "Plateforme interactive de sensibilisation à la cybersécurité. Apprenez simplement, adoptez les bons réflexes et protégez votre communauté avec des cours pratiques, quiz et alertes en temps réel.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

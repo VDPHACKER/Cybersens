@@ -1,0 +1,163 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <radialGradient id="bgGlow" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#0b1b3d" />
+      <stop offset="60%" stop-color="#030712" />
+      <stop offset="100%" stop-color="#010409" />
+    </radialGradient>
+
+    <!-- Outer Border Glow -->
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+
+    <!-- Shield Face Gradient Left -->
+    <linearGradient id="shieldLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e40af" />
+      <stop offset="50%" stop-color="#1d4ed8" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+
+    <!-- Shield Face Gradient Right -->
+    <linearGradient id="shieldRight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="50%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#0369a1" />
+    </linearGradient>
+
+    <!-- Shield Rim Glow -->
+    <linearGradient id="shieldRim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#67e8f9" />
+      <stop offset="50%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+
+    <!-- Neon Glow Filter -->
+    <filter id="cyanGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+    <filter id="intenseGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="12" result="blur1" />
+      <feGaussianBlur stdDeviation="4" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur1" />
+        <feMergeNode in="blur2" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- App Icon Squircle Container -->
+  <rect x="16" y="16" width="480" height="480" rx="100" fill="url(#bgGlow)" stroke="url(#borderGrad)" stroke-width="8" />
+
+  <!-- Inner Soft Glow Outline -->
+  <rect x="22" y="22" width="468" height="468" rx="94" fill="none" stroke="#0ea5e9" stroke-width="2" opacity="0.3" />
+
+  <!-- Ambient Light Behind Shield -->
+  <ellipse cx="256" cy="200" rx="140" ry="120" fill="#0284c7" opacity="0.25" filter="url(#intenseGlow)" />
+
+  <!-- Dynamic Curved Cyber Swooshes -->
+  <path d="M 90 280 C 70 200, 110 130, 150 100" fill="none" stroke="#00f0ff" stroke-width="4" stroke-linecap="round" opacity="0.6" filter="url(#cyanGlow)" />
+  <path d="M 80 340 C 70 230, 140 140, 220 90" fill="none" stroke="#0284c7" stroke-width="3" opacity="0.4" />
+  
+  <path d="M 370 120 C 420 180, 420 280, 350 330" fill="none" stroke="#0ea5e9" stroke-width="3.5" stroke-linecap="round" opacity="0.5" filter="url(#cyanGlow)" />
+
+  <!-- Floating Digital Cubes/Pixels (Top-Right) -->
+  <rect x="365" y="80" width="22" height="22" rx="4" fill="#00f0ff" opacity="0.9" filter="url(#cyanGlow)" />
+  <rect x="400" y="115" width="26" height="26" rx="5" fill="#38bdf8" opacity="0.85" />
+  <rect x="388" y="155" width="16" height="16" rx="3" fill="#0284c7" opacity="0.75" />
+  <rect x="412" y="180" width="22" height="22" rx="4" fill="#00f0ff" opacity="0.8" />
+  <rect x="340" y="130" width="14" height="14" rx="3" fill="#38bdf8" opacity="0.9" />
+  <rect x="328" y="170" width="16" height="16" rx="3" fill="#0284c7" opacity="0.6" />
+
+  <!-- Shield Outer Glow & Rim -->
+  <!-- Shield Outer Path (Coordinates centered horizontally at 256) -->
+  <!-- Top apex: 256, 75. Top-left corner: 130, 130. Top-right corner: 382, 130. Bottom apex: 256, 360 -->
+  <path d="M 256 68 
+           L 390 125 
+           C 390 240, 345 320, 256 368 
+           C 167 320, 122 240, 122 125 
+           Z" 
+        fill="none" 
+        stroke="url(#shieldRim)" 
+        stroke-width="12" 
+        stroke-linejoin="round"
+        filter="url(#cyanGlow)" />
+
+  <!-- Shield Facet Left -->
+  <path d="M 256 78 
+           L 132 131 
+           C 132 238, 172 312, 256 356 
+           Z" 
+        fill="url(#shieldLeft)" />
+
+  <!-- Shield Facet Right -->
+  <path d="M 256 78 
+           L 380 131 
+           C 380 238, 340 312, 256 356 
+           Z" 
+        fill="url(#shieldRight)" />
+
+  <!-- Shield Central Highlight Divider -->
+  <line x1="256" y1="78" x2="256" y2="356" stroke="#67e8f9" stroke-width="2" opacity="0.5" />
+
+  <!-- Central Padlock -->
+  <!-- Shackle (Arceau) -->
+  <path d="M 215 190 
+           L 215 155 
+           C 215 125, 297 125, 297 155 
+           L 297 190" 
+        fill="none" 
+        stroke="#ffffff" 
+        stroke-width="24" 
+        stroke-linecap="round" />
+
+  <!-- Padlock Body -->
+  <rect x="195" y="185" width="122" height="95" rx="20" fill="#ffffff" filter="url(#cyanGlow)" />
+
+  <!-- Padlock Keyhole -->
+  <circle cx="256" cy="223" r="10" fill="#0b1b3d" />
+  <polygon points="251,223 261,223 265,248 247,248" fill="#0b1b3d" />
+
+  <!-- Cradling Protective Swoosh/Hand (Bottom Left) -->
+  <path d="M 72 325 
+           C 95 385, 170 435, 270 420 
+           C 310 415, 315 355, 260 375 
+           C 190 395, 120 375, 95 315 
+           Z" 
+        fill="#0284c7" />
+
+  <path d="M 72 325 
+           C 105 405, 185 435, 265 395 
+           C 305 375, 315 355, 265 365 
+           C 170 380, 110 355, 80 315 
+           Z" 
+        fill="#00f0ff" 
+        opacity="0.85" 
+        filter="url(#cyanGlow)" />
+
+  <!-- People Silhouettes Nestled in Safety (Bottom Left) -->
+  <!-- Center Silhouette (Leader/Protected, in Cyan) -->
+  <circle cx="168" cy="308" r="19" fill="#00f0ff" />
+  <path d="M 134 358 C 134 328, 202 328, 202 358 Z" fill="#00d2ff" />
+
+  <!-- Left Silhouette (White) -->
+  <circle cx="128" cy="320" r="14" fill="#ffffff" />
+  <path d="M 102 360 C 102 338, 154 338, 154 360 Z" fill="#ffffff" />
+
+  <!-- Right Silhouette (White) -->
+  <circle cx="206" cy="326" r="14" fill="#ffffff" />
+  <path d="M 182 365 C 182 344, 232 344, 232 365 Z" fill="#ffffff" />
+
+  <!-- Motto Typography (Bottom Right) -->
+  <g transform="translate(315, 345)" font-family="system-ui, -apple-system, 'Inter', sans-serif" font-weight="900" text-anchor="start">
+    <text x="0" y="0" font-size="20" fill="#ffffff" letter-spacing="1.5">SENSIBILISER</text>
+    <text x="0" y="24" font-size="21" fill="#00f0ff" letter-spacing="1.5" filter="url(#cyanGlow)">PROTÉGER</text>
+    <text x="0" y="47" font-size="20" fill="#ffffff" letter-spacing="2">AGIR</text>
+    <line x1="0" y1="58" x2="80" y2="58" stroke="#00f0ff" stroke-width="3" stroke-linecap="round" />
+  </g>
+</svg>

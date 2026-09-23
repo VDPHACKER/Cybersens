@@ -1,0 +1,22 @@
+# Dépendances et builds (recréés dans l'image)
+node_modules
+dist
+
+# Données et secrets : ne jamais les embarquer dans une image
+data
+backups
+.env
+.env.*
+!.env.example
+*.local
+*.db
+*.db-*
+
+# Divers
+.git
+.github
+.vscode
+.idea
+*.log
+*.zip
+backup-avant-allongement

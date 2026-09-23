@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Styles globaux (anciennement inline dans index.html) */
+:root {
+  --accent: #0ea5e9;
+  --bg-dark: #020617;
+}
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg-dark);
+  color: #f8fafc;
+  -webkit-tap-highlight-color: transparent;
+  margin: 0;
+  padding: 0;
+}
+.mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.mesh-bg {
+  background-color: #020617;
+  background-image:
+    radial-gradient(at 0% 0%, hsla(200, 100%, 10%, 1) 0, transparent 50%),
+    radial-gradient(at 100% 100%, hsla(260, 100%, 10%, 1) 0, transparent 50%);
+}
+
+.glass-panel {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(14, 165, 233, 0.2);
+  border-radius: 10px;
+}

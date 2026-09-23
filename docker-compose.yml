@@ -1,0 +1,40 @@
+# Déploiement CyberSens : docker compose up -d --build
+# Variables sensibles dans .env (voir .env.example). Base de données dans le volume « cybersens-data ».
+services:
+  app:
+    build: .
+    image: cybersens:latest
+    container_name: cybersens
+    restart: unless-stopped
+    ports:
+      - '8080:8080'
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Mettre à 1 derrière un reverse-proxy HTTPS (Caddy, Nginx, Traefik…)
+      TRUST_PROXY: '${TRUST_PROXY:-0}'
+    volumes:
+      - cybersens-data:/app/data
+      - ./backups:/app/backups
+    # Durcissement du conteneur
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '1.0'
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '5'
+
+volumes:
+  cybersens-data:
