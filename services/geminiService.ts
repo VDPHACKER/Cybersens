@@ -45,11 +45,8 @@ export const chatWithCyberExpertStream = async (
   }
   contents.push({ role: 'user', parts: userParts });
 
-  const result = await ai.models.generateContentStream({
-    model,
-    contents,
-    config: {
-      systemInstruction: `Tu es CyberGuard IA, un expert pédagogique d'élite en cybersécurité, sensibilisation numérique et sécurité de l'Intelligence Artificielle.
+  const config = {
+    systemInstruction: `Tu es CyberGuard IA, un expert pédagogique d'élite en cybersécurité, sensibilisation numérique et sécurité de l'Intelligence Artificielle.
 TON RÔLE :
 - Répondre avec clarté, bienveillance et rigueur technique à toutes les questions de cybersécurité (particuliers, étudiants, développeurs, administrateurs, employés).
 - Aider l'utilisateur à identifier les arnaques (phishing, smishing, faux support technique, faux conseillers bancaires, arnaques CPF/livraison/colis).
@@ -80,20 +77,37 @@ STYLE & FORMAT :
   🔴 [NIVEAU DE DANGER : ÉLEVÉ / HIGH THREAT]
   🟡 [NIVEAU DE DANGER : MODÉRÉ / MODERATE]
   🟢 [NIVEAU DE DANGER : FAIBLE / LOW RISK]
-- Donne toujours : 
+- Donne toujours :
   1. Diagnostic direct et explication simple du risque
   2. Actions réflexes immédiates (étape par étape) ou code pratique de protection
   3. Règle d'or de prévention pour l'avenir
 - Reste stimulant et encourageant : la cybersécurité est une compétence active qui se renforce avec la pratique.
 CONTEXTE UTILISATEUR : ${userContext || 'Session de sensibilisation'}.`,
-      temperature: 0.6,
-      topP: 0.95,
-    },
-  });
+    temperature: 0.6,
+    topP: 0.95,
+  };
 
-  for await (const chunk of result) {
-    const text = chunk.text;
-    if (text) onChunk(text);
+  try {
+    const result = await ai.models.generateContentStream({ model, contents, config });
+    let receivedAnything = false;
+    for await (const chunk of result) {
+      const text = chunk.text;
+      if (text) {
+        receivedAnything = true;
+        onChunk(text);
+      }
+    }
+    if (receivedAnything) return;
+    // Flux vide (ex: coupé immédiatement par le fournisseur) : on retente sans streaming ci-dessous.
+    throw new Error('Réponse en streaming vide');
+  } catch (streamError) {
+    // Le point d'accès de streaming peut être temporairement indisponible côté fournisseur
+    // (503/UNAVAILABLE) alors que l'appel non-streaming fonctionne : on bascule dessus
+    // plutôt que d'échouer, la réponse arrive alors en un seul bloc au lieu d'un flux.
+    const response = await ai.models.generateContent({ model, contents, config });
+    const text = response.text;
+    if (!text) throw streamError;
+    onChunk(text);
   }
 };
 
