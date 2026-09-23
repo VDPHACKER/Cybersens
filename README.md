@@ -76,6 +76,21 @@ docker compose ps             # l'état « healthy » confirme que /api/health r
 
 Sans Docker : `npm ci && npm run build && npm start`, sur un hébergement avec **disque persistant** (VPS, ou Render/Railway avec volume).
 
+## Environnements (Railway)
+
+Un seul projet Railway, deux environnements isolés (services, variables et volumes propres à chacun) :
+
+| Environnement | Branche   | Rôle                                                                             |
+| ------------- | --------- | -------------------------------------------------------------------------------- |
+| `staging`     | `staging` | Vérification avant mise en production ; se déploie automatiquement à chaque push |
+| `production`  | `main`    | Environnement live ; déploiement décrit dans la CI (§ Intégration continue)      |
+
+Déploiement basé sur `railway.toml` (build via le `Dockerfile` existant, healthcheck `/api/health`).
+
+- Chaque environnement a son propre volume persistant (`/app/data`) : les bases de données sont totalement séparées.
+- `CERT_SECRET` doit être **différent** entre staging et production (sinon les certificats de test seraient valides en production).
+- Flux de travail : les branches de fonctionnalité fusionnent dans `staging` (déployé et vérifié), puis `staging` fusionne dans `main` (production).
+
 ## Exploitation
 
 - **Santé** : `GET /api/health` renvoie `{"status":"ok","database":"ok",...}`, ou 503 si la base est indisponible.

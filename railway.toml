@@ -1,0 +1,13 @@
+# Configuration de déploiement Railway (staging et production).
+# Voir la section « Environnements » du README pour la stratégie de branches.
+# Schéma : https://railway.com/railway.schema.json
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
