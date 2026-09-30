@@ -4,8 +4,30 @@ import { analyzeSecurityLog } from '../../services/geminiService';
 import { AuditLogEntry } from '../../types';
 import { useI18n } from '../../services/i18n';
 import { DeepfakeTester } from '../../components/DeepfakeTester';
+import {
+  ScanFace,
+  ScanSearch,
+  Link2,
+  MailWarning,
+  KeyRound,
+  ClipboardList,
+  ImagePlus,
+  ShieldCheck,
+  Flag,
+  Bot,
+} from 'lucide-react';
 
 type ToolTab = 'deepfake' | 'analyzer' | 'links' | 'email' | 'password' | 'audit';
+
+const humanizeAiText = (raw: string) => {
+  if (!raw) return '';
+  return raw
+    .replace(/###+\s*/g, '\n\n• ')
+    .replace(/\*\*+/g, '')
+    .replace(/[-*#_`]/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
 
 interface SecurityToolsProps {
   onBack: () => void;
@@ -13,7 +35,16 @@ interface SecurityToolsProps {
 
 const SecurityTools: React.FC<SecurityToolsProps> = ({ onBack }) => {
   const { t, language } = useI18n();
-  const [activeTool, setActiveTool] = useState<ToolTab>('deepfake');
+  const [activeTool, setActiveTool] = useState<ToolTab>(() => {
+    try {
+      const wanted = sessionStorage.getItem('cybersens-open-tool');
+      if (wanted) sessionStorage.removeItem('cybersens-open-tool');
+      const valid: ToolTab[] = ['deepfake', 'analyzer', 'links', 'email', 'password', 'audit'];
+      return valid.includes(wanted as ToolTab) ? (wanted as ToolTab) : 'deepfake';
+    } catch {
+      return 'deepfake';
+    }
+  });
 
   const tools = [
     {
@@ -24,13 +55,13 @@ const SecurityTools: React.FC<SecurityToolsProps> = ({ onBack }) => {
           : language === 'es'
             ? 'Detector de Deepfakes'
             : 'Testeur de Deepfakes IA',
-      icon: '🎭',
+      icon: ScanFace,
     },
     {
       id: 'analyzer',
       label:
         language === 'en' ? 'AI Log Audit' : language === 'es' ? 'Auditoría IA' : 'Audit Logs IA',
-      icon: '🔍',
+      icon: ScanSearch,
     },
     {
       id: 'links',
@@ -40,7 +71,7 @@ const SecurityTools: React.FC<SecurityToolsProps> = ({ onBack }) => {
           : language === 'es'
             ? 'Comprobador de Enlaces'
             : 'Testeur de Liens Douteux',
-      icon: '🔗',
+      icon: Link2,
     },
     {
       id: 'email',
@@ -50,7 +81,7 @@ const SecurityTools: React.FC<SecurityToolsProps> = ({ onBack }) => {
           : language === 'es'
             ? 'Escáner de Phishing'
             : 'Test Email de Phishing',
-      icon: '📧',
+      icon: MailWarning,
     },
     {
       id: 'password',
@@ -60,12 +91,12 @@ const SecurityTools: React.FC<SecurityToolsProps> = ({ onBack }) => {
           : language === 'es'
             ? 'Medidor de Contraseñas'
             : 'Testeur de Mot de Passe',
-      icon: '🔑',
+      icon: KeyRound,
     },
     {
       id: 'audit',
       label: language === 'en' ? 'System Logs' : language === 'es' ? 'Registros' : 'Logs d’Audit',
-      icon: '📋',
+      icon: ClipboardList,
     },
   ];
 
@@ -85,11 +116,11 @@ const SecurityTools: React.FC<SecurityToolsProps> = ({ onBack }) => {
             onClick={() => setActiveTool(tool.id as ToolTab)}
             className={`flex-none px-3.5 py-2.5 md:px-4 md:py-2.5 rounded-xl font-bold transition-all border-2 whitespace-nowrap flex items-center gap-2 ${
               activeTool === tool.id
-                ? 'bg-cyan-600 border-cyan-400 text-white shadow-lg shadow-cyan-600/20'
+                ? 'bg-cyan-700 border-cyan-400 text-white shadow-lg shadow-cyan-600/20'
                 : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-600'
             }`}
           >
-            <span className="text-base">{tool.icon}</span>
+            <tool.icon className="w-4 h-4 shrink-0" aria-hidden="true" />
             <span className="text-xs md:text-sm">{tool.label}</span>
           </button>
         ))}
@@ -221,7 +252,10 @@ const ExpertAIAnalyzer = () => {
             <img src={image} alt="Upload" className="w-full h-full object-contain" />
           ) : (
             <div className="text-center p-4">
-              <span className="text-4xl md:text-5xl mb-2 md:mb-4 block">🖼️</span>
+              <ImagePlus
+                className="w-10 h-10 md:w-12 md:h-12 mb-2 md:mb-4 mx-auto text-slate-500 dark:text-slate-400"
+                aria-hidden="true"
+              />
               <p className="text-xs font-bold text-slate-600 dark:text-slate-400">
                 {language === 'en'
                   ? 'Click to upload screenshot / log image'
@@ -244,7 +278,7 @@ const ExpertAIAnalyzer = () => {
       <button
         disabled={isAnalyzing || (!data.trim() && !image)}
         onClick={runAnalysis}
-        className="w-full py-4 md:py-5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl md:rounded-2xl font-black text-base md:text-lg transition-all active:scale-95 disabled:opacity-50"
+        className="w-full py-4 md:py-5 bg-cyan-700 hover:bg-cyan-600 text-white rounded-xl md:rounded-2xl font-black text-base md:text-lg transition-all active:scale-95 disabled:opacity-50"
       >
         {isAnalyzing
           ? language === 'en'
@@ -261,8 +295,8 @@ const ExpertAIAnalyzer = () => {
 
       {report && (
         <div className="mt-6 md:mt-8 p-4 md:p-6 bg-slate-50 dark:bg-slate-950 rounded-xl md:rounded-2xl border border-cyan-500/20 animate-in slide-in-from-bottom-2">
-          <h4 className="text-cyan-600 dark:text-cyan-400 font-black mb-3 md:mb-4 flex items-center gap-2 uppercase tracking-widest text-[10px] md:text-xs">
-            🛡️{' '}
+          <h4 className="text-cyan-700 dark:text-cyan-400 font-black mb-3 md:mb-4 flex items-center gap-2 uppercase tracking-widest text-[10px] md:text-xs">
+            <ShieldCheck className="w-4 h-4" aria-hidden="true" />{' '}
             {language === 'en'
               ? 'Security Audit Report'
               : language === 'es'
@@ -323,7 +357,7 @@ const RiskDisplay = ({ result }: { result: any }) => {
             key={i}
             className="flex items-center gap-2 md:gap-3 p-3 md:p-4 bg-white dark:bg-slate-800 rounded-lg md:rounded-xl border border-red-500/10"
           >
-            <span className="text-red-500">🚩</span>
+            <Flag className="w-4 h-4 shrink-0 text-red-500" aria-hidden="true" />
             <span className="text-xs md:text-sm font-bold dark:text-slate-200">{f}</span>
           </div>
         ))}
@@ -336,8 +370,13 @@ const LinkAnalyzer = () => {
   const { language } = useI18n();
   const [url, setUrl] = useState('');
   const [result, setResult] = useState<any>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiReport, setAiReport] = useState<string | null>(null);
 
-  const analyze = () => {
+  const analyze = async () => {
+    if (!url.trim()) return;
+    setIsAnalyzing(true);
+    setAiReport(null);
     const findings = [];
     let risk = 0;
     const cleanUrl = (url || '').trim().toLowerCase();
@@ -382,8 +421,47 @@ const LinkAnalyzer = () => {
       );
       risk += 40;
     }
+    if (
+      cleanUrl.includes('-bf') ||
+      cleanUrl.includes('-auth') ||
+      cleanUrl.includes('-secure') ||
+      cleanUrl.includes('-login') ||
+      cleanUrl.includes('-support') ||
+      cleanUrl.includes('account/signup') ||
+      cleanUrl.includes('energy') ||
+      cleanUrl.includes('bank')
+    ) {
+      findings.push(
+        language === 'en'
+          ? 'Suspicious domain suffix or credential harvesting path (Typosquatting / Brand Impersonation risk)'
+          : language === 'es'
+            ? 'Sufijo de dominio sospechoso o ruta de recolección de credenciales'
+            : 'Suffixe de domaine suspect ou chemin de collecte d’identifiants (Typosquatting / Phishing)',
+      );
+      risk += 60;
+    }
+
+    try {
+      const aiResult = await analyzeSecurityLog(
+        `Analyse cette URL suspecte pour détecter du phishing, du typosquatting, du brand impersonation (usurpation de marque) ou une arnaque financière : ${url}`,
+      );
+      setAiReport(aiResult);
+      if (
+        aiResult &&
+        (aiResult.toLowerCase().includes('critique') ||
+          aiResult.toLowerCase().includes('élevé') ||
+          aiResult.toLowerCase().includes('phishing') ||
+          aiResult.toLowerCase().includes('suspect') ||
+          aiResult.toLowerCase().includes('arnaque'))
+      ) {
+        risk = Math.max(risk, 88);
+      }
+    } catch {
+      // fallback
+    }
 
     setResult({ risk: Math.min(risk, 100), findings });
+    setIsAnalyzing(false);
     addAuditLog(`Analyse URL`, 'Sécurité', risk > 40 ? 'warning' : 'info');
 
     const notifyMsg =
@@ -410,22 +488,24 @@ const LinkAnalyzer = () => {
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl border-t-4 border-t-blue-500">
-      <h3 className="text-xl md:text-2xl font-bold mb-2 text-slate-900 dark:text-white uppercase tracking-tight">
-        {language === 'en'
-          ? 'Suspicious URL & Domain Checker'
-          : language === 'es'
-            ? 'Comprobador de Enlaces y Dominios'
-            : 'Testeur de Liens & Domaines Suspects'}
-      </h3>
-      <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm">
-        {language === 'en'
-          ? 'Detect obfuscated addresses, plain HTTP, and deceptive hostname tricks.'
-          : language === 'es'
-            ? 'Detecta direcciones ofuscadas, HTTP no seguro y trucos de nombres de host.'
-            : 'Détectez les adresses masquées, le protocole HTTP en clair et les ruses de domaines.'}
-      </p>
-      <div className="flex flex-col md:flex-row gap-3 mb-6">
+    <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl border-t-4 border-t-blue-500 space-y-6">
+      <div>
+        <h3 className="text-xl md:text-2xl font-bold mb-2 text-slate-900 dark:text-white uppercase tracking-tight">
+          {language === 'en'
+            ? 'Suspicious URL & Domain Checker'
+            : language === 'es'
+              ? 'Comprobador de Enlaces y Dominios'
+              : 'Testeur de Liens & Domaines Suspects'}
+        </h3>
+        <p className="text-slate-500 dark:text-slate-400 text-sm">
+          {language === 'en'
+            ? 'Detect obfuscated addresses, typosquatting, brand impersonation, and phishing paths using Gemini AI.'
+            : language === 'es'
+              ? 'Detecta direcciones ofuscadas, typosquatting y suplantación de marca con Gemini IA.'
+              : 'Détectez les adresses masquées, le typosquatting, l’usurpation de marque et les liens de phishing grâce à l’IA Gemini.'}
+        </p>
+      </div>
+      <div className="flex flex-col md:flex-row gap-3">
         <input
           value={url}
           onChange={(e) => setUrl(e.target.value)}
@@ -434,11 +514,42 @@ const LinkAnalyzer = () => {
         />
         <button
           onClick={analyze}
-          className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-sm uppercase tracking-widest shadow-lg"
+          disabled={isAnalyzing}
+          className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-sm uppercase tracking-widest shadow-lg flex items-center justify-center gap-2"
         >
-          {language === 'en' ? 'INSPECT' : language === 'es' ? 'VERIFICAR' : 'VÉRIFIER'}
+          {isAnalyzing ? (
+            <>
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span>
+                {language === 'en'
+                  ? 'ANALYZING...'
+                  : language === 'es'
+                    ? 'ANALIZANDO...'
+                    : 'ANALYSE...'}
+              </span>
+            </>
+          ) : (
+            <span>
+              {language === 'en' ? 'INSPECT' : language === 'es' ? 'VERIFICAR' : 'VÉRIFIER'}
+            </span>
+          )}
         </button>
       </div>
+
+      {aiReport && (
+        <div className="p-5 rounded-2xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-black text-sky-800 dark:text-sky-300 uppercase tracking-wider">
+            <span className="inline-flex items-center gap-2">
+              <Bot className="w-4 h-4" aria-hidden="true" />
+              Rapport d’Analyse IA Gemini (SOC)
+            </span>
+          </div>
+          <div className="text-xs text-slate-700 dark:text-slate-200 whitespace-pre-line leading-relaxed font-sans">
+            {humanizeAiText(aiReport)}
+          </div>
+        </div>
+      )}
+
       {result && <RiskDisplay result={result} />}
     </div>
   );
@@ -448,8 +559,13 @@ const EmailAnalyzer = () => {
   const { language } = useI18n();
   const [emailBody, setEmailBody] = useState('');
   const [result, setResult] = useState<any>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiReport, setAiReport] = useState<string | null>(null);
 
-  const analyzeEmail = () => {
+  const analyzeEmail = async () => {
+    if (!emailBody.trim()) return;
+    setIsAnalyzing(true);
+    setAiReport(null);
     const findings = [];
     let risk = 0;
     const body = (emailBody || '').toLowerCase();
@@ -500,18 +616,28 @@ const EmailAnalyzer = () => {
       );
       risk += 30;
     }
-    if (body.includes('cliquez ici') || body.includes('click here') || body.includes('haga clic')) {
-      findings.push(
-        language === 'en'
-          ? 'Coercive call to click without preview'
-          : language === 'es'
-            ? 'Llamado coercitivo al clic'
-            : 'Incitation directive au clic immédiat',
+
+    try {
+      const aiResult = await analyzeSecurityLog(
+        `Analyse cet email/message suspect pour détecter du phishing, du smishing, ou des techniques d'ingénierie sociale : ${emailBody}`,
       );
-      risk += 20;
+      setAiReport(aiResult);
+      if (
+        aiResult &&
+        (aiResult.toLowerCase().includes('critique') ||
+          aiResult.toLowerCase().includes('élevé') ||
+          aiResult.toLowerCase().includes('phishing') ||
+          aiResult.toLowerCase().includes('suspect') ||
+          aiResult.toLowerCase().includes('arnaque'))
+      ) {
+        risk = Math.max(risk, 88);
+      }
+    } catch {
+      // fallback
     }
 
     setResult({ risk: Math.min(risk, 100), findings });
+    setIsAnalyzing(false);
 
     const notifyMsg =
       risk > 50
@@ -537,23 +663,25 @@ const EmailAnalyzer = () => {
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl border-t-4 border-t-emerald-500">
-      <h3 className="text-xl md:text-2xl font-bold mb-2 text-slate-900 dark:text-white uppercase tracking-tight">
-        {language === 'en'
-          ? 'Phishing & Smishing Heuristic Scanner'
-          : language === 'es'
-            ? 'Escáner Heurístico de Phishing'
-            : 'Analyseur Heuristique Phishing & SMS'}
-      </h3>
-      <p className="text-slate-500 dark:text-slate-400 mb-4 text-sm">
-        {language === 'en'
-          ? 'Paste text from a suspicious message, email, or invoice notice.'
-          : language === 'es'
-            ? 'Pega el contenido de un correo o SMS sospechoso.'
-            : 'Collez le texte d’un email ou SMS suspect pour repérer les techniques d’ingénierie sociale.'}
-      </p>
+    <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl border-t-4 border-t-emerald-500 space-y-6">
+      <div>
+        <h3 className="text-xl md:text-2xl font-bold mb-2 text-slate-900 dark:text-white uppercase tracking-tight">
+          {language === 'en'
+            ? 'Phishing & Smishing AI Scanner'
+            : language === 'es'
+              ? 'Escáner de Phishing con IA'
+              : 'Analyseur Phishing & SMS par IA'}
+        </h3>
+        <p className="text-slate-500 dark:text-slate-400 text-sm">
+          {language === 'en'
+            ? 'Analyze suspicious emails, messages, or invoice notices using heuristic rules and Gemini AI.'
+            : language === 'es'
+              ? 'Analiza correos o mensajes sospechosos con reglas heurísticas y Gemini IA.'
+              : 'Analysez les emails et messages suspects par règles heuristiques et intelligence artificielle Gemini.'}
+        </p>
+      </div>
       <textarea
-        className="w-full h-40 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-4 mb-4 outline-none text-slate-800 dark:text-slate-300 text-xs md:text-sm"
+        className="w-full h-40 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-4 outline-none text-slate-800 dark:text-slate-300 text-xs md:text-sm font-mono"
         placeholder={
           language === 'en'
             ? 'Paste suspicious email text here...'
@@ -566,14 +694,45 @@ const EmailAnalyzer = () => {
       />
       <button
         onClick={analyzeEmail}
-        className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-sm shadow-lg uppercase tracking-widest transition-all"
+        disabled={isAnalyzing}
+        className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-sm shadow-lg uppercase tracking-widest transition-all flex items-center justify-center gap-2"
       >
-        {language === 'en'
-          ? 'SCAN EMAIL'
-          : language === 'es'
-            ? 'ESCANEAR MENSAJE'
-            : 'DÉTECTER LES RUSES'}
+        {isAnalyzing ? (
+          <>
+            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <span>
+              {language === 'en'
+                ? 'SCANNING...'
+                : language === 'es'
+                  ? 'ESCANEANDO...'
+                  : 'ANALYSE...'}
+            </span>
+          </>
+        ) : (
+          <span>
+            {language === 'en'
+              ? 'SCAN EMAIL'
+              : language === 'es'
+                ? 'ESCANEAR MENSAJE'
+                : 'DÉTECTER LES RUSES'}
+          </span>
+        )}
       </button>
+
+      {aiReport && (
+        <div className="p-5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-black text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">
+            <span className="inline-flex items-center gap-2">
+              <Bot className="w-4 h-4" aria-hidden="true" />
+              Rapport d’Analyse IA Gemini (SOC)
+            </span>
+          </div>
+          <div className="text-xs text-slate-700 dark:text-slate-200 whitespace-pre-line leading-relaxed font-sans">
+            {humanizeAiText(aiReport)}
+          </div>
+        </div>
+      )}
+
       {result && <RiskDisplay result={result} />}
     </div>
   );
@@ -582,6 +741,8 @@ const EmailAnalyzer = () => {
 const PasswordTester = () => {
   const { language } = useI18n();
   const [password, setPassword] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiFeedback, setAiFeedback] = useState<string | null>(null);
 
   const checkStrength = (pass: string) => {
     let score = 0;
@@ -607,67 +768,79 @@ const PasswordTester = () => {
     'bg-cyan-400',
   ];
 
-  const handleTest = () => {
-    const successMsg =
-      language === 'en'
-        ? 'Robust password!'
-        : language === 'es'
-          ? '¡Contraseña robusta!'
-          : 'Mot de passe robuste !';
-    const warnMsg =
-      language === 'en'
-        ? 'Insufficient password security.'
-        : language === 'es'
-          ? 'Seguridad insuficiente.'
-          : 'Sécurité insuffisante.';
-
-    window.dispatchEvent(
-      new CustomEvent('cyber-notify', {
-        detail: {
-          message: score >= 4 ? successMsg : warnMsg,
-          type: score >= 4 ? 'success' : 'warning',
-        },
-      }),
-    );
+  const auditWithAI = async () => {
+    if (!password.trim()) return;
+    setIsAnalyzing(true);
+    setAiFeedback(null);
+    try {
+      const res = await analyzeSecurityLog(
+        `Analyse la robustesse cryptographique et la résistance aux attaques par dictionnaire de ce mot de passe (fournis des conseils d'amélioration sans répéter le mot de passe en clair) : ${password}`,
+      );
+      setAiFeedback(res);
+    } catch {
+      setAiFeedback('Analyse IA indisponible.');
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
-  useEffect(() => {
-    if (password.length > 5) {
-      const timer = setTimeout(handleTest, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [score]);
-
   return (
-    <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl border-t-4 border-t-yellow-500">
-      <h3 className="text-xl md:text-2xl font-bold mb-2 text-slate-900 dark:text-white uppercase tracking-tight">
-        {language === 'en'
-          ? 'Password Strength & Entropy Analyzer'
-          : language === 'es'
-            ? 'Analizador de Fuerza de Contraseña'
-            : 'Testeur d’Entropie & Force de Mot de Passe'}
-      </h3>
-      <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm">
-        {language === 'en'
-          ? 'Evaluates length, character variety, and resistance against dictionary brute-forcing.'
-          : language === 'es'
-            ? 'Evalúa longitud, variedad de caracteres y resistencia contra ataques de fuerza bruta.'
-            : 'Évaluez la longueur, la diversité de caractères et la résistance aux attaques par dictionnaire.'}
-      </p>
-      <input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder={
-          language === 'en'
-            ? 'Type password to test...'
+    <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl border-t-4 border-t-yellow-500 space-y-6">
+      <div>
+        <h3 className="text-xl md:text-2xl font-bold mb-2 text-slate-900 dark:text-white uppercase tracking-tight">
+          {language === 'en'
+            ? 'Password Strength & AI Entropy Analyzer'
             : language === 'es'
-              ? 'Escribe contraseña para probar...'
-              : 'Saisissez un mot de passe à tester...'
-        }
-        className="w-full bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 outline-none text-lg md:text-xl font-mono text-slate-800 dark:text-white"
-      />
-      <div className="mt-6 md:mt-8 space-y-2 md:space-y-3">
+              ? 'Analizador de Fuerza de Contraseña con IA'
+              : 'Testeur d’Entropie & Force de Mot de Passe par IA'}
+        </h3>
+        <p className="text-slate-500 dark:text-slate-400 text-sm">
+          {language === 'en'
+            ? 'Evaluate length, character variety, and dictionary brute-force resistance using AI.'
+            : language === 'es'
+              ? 'Evalúa longitud y resistencia contra fuerza bruta usando IA.'
+              : 'Évaluez la longueur, la diversité de caractères et la résistance aux attaques par dictionnaire via l’IA Gemini.'}
+        </p>
+      </div>
+      <div className="flex flex-col md:flex-row gap-3">
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder={
+            language === 'en'
+              ? 'Type password to test...'
+              : language === 'es'
+                ? 'Escribe contraseña para probar...'
+                : 'Saisissez un mot de passe à tester...'
+          }
+          className="flex-1 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 outline-none text-lg md:text-xl font-mono text-slate-800 dark:text-white"
+        />
+        <button
+          onClick={auditWithAI}
+          disabled={isAnalyzing || !password.trim()}
+          className="px-8 py-3 bg-yellow-600 hover:bg-yellow-500 text-slate-950 rounded-xl font-black text-sm uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          {isAnalyzing ? (
+            <>
+              <span className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+              <span>
+                {language === 'en'
+                  ? 'AUDITING...'
+                  : language === 'es'
+                    ? 'AUDITANDO...'
+                    : 'AUDIT...'}
+              </span>
+            </>
+          ) : (
+            <span>
+              {language === 'en' ? 'AI AUDIT' : language === 'es' ? 'AUDITORÍA IA' : 'AUDIT PAR IA'}
+            </span>
+          )}
+        </button>
+      </div>
+
+      <div className="space-y-2">
         <div className="flex justify-between text-[10px] md:text-xs font-black uppercase text-slate-500">
           <span>{labels[score]}</span>
           <span>{score * 20}%</span>
@@ -681,6 +854,20 @@ const PasswordTester = () => {
           ))}
         </div>
       </div>
+
+      {aiFeedback && (
+        <div className="p-5 rounded-2xl bg-yellow-50 dark:bg-yellow-950/40 border border-yellow-200 dark:border-yellow-800 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-black text-yellow-800 dark:text-yellow-300 uppercase tracking-wider">
+            <span className="inline-flex items-center gap-2">
+              <Bot className="w-4 h-4" aria-hidden="true" />
+              Audit de Sécurité IA (Entropie & Résistance)
+            </span>
+          </div>
+          <div className="text-xs text-slate-700 dark:text-slate-200 whitespace-pre-line leading-relaxed font-sans">
+            {humanizeAiText(aiFeedback)}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

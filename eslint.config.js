@@ -9,6 +9,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist/**',
+      'dev-dist/**',
       'node_modules/**',
       'data/**',
       'backups/**',
@@ -53,7 +54,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['server/**/*.mjs', 'tests/**/*.mjs'],
+    files: ['server/**/*.mjs', 'tests/**/*.mjs', 'scripts/**/*.mjs'],
     languageOptions: {
       globals: globals.node,
     },

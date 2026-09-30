@@ -1,6 +1,15 @@
-import { CourseModule, NewsArticle, BestPracticeItem } from '../types';
-import { COMPREHENSIVE_COURSE_MODULES } from './coursesData';
-import { ADVANCED_COURSE_MODULES } from './advancedCoursesData';
+import type {
+  CourseModule,
+  Language,
+  NewsArticle,
+  BestPracticeItem,
+  PracticalExercise,
+} from '../types';
+import { COMPREHENSIVE_COURSE_MODULES } from './coursesData.ts';
+import { ADVANCED_COURSE_MODULES } from './advancedCoursesData.ts';
+import { COURSE_TRANSLATIONS_EN } from './courseTranslations.en.ts';
+import { COURSE_TRANSLATIONS_ES } from './courseTranslations.es.ts';
+import { COURSE_EXERCISES_FR } from './courseExercises.fr.ts';
 
 // Le nombre de leçons et la durée totale sont déduits des leçons pour rester toujours cohérents
 export const COURSE_MODULES: CourseModule[] = [
@@ -11,6 +20,51 @@ export const COURSE_MODULES: CourseModule[] = [
   lessonsCount: module.lessons.length,
   duration: `${module.lessons.reduce((total, lesson) => total + (parseInt(lesson.duration, 10) || 0), 0)} min`,
 }));
+
+const localizedModules: Record<Exclude<Language, 'fr'>, CourseModule[]> = {
+  en: COURSE_TRANSLATIONS_EN,
+  es: COURSE_TRANSLATIONS_ES,
+};
+
+const exerciseByLanguage: Record<Language, Record<string, PracticalExercise>> = {
+  fr: COURSE_EXERCISES_FR,
+  en: Object.fromEntries(
+    COURSE_TRANSLATIONS_EN.flatMap((module) =>
+      module.lessons.flatMap((lesson) =>
+        lesson.practicalExercise ? [[lesson.id, lesson.practicalExercise]] : [],
+      ),
+    ),
+  ),
+  es: Object.fromEntries(
+    COURSE_TRANSLATIONS_ES.flatMap((module) =>
+      module.lessons.flatMap((lesson) =>
+        lesson.practicalExercise ? [[lesson.id, lesson.practicalExercise]] : [],
+      ),
+    ),
+  ),
+};
+
+const localizedCourseCache = new Map<Language, CourseModule[]>();
+
+export const getCourseModules = (language: Language): CourseModule[] => {
+  const cached = localizedCourseCache.get(language);
+  if (cached) return cached;
+
+  const source = language === 'fr' ? COURSE_MODULES : localizedModules[language];
+  const canonicalById = new Map(COURSE_MODULES.map((module) => [module.id, module]));
+  const courses = source.map((module) => ({
+    ...canonicalById.get(module.id),
+    ...module,
+    lessonsCount: canonicalById.get(module.id)?.lessonsCount ?? module.lessons.length,
+    duration: canonicalById.get(module.id)?.duration ?? module.duration,
+    lessons: module.lessons.map((lesson) => ({
+      ...lesson,
+      practicalExercise: exerciseByLanguage[language][lesson.id],
+    })),
+  }));
+  localizedCourseCache.set(language, courses);
+  return courses;
+};
 
 export const BEST_PRACTICES: BestPracticeItem[] = [
   {
@@ -99,6 +153,284 @@ export const BEST_PRACTICES: BestPracticeItem[] = [
     ],
   },
 ];
+
+export const NEWS_ARTICLE_TRANSLATIONS: Record<
+  Language,
+  Partial<
+    Record<
+      NewsArticle['id'],
+      Partial<
+        Pick<
+          NewsArticle,
+          | 'title'
+          | 'category'
+          | 'timeAgo'
+          | 'readTime'
+          | 'author'
+          | 'tag'
+          | 'summary'
+          | 'content'
+          | 'keyPoints'
+        >
+      >
+    >
+  >
+> = {
+  fr: {},
+  en: {
+    'article-1': {
+      title: 'How to spot an online scam?',
+      category: 'Tips',
+      summary:
+        'Online scams are becoming increasingly sophisticated. Here are the signs that should immediately raise your alert level.',
+      content: [
+        'Cybercriminals often exploit trust, fear, or the lure of quick gain to push targets into revealing sensitive information or sending money.',
+        'Among the most common techniques are fake tech support, bogus crypto investment opportunities, and false parcel-delivery scams.',
+        'Always take a step back: an extreme time pressure message (“Act now within 15 minutes!”) is a classic red flag for fraud.',
+      ],
+      keyPoints: [
+        'Always verify the sender and their domain',
+        'Beware of offers that seem too good to be true',
+        'Never share sensitive information or 2FA codes',
+        'Use a secure connection (https:// with a lock icon)',
+        'Report any suspicious content to the relevant platform',
+      ],
+      readTime: '5 min read',
+      author: 'CyberSens',
+      tag: '#Awareness',
+    },
+    'article-2': {
+      title: 'Increase in social media scams in Africa',
+      category: 'Threats',
+      summary:
+        'A spike in attacks targeting Mobile Money accounts and social-engineering scams on WhatsApp and Telegram.',
+      content: [
+        'Regional cyber observatories report a surge in messages pretending to offer government aid or instant lottery winnings.',
+        'Attackers push victims to dial malicious USSD codes that automatically transfer funds or hijack access to the SIM card.',
+      ],
+      keyPoints: [
+        'Never dial a USSD code sent by an unknown person',
+        'Protect your Mobile Money secret PIN: no agent will ever ask for it',
+        'Enable the SIM security PIN to reduce account takeover risks',
+      ],
+      readTime: '4 min read',
+      author: 'CyberSens Intelligence Team',
+      tag: '#Africa #MobileMoney',
+    },
+    'article-3': {
+      title: '5 tips to secure your smartphone',
+      category: 'Tips',
+      summary:
+        'Your phone holds most of your digital life. Use these 5 rules to reinforce its defenses.',
+      content: [
+        'From biometric unlocking to built-in hardware encryption, modern smartphones include powerful security features that are often underused.',
+        'Also think about enabling remote location and wipe features in case the phone is lost or stolen.',
+      ],
+      keyPoints: [
+        'Always lock with a strong pattern, 6-digit code, or fingerprint',
+        'Disable Bluetooth and Wi‑Fi when not in use',
+        'Enable encrypted backups for your photos and documents',
+        'Install only verified apps',
+      ],
+      readTime: '3 min read',
+      author: 'CyberSens Lab',
+      tag: '#Smartphones #GoodPractices',
+    },
+    'article-4': {
+      title: 'A new phishing threat detected',
+      category: 'Threats',
+      summary:
+        'Large-scale campaign using forged tax and postal service emails with deceptive lookalike domains.',
+      content: [
+        'Attackers use homoglyph techniques to replace characters such as “o” with “0” or Cyrillic lookalikes to fool distracted users.',
+        'The links lead to nearly identical forms designed to steal bank card numbers.',
+      ],
+      keyPoints: [
+        'Inspect the domain letter by letter',
+        'Never validate an unexpected banking request within an app',
+        'Access official services using your usual bookmarks',
+      ],
+      readTime: '4 min read',
+      author: 'CyberGuard Threat Intelligence',
+      tag: '#Phishing #Alert',
+    },
+    'article-5': {
+      title: 'Global cybersecurity day: why it matters',
+      category: 'Events',
+      summary:
+        'A worldwide mobilization to build a shared culture of cybersecurity and protect younger generations online.',
+      content: [
+        'Cybersecurity has become a civic issue of the first order. With the spread of generative AI and deepfakes, awareness remains our strongest defense.',
+        'CyberSens is committed every day to making these fundamental skills accessible to all.',
+      ],
+      keyPoints: [
+        'Digital education must begin at an early age',
+        'Share good practices with family and coworkers',
+        'Stay curious and informed about new threats',
+      ],
+      readTime: '6 min read',
+      author: 'CyberSens Events',
+      tag: '#Awareness #Community',
+    },
+    'article-6': {
+      title: 'The 10 most common online mistakes',
+      category: 'Tips',
+      summary:
+        '10 small everyday habits that open the door to cybercriminals and how to correct them.',
+      content: [
+        '1. Reusing the same password everywhere.',
+        '2. Clicking links in spam to “unsubscribe.”',
+        '3. Logging onto airport or café Wi‑Fi without precautions.',
+        '4. Leaving a session open on a shared computer.',
+        '5. Ignoring browser security warnings.',
+      ],
+      keyPoints: [
+        'Eliminate repeated risky behaviors',
+        'Create automatic verification reflexes',
+        'Adopt a password manager without waiting',
+      ],
+      readTime: '5 min • Beginner',
+      author: 'CyberSens',
+      tag: '#Recommended #Beginner',
+    },
+  },
+  es: {
+    'article-1': {
+      title: '¿Cómo detectar un fraude en línea?',
+      category: 'Consejos',
+      summary:
+        'Los fraudes en línea se vuelven cada vez más sofisticados. Aquí están las señales que deben alertarte de inmediato.',
+      content: [
+        'Los ciberdelincuentes suelen explotar la confianza, el miedo o el atractivo de una ganancia rápida para empujar a sus víctimas a revelar datos sensibles o transferir dinero.',
+        'Entre las técnicas más comunes están la falsa asistencia técnica, las falsas oportunidades de inversión en criptomonedas y los fraudes con paquetes.',
+        'Tómate siempre un momento para reflexionar: un mensaje con presión extrema (“Actúa en 15 minutos”) es una marca de agua característica de los engaños.',
+      ],
+      keyPoints: [
+        'Verifica siempre al remitente y su dominio',
+        'Desconfía de ofertas demasiado buenas para ser verdad',
+        'Nunca compartas información sensible ni códigos 2FA',
+        'Usa una conexión segura (https:// con candado)',
+        'Denuncia cualquier contenido sospechoso a la plataforma adecuada',
+      ],
+      readTime: '5 min de lectura',
+      author: 'CyberSens',
+      tag: '#Concienciación',
+    },
+    'article-2': {
+      title: 'Aumento de fraudes en redes sociales en África',
+      category: 'Amenazas',
+      summary:
+        'Crecimiento de ataques dirigidos a cuentas de Mobile Money y estafas de ingeniería social en WhatsApp y Telegram.',
+      content: [
+        'Los observatorios regionales de ciberseguridad reportan una subida de mensajes que ofrecen ayudas gubernamentales o premios de lotería instantánea.',
+        'Los atacantes empujan a las víctimas a marcar códigos USSD maliciosos que transfieren dinero o roban el control de la tarjeta SIM.',
+      ],
+      keyPoints: [
+        'Nunca marques ningún código USSD enviado por un desconocido',
+        'Protege tu PIN secreto de Mobile Money: ningún agente te lo pedirá',
+        'Activa el PIN de seguridad de la tarjeta SIM para reducir el robo de cuentas',
+      ],
+      readTime: '4 min de lectura',
+      author: 'Equipo de inteligencia CyberSens',
+      tag: '#África #MobileMoney',
+    },
+    'article-3': {
+      title: '5 consejos para proteger tu smartphone',
+      category: 'Consejos',
+      summary:
+        'Tu teléfono guarda gran parte de tu vida digital. Aplica estas 5 reglas para reforzar su seguridad.',
+      content: [
+        'Desde el desbloqueo biométrico hasta el cifrado de hardware nativo, los smartphones modernos disponen de funciones avanzadas que muchas veces se subutilizan.',
+        'También es importante activar la localización y el borrado remoto por si se pierde o te lo roban.',
+      ],
+      keyPoints: [
+        'Bloquea siempre con un patrón complejo, código de 6 dígitos o huella',
+        'Desactiva Bluetooth y Wi‑Fi cuando no los uses',
+        'Activa copias de seguridad cifradas de fotos y documentos',
+        'Instala únicamente aplicaciones verificadas',
+      ],
+      readTime: '3 min de lectura',
+      author: 'CyberSens Lab',
+      tag: '#Smartphones #BuenasPrácticas',
+    },
+    'article-4': {
+      title: 'Se detecta una nueva amenaza de phishing',
+      category: 'Amenazas',
+      summary:
+        'Una campaña masiva de correos que imitan servicios fiscales y postales con dominios engañosos.',
+      content: [
+        'Los ciberdelincuentes usan técnicas de homógrafos para reemplazar letras con caracteres parecidos y engañar a usuarios distraídos.',
+        'Los enlaces llevan a formularios clones diseñados para robar números de tarjetas bancarias.',
+      ],
+      keyPoints: [
+        'Inspecciona el nombre de dominio letra por letra',
+        'Nunca valides una transacción bancaria inesperada desde la aplicación',
+        'Accede a tus servicios oficiales usando tus favoritos habituales',
+      ],
+      readTime: '4 min de lectura',
+      author: 'Inteligencia de amenazas CyberGuard',
+      tag: '#Phishing #Alerta',
+    },
+    'article-5': {
+      title: 'Día mundial de la ciberseguridad: los retos',
+      category: 'Eventos',
+      summary:
+        'Movilización internacional para una cultura compartida de seguridad y protección de las generaciones jóvenes online.',
+      content: [
+        'La ciberseguridad se ha convertido en un tema ciudadano clave. Frente a la democratización de la IA generativa y los deepfakes, la sensibilización sigue siendo nuestra mejor defensa.',
+        'CyberSens trabaja cada día para democratizar estos conocimientos fundamentales entre toda la comunidad.',
+      ],
+      keyPoints: [
+        'La educación digital debe comenzar desde la infancia',
+        'Comparte las buenas prácticas con tu entorno',
+        'Mantente curioso y informado sobre nuevas amenazas',
+      ],
+      readTime: '6 min de lectura',
+      author: 'CyberSens Eventos',
+      tag: '#Concienciación #Comunidad',
+    },
+    'article-6': {
+      title: 'Los 10 errores más comunes en línea',
+      category: 'Consejos',
+      summary:
+        '10 hábitos cotidianos que sirven de puerta de entrada a los ciberdelincuentes y cómo corregirlos.',
+      content: [
+        '1. Reutilizar la misma contraseña en todos los servicios.',
+        '2. Hacer clic en enlaces de spam para “darse de baja”.',
+        '3. Conectarse al Wi‑Fi de un aeropuerto o café sin precauciones.',
+        '4. Dejar la sesión abierta en un equipo compartido.',
+        '5. Ignorar las advertencias de seguridad del navegador.',
+      ],
+      keyPoints: [
+        'Elimina comportamientos arriesgados repetidos',
+        'Crea reflejos automáticos de verificación',
+        'Adopta un gestor de contraseñas sin esperar',
+      ],
+      readTime: '5 min • Principiante',
+      author: 'CyberSens',
+      tag: '#Recomendado #Principiante',
+    },
+  },
+};
+
+export const getLocalizedNewsArticles = (language: Language): NewsArticle[] =>
+  NEWS_ARTICLES.map((article) => {
+    const localized = NEWS_ARTICLE_TRANSLATIONS[language][article.id] ?? {};
+
+    return {
+      ...article,
+      ...localized,
+      category: localized.category ?? article.category,
+      readTime: localized.readTime ?? article.readTime,
+      timeAgo: localized.timeAgo ?? article.timeAgo,
+      author: localized.author ?? article.author,
+      tag: localized.tag ?? article.tag,
+      summary: localized.summary ?? article.summary,
+      content: localized.content ?? article.content,
+      keyPoints: localized.keyPoints ?? article.keyPoints,
+      title: localized.title ?? article.title,
+    };
+  });
 
 export const NEWS_ARTICLES: NewsArticle[] = [
   {

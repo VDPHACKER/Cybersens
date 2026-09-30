@@ -74,9 +74,9 @@ STYLE & FORMAT :
 - Langue : Réponds systématiquement et fluidement dans la langue demandée par l'utilisateur (${userContext?.includes('lang:en') ? 'English' : userContext?.includes('lang:es') ? 'Español' : 'Français'}).
 - Utilise une structure aérée avec des titres en gras, des listes à puces et des étapes numérotées.
 - Quand une menace est évaluée, indique clairement l'un des badges :
-  🔴 [NIVEAU DE DANGER : ÉLEVÉ / HIGH THREAT]
-  🟡 [NIVEAU DE DANGER : MODÉRÉ / MODERATE]
-  🟢 [NIVEAU DE DANGER : FAIBLE / LOW RISK]
+  [NIVEAU DE DANGER : ÉLEVÉ / HIGH THREAT]
+  [NIVEAU DE DANGER : MODÉRÉ / MODERATE]
+  [NIVEAU DE DANGER : FAIBLE / LOW RISK]
 - Donne toujours :
   1. Diagnostic direct et explication simple du risque
   2. Actions réflexes immédiates (étape par étape) ou code pratique de protection
@@ -87,9 +87,9 @@ CONTEXTE UTILISATEUR : ${userContext || 'Session de sensibilisation'}.`,
     topP: 0.95,
   };
 
+  let receivedAnything = false;
   try {
     const result = await ai.models.generateContentStream({ model, contents, config });
-    let receivedAnything = false;
     for await (const chunk of result) {
       const text = chunk.text;
       if (text) {
@@ -101,6 +101,7 @@ CONTEXTE UTILISATEUR : ${userContext || 'Session de sensibilisation'}.`,
     // Flux vide (ex: coupé immédiatement par le fournisseur) : on retente sans streaming ci-dessous.
     throw new Error('Réponse en streaming vide');
   } catch (streamError) {
+    if (receivedAnything) throw streamError;
     // Le point d'accès de streaming peut être temporairement indisponible côté fournisseur
     // (503/UNAVAILABLE) alors que l'appel non-streaming fonctionne : on bascule dessus
     // plutôt que d'échouer, la réponse arrive alors en un seul bloc au lieu d'un flux.

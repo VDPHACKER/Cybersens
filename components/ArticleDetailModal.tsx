@@ -9,6 +9,7 @@ import {
   Shield,
   Clock,
   Tag,
+  ExternalLink,
 } from 'lucide-react';
 import { isBookmarked, toggleBookmark } from '../services/persistenceService';
 
@@ -107,7 +108,7 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({ article,
 
             <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-xs text-slate-300">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-sky-600 flex items-center justify-center text-white text-[10px] font-bold">
+                <div className="w-6 h-6 rounded-full bg-sky-700 flex items-center justify-center text-white text-[10px] font-bold">
                   CS
                 </div>
                 <span>Par {article.author}</span>
@@ -142,28 +143,45 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({ article,
             ))}
           </div>
 
+          {article.url && (
+            <a
+              href={article.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-700 hover:bg-sky-600 text-white text-xs font-bold transition-all"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Lire l’article complet sur {article.source}
+            </a>
+          )}
+
           {/* Points Clés Section */}
-          <div className="p-5 rounded-2xl bg-slate-800/70 border border-slate-700 space-y-3.5">
-            <div className="flex items-center gap-2 text-white font-bold text-base">
-              <Shield className="w-5 h-5 text-sky-400" />
-              <h3>Points clés</h3>
+          {article.keyPoints.length > 0 && (
+            <div className="p-5 rounded-2xl bg-slate-800/70 border border-slate-700 space-y-3.5">
+              <div className="flex items-center gap-2 text-white font-bold text-base">
+                <Shield className="w-5 h-5 text-sky-400" />
+                <h3>Points clés</h3>
+              </div>
+              <ul className="space-y-2.5">
+                {article.keyPoints.map((point, idx) => (
+                  <li
+                    key={idx}
+                    className="flex items-start gap-3 text-xs sm:text-sm text-slate-200"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                    <span>{point}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <ul className="space-y-2.5">
-              {article.keyPoints.map((point, idx) => (
-                <li key={idx} className="flex items-start gap-3 text-xs sm:text-sm text-slate-200">
-                  <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
-                  <span>{point}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+          )}
         </div>
 
         {/* Modal Footer Action */}
         <div className="p-4 bg-slate-900/90 border-t border-slate-800 flex items-center justify-end">
           <button
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition-all shadow-lg shadow-sky-600/30"
+            className="px-5 py-2.5 rounded-xl bg-sky-700 hover:bg-sky-600 text-white text-xs font-bold transition-all shadow-lg shadow-sky-600/30"
           >
             Fermer
           </button>

@@ -175,144 +175,118 @@ export const DeepfakeTester: React.FC = () => {
           setIsScanning(false);
           addPoints(25);
 
-          // Generate tailored forensic outcome
-          if (mediaType === 'audio') {
+          if (mediaType === 'text') {
+            const lower = textInput.toLowerCase();
+            const dangerKeywords = [
+              'virement',
+              'urgent',
+              'saisie',
+              'bancaire',
+              'fcfa',
+              'euro',
+              'mot de passe',
+              'tribunal',
+              'gagnant',
+              'colis',
+              'bitcoin',
+              'cryptomonnaie',
+              'justice',
+              'amende',
+              'bloqué',
+              'immédiat',
+              'injonction',
+              'patron',
+              'directeur',
+              'paiement',
+            ];
+            const matches = dangerKeywords.filter((k) => lower.includes(k));
+            const isSuspicious = matches.length > 0 || textInput.length > 15;
+            const score = isSuspicious ? Math.min(96, 65 + matches.length * 10) : 15;
+            const level = score > 75 ? 'critique' : score > 40 ? 'suspect' : 'authentique';
+
             setAnalysisResult({
-              score: 94,
-              verdict: 'Deepfake Vocal Hautement Probable (Synthèse Vocale Neuronale)',
-              level: 'critique',
-              confidence: 98.4,
-              spectrogram:
-                'Anomalie spectrale : Coupure brute à 16.2 kHz, absence d’harmoniques laryngées naturelles au-delà du 4e formant.',
+              score,
+              verdict: isSuspicious
+                ? 'Texte ou Message Manipulé par IA (Ingénierie Sociale / Phishing)'
+                : 'Message / Texte Apparemment Authentique et Naturel',
+              level,
+              confidence: isSuspicious ? 95.2 : 90.0,
+              spectrogram: isSuspicious
+                ? 'Perplexité linguistique faible : Régularité statistique caractéristique d’un Grand Modèle de Langage (LLM).'
+                : 'Variabilité sémantique et syntaxique naturelle.',
               flags: [
                 {
-                  name: 'Fréquence fondamentale (F0)',
-                  verdict: 'anomaly',
-                  detail:
-                    'Variabilité de ton anormalement lisse (Jitter < 0.08%, signature typique de RVC/ElevenLabs)',
+                  name: 'Analyse des mots-clés d’urgence',
+                  verdict: isSuspicious ? 'anomaly' : 'clean',
+                  detail: isSuspicious
+                    ? `Indicateurs de pression détectés : ${matches.join(', ') || 'ton pressant'}`
+                    : 'Aucune pression artificielle ou menace détectée',
                 },
                 {
-                  name: 'Artefacts de souffle et de respiration',
-                  verdict: 'anomaly',
-                  detail:
-                    'Aucun bruit d’inhalation détecté sur un enregistrement continu de 24 secondes',
-                },
-                {
-                  name: 'Phase acoustique',
-                  verdict: 'suspicious',
-                  detail:
-                    'Micro-décalages de phase et résonance métallique sur les syllabes fricatives',
-                },
-                {
-                  name: 'Métadonnées audio',
-                  verdict: 'clean',
-                  detail: 'En-tête RIFF/WAV standard sans signature d’éditeur commercial connu',
+                  name: 'Structure syntaxique & ton',
+                  verdict: isSuspicious ? 'suspicious' : 'clean',
+                  detail: isSuspicious
+                    ? 'Formulations impersonnelles et impersonnification de autorité'
+                    : 'Ton conversationnel fluide et cohérent',
                 },
               ],
               defenseSteps: [
-                'Ne jamais valider d’ordre financier sur un appel ou un message vocal isolé.',
-                'Utiliser un canal hors-bande officiel pour rappeler le prétendu émetteur.',
-                'Demander immédiatement le mot de passe d’urgence verbal confidentiel.',
-              ],
-            });
-          } else if (mediaType === 'image') {
-            setAnalysisResult({
-              score: 91,
-              verdict: 'Portrait Synthétique Généré par IA (GAN / Diffusion)',
-              level: 'critique',
-              confidence: 96.2,
-              spectrogram:
-                'Domaine de Fourier (FFT) : Motif de grille périodique haute fréquence caractéristique d’un sur-échantillonnage de convolution.',
-              flags: [
-                {
-                  name: 'Symétrie cornéenne des pupilles',
-                  verdict: 'anomaly',
-                  detail: 'Forme de l’iris gauche asymétrique par rapport à l’iris droit',
-                },
-                {
-                  name: 'Dents et sillon gingival',
-                  verdict: 'anomaly',
-                  detail: 'Fusion anormale des incisives et texture dentaire trop uniforme',
-                },
-                {
-                  name: 'Artefacts de contour capillaire',
-                  verdict: 'suspicious',
-                  detail:
-                    'Mèches de cheveux se fondant de façon irréaliste dans l’arrière-plan flou',
-                },
-                {
-                  name: 'Signature de provenance C2PA',
-                  verdict: 'anomaly',
-                  detail: 'Absence de métadonnées cryptographiques de capture authentifiée',
-                },
-              ],
-              defenseSteps: [
-                'Effectuer une recherche d’image inversée (Google Lens, TinEye).',
-                'Exiger un appel vidéo en direct avec des gestes dynamiques (ex: passer la main devant le visage).',
-                'Inspecter les oreilles, bijoux et arrière-plans flous où l’IA commet des erreurs récurrentes.',
-              ],
-            });
-          } else if (mediaType === 'video') {
-            setAnalysisResult({
-              score: 88,
-              verdict: 'Deepfake Vidéo / Face-Swap Détecté',
-              level: 'critique',
-              confidence: 93.7,
-              spectrogram:
-                'Analyse temporelle : Instabilité de bordure (Boundary Warping) et micro-saccades sur la zone labiale.',
-              flags: [
-                {
-                  name: 'Taux de clignement d’yeux',
-                  verdict: 'anomaly',
-                  detail: 'Seulement 2 clignements par minute (norme humaine : 15 à 20)',
-                },
-                {
-                  name: 'Alignement lèvres/audio',
-                  verdict: 'anomaly',
-                  detail: 'Décalage moyen de 90 ms entre les phonèmes et les visèmes',
-                },
-                {
-                  name: 'Continuité de texture cutanée',
-                  verdict: 'suspicious',
-                  detail: 'Zone du visage trop lisse comparativement au grain du cou et du torse',
-                },
-              ],
-              defenseSteps: [
-                'Demander à l’interlocuteur de tourner brusquement la tête à 90 degrés (casse les modèles de Face-Swap 2D).',
-                'Lui faire passer les doigts lentement devant sa bouche pour observer les distorsions visuelles.',
-                'Refuser toute action critique sans confirmation écrite signée numériquement.',
+                'Ne jamais céder à l’urgence artificielle ou aux demandes de fonds par message.',
+                'Vérifier l’authenticité en contactant directement l’expéditeur par un canal officiel.',
               ],
             });
           } else {
+            const nameLower = (uploadedFileName || 'echantillon').toLowerCase();
+            const isExplicitlyClean =
+              nameLower.includes('real') ||
+              nameLower.includes('clean') ||
+              nameLower.includes('authentique') ||
+              nameLower.includes('original');
+
+            let score = 93;
+            if (isExplicitlyClean) score = 14;
+
+            const isDeepfake = score > 50;
+            const level = score > 75 ? 'critique' : score > 40 ? 'suspect' : 'authentique';
+
             setAnalysisResult({
-              score: 85,
-              verdict: 'Texte Généré par LLM pour Ingénierie Sociale',
-              level: 'suspect',
-              confidence: 91.0,
-              spectrogram:
-                'Perplexité linguistique faible : Régularité statistique extrême des n-grammes textuels.',
+              score,
+              verdict: isDeepfake
+                ? mediaType === 'audio'
+                  ? 'Deepfake Vocal Hautement Probable (Clonage Neuronal RVC)'
+                  : mediaType === 'image'
+                    ? 'Portrait Synthétique Généré par IA (GAN / Diffusion)'
+                    : 'Deepfake Vidéo / Face-Swap Détecté'
+                : 'Média Apparemment Authentique et Non Manipulé',
+              level,
+              confidence: isDeepfake ? 97.1 : 92.4,
+              spectrogram: isDeepfake
+                ? 'Anomalie spectrale ou spatiale détectée sur le fichier soumis.'
+                : 'Spectrogramme et métadonnées conformes à une capture naturelle.',
               flags: [
                 {
-                  name: 'Perplexité & Burstiness',
-                  verdict: 'anomaly',
-                  detail: 'Longueur et structure des phrases excessivement uniformes',
+                  name:
+                    mediaType === 'audio'
+                      ? 'Fréquence fondamentale & Jitter'
+                      : mediaType === 'image'
+                        ? 'Symétrie cornéenne & pupilles'
+                        : 'Fréquence de clignement & visèmes',
+                  verdict: isDeepfake ? 'anomaly' : 'clean',
+                  detail: isDeepfake
+                    ? `Fichier "${uploadedFileName}" : signature caractéristique d’une génération artificielle.`
+                    : 'Paramètre biologique naturel et cohérent.',
                 },
                 {
-                  name: 'Levier psychologique',
-                  verdict: 'anomaly',
-                  detail: 'Combinaison forte de panique juridique et d’urgence artificielle',
-                },
-                {
-                  name: 'Spécificité contextuelle',
-                  verdict: 'suspicious',
-                  detail:
-                    'Usage de termes vagues sans mention de dates ou d’identifiants vérifiables',
+                  name: 'Analyse des artefacts de compression',
+                  verdict: isDeepfake ? 'suspicious' : 'clean',
+                  detail: isDeepfake
+                    ? 'Présence d’artefacts de sur-lissage et de discontinuité spectrale.'
+                    : 'Aucun artefact de manipulation numérique détecté.',
                 },
               ],
               defenseSteps: [
-                'Ne cliquer sur aucun lien et ne pas ouvrir la pièce jointe.',
-                'Vérifier l’en-tête de courriel complet (SPF, DKIM, DMARC) pour détecter une usurpation d’expéditeur.',
-                'Transférer le message au service de sécurité ou le signaler sur CyberSens.',
+                'Toujours recouper l’information par un second canal de confiance.',
+                'Exiger une confirmation physique ou un mot de passe verbal secret.',
               ],
             });
           }
@@ -366,7 +340,7 @@ export const DeepfakeTester: React.FC = () => {
           </div>
 
           <div className="flex sm:flex-col items-center sm:items-end gap-2 shrink-0">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Précision du Moteur
             </span>
             <div className="px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-black">
@@ -381,7 +355,7 @@ export const DeepfakeTester: React.FC = () => {
             onClick={() => setActiveTab('detector')}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               activeTab === 'detector'
-                ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
+                ? 'bg-sky-700 text-white shadow-md shadow-sky-500/30'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -393,7 +367,7 @@ export const DeepfakeTester: React.FC = () => {
             onClick={() => setActiveTab('challenge')}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               activeTab === 'challenge'
-                ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
+                ? 'bg-sky-700 text-white shadow-md shadow-sky-500/30'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -410,7 +384,7 @@ export const DeepfakeTester: React.FC = () => {
             onClick={() => setActiveTab('guide')}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               activeTab === 'guide'
-                ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
+                ? 'bg-sky-700 text-white shadow-md shadow-sky-500/30'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -427,7 +401,7 @@ export const DeepfakeTester: React.FC = () => {
           <div className="lg:col-span-6 space-y-4">
             <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
               <div className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Étape 1 : Choisir le type de flux suspect
                 </span>
                 <div className="grid grid-cols-4 gap-2">
@@ -495,14 +469,14 @@ export const DeepfakeTester: React.FC = () => {
 
               {/* Upload or Input Box */}
               <div className="space-y-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Étape 2 : Charger le fichier ou l'échantillon
                 </span>
 
                 {mediaType !== 'text' ? (
                   <div className="space-y-3">
                     <label className="flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed border-sky-300 dark:border-sky-800 hover:border-sky-500 bg-sky-50/40 dark:bg-sky-950/20 cursor-pointer transition-all text-center group">
-                      <div className="w-12 h-12 rounded-2xl bg-sky-100 dark:bg-sky-900/60 text-sky-600 dark:text-sky-300 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                      <div className="w-12 h-12 rounded-2xl bg-sky-100 dark:bg-sky-900/60 text-sky-700 dark:text-sky-300 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
                         <Upload className="w-6 h-6" />
                       </div>
                       <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
@@ -553,7 +527,7 @@ export const DeepfakeTester: React.FC = () => {
                             );
                           }
                         }}
-                        className="text-sky-600 dark:text-sky-400 font-bold hover:underline"
+                        className="text-sky-700 dark:text-sky-400 font-bold hover:underline"
                       >
                         Charger un cas d'école
                       </button>
@@ -570,7 +544,7 @@ export const DeepfakeTester: React.FC = () => {
                     />
                     <button
                       onClick={() => setTextInput(DEEPFAKE_SAMPLES[3].textContent || '')}
-                      className="text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:underline"
+                      className="text-[11px] font-bold text-sky-700 dark:text-sky-400 hover:underline"
                     >
                       Insérer un modèle d'arnaque judiciaire généré par LLM
                     </button>
@@ -582,7 +556,7 @@ export const DeepfakeTester: React.FC = () => {
               <button
                 disabled={isScanning}
                 onClick={handleRunAnalysis}
-                className="w-full py-3.5 rounded-2xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-extrabold text-xs shadow-lg shadow-sky-600/30 transition-all flex items-center justify-center gap-2"
+                className="w-full py-3.5 rounded-2xl bg-sky-700 hover:bg-sky-600 disabled:opacity-50 text-white font-extrabold text-xs shadow-lg shadow-sky-600/30 transition-all flex items-center justify-center gap-2"
               >
                 {isScanning ? (
                   <>
@@ -616,16 +590,18 @@ export const DeepfakeTester: React.FC = () => {
                   </div>
 
                   <div className="text-right">
-                    <div className="text-2xl sm:text-3xl font-black text-rose-600 dark:text-rose-400">
+                    <div className="text-2xl sm:text-3xl font-black text-rose-700 dark:text-rose-400">
                       {analysisResult.score}%
                     </div>
-                    <span className="text-[10px] text-slate-400">Probabilité d'IA</span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Probabilité d'IA
+                    </span>
                   </div>
                 </div>
 
                 {/* Spectrogram / Technical Signal Note */}
                 <div className="p-3.5 rounded-2xl bg-slate-900 text-sky-400 font-mono text-xs space-y-1 border border-sky-950">
-                  <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-bold">
                     Signature Spectrale / Latente
                   </div>
                   <p className="text-[11px] leading-relaxed text-slate-300">
@@ -645,7 +621,7 @@ export const DeepfakeTester: React.FC = () => {
                         className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-start gap-2.5 text-xs"
                       >
                         {flag.verdict === 'anomaly' ? (
-                          <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                          <ShieldAlert className="w-4 h-4 text-rose-700 shrink-0 mt-0.5" />
                         ) : (
                           <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                         )}
@@ -677,7 +653,7 @@ export const DeepfakeTester: React.FC = () => {
               </div>
             ) : (
               <div className="p-10 rounded-3xl bg-slate-50 dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-800 text-center space-y-3 flex flex-col items-center justify-center min-h-[350px]">
-                <div className="w-14 h-14 rounded-2xl bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+                <div className="w-14 h-14 rounded-2xl bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400 flex items-center justify-center">
                   <Activity className="w-7 h-7" />
                 </div>
                 <div className="space-y-1 max-w-sm">
@@ -700,7 +676,7 @@ export const DeepfakeTester: React.FC = () => {
         <div className="max-w-2xl mx-auto space-y-5">
           <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <span className="text-xs font-bold text-sky-600 dark:text-sky-400">
+              <span className="text-xs font-bold text-sky-700 dark:text-sky-400">
                 Cas d'Étude {currentChallengeIdx + 1} / {DEEPFAKE_SAMPLES.length}
               </span>
               <span className="text-xs font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
@@ -721,7 +697,7 @@ export const DeepfakeTester: React.FC = () => {
             <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center space-y-3">
               {currentChallenge.type === 'audio' && (
                 <div className="w-full space-y-3 text-center">
-                  <div className="w-16 h-16 rounded-full bg-sky-500 text-white flex items-center justify-center mx-auto shadow-md">
+                  <div className="w-16 h-16 rounded-full bg-sky-700 text-white flex items-center justify-center mx-auto shadow-md">
                     <Mic className="w-8 h-8" />
                   </div>
                   <div className="text-xs font-mono text-slate-600 dark:text-slate-300">
@@ -729,7 +705,7 @@ export const DeepfakeTester: React.FC = () => {
                   </div>
                   <button
                     onClick={() => setIsPlayingAudio(!isPlayingAudio)}
-                    className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-2 mx-auto transition-colors"
+                    className="px-4 py-2 rounded-xl bg-sky-700 hover:bg-sky-600 text-white font-bold text-xs flex items-center gap-2 mx-auto transition-colors"
                   >
                     {isPlayingAudio ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                     <span>
@@ -756,7 +732,7 @@ export const DeepfakeTester: React.FC = () => {
                       referrerPolicy="no-referrer"
                     />
                   </div>
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
                     Inspectez attentivement les yeux, oreilles et cheveux.
                   </span>
                 </div>
@@ -814,9 +790,9 @@ export const DeepfakeTester: React.FC = () => {
                   }`}
                 >
                   {userGuess === 'deepfake' ? (
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0" />
                   ) : (
-                    <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+                    <AlertTriangle className="w-5 h-5 text-rose-700 shrink-0" />
                   )}
                   <div>
                     <div className="text-sm font-black">
@@ -842,7 +818,7 @@ export const DeepfakeTester: React.FC = () => {
 
                 <button
                   onClick={handleNextChallenge}
-                  className="w-full py-3 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs shadow-md shadow-sky-600/30 transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3 rounded-2xl bg-sky-700 hover:bg-sky-600 text-white font-extrabold text-xs shadow-md shadow-sky-600/30 transition-all flex items-center justify-center gap-2"
                 >
                   <span>Passer au cas suivant</span>
                   <ArrowRight className="w-4 h-4" />
@@ -857,7 +833,7 @@ export const DeepfakeTester: React.FC = () => {
       {activeTab === 'guide' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm">
-            <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 flex items-center justify-center">
               <Mic className="w-5 h-5" />
             </div>
             <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">
@@ -871,7 +847,7 @@ export const DeepfakeTester: React.FC = () => {
           </div>
 
           <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm">
-            <div className="w-10 h-10 rounded-2xl bg-sky-50 dark:bg-sky-950/40 text-sky-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-2xl bg-sky-50 dark:bg-sky-950/40 text-sky-700 flex items-center justify-center">
               <Eye className="w-5 h-5" />
             </div>
             <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">
@@ -885,7 +861,7 @@ export const DeepfakeTester: React.FC = () => {
           </div>
 
           <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 flex items-center justify-center">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">
@@ -899,7 +875,7 @@ export const DeepfakeTester: React.FC = () => {
           </div>
 
           <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 flex items-center justify-center">
               <Layers className="w-5 h-5" />
             </div>
             <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">

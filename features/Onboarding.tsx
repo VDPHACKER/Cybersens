@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { ArrowRight, BookOpen, Shield, Users, CheckCircle2 } from 'lucide-react';
+import { LanguageSelector, useI18n } from '../services/i18n';
 
 interface OnboardingProps {
   onComplete: () => void;
 }
 
 export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
+  useI18n();
   const [activeSlide, setActiveSlide] = useState(0);
 
   const slides = [
@@ -34,6 +36,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
 
   return (
     <div className="fixed inset-0 z-[80] bg-slate-950 flex flex-col justify-between p-6 sm:p-10 max-w-md mx-auto min-h-screen text-slate-100 overflow-y-auto">
+      <LanguageSelector className="fixed top-4 right-4 z-[100]" />
       {/* Top Brand Block */}
       <div className="flex flex-col items-center text-center pt-8 sm:pt-12">
         <div className="relative w-28 h-28 sm:w-32 sm:h-32 mb-6 rounded-3xl p-1 bg-slate-950 border border-sky-500/40 shadow-2xl shadow-sky-500/30 flex items-center justify-center animate-float">
@@ -101,7 +104,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
 
         <button
           onClick={onComplete}
-          className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-sm shadow-xl shadow-sky-600/30 active:scale-[0.98] transition-all"
+          className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-sky-700 hover:bg-sky-600 text-white font-extrabold text-sm shadow-xl shadow-sky-600/30 active:scale-[0.98] transition-all"
         >
           <span>Commencer</span>
           <ArrowRight className="w-4 h-4" />

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Shield,
+  ShieldCheck,
   Bot,
   HelpCircle,
   Wrench,
@@ -19,12 +20,19 @@ import {
   BookOpen,
   Newspaper,
   User,
-  ShieldCheck,
+  HeartHandshake,
   Bell,
   LogOut,
   LogIn,
   Camera,
   ChevronDown,
+  Terminal,
+  Trophy,
+  Users,
+  Search,
+  Ellipsis,
+  ArrowRight,
+  type LucideIcon,
 } from 'lucide-react';
 import { AppTab, UserPreferences } from '../types';
 import { audioService } from '../services/audioService';
@@ -32,11 +40,15 @@ import { useI18n, LanguageSelector } from '../services/i18n';
 import { getPreferences, logoutLearnerAccount } from '../services/persistenceService';
 import { PWAInstallButton } from './PWAInstallButton';
 import { OfflineIndicator } from './OfflineIndicator';
+import { GlobalSearch } from './GlobalSearch';
+import { DonatePopup } from './DonatePopup';
+import { useL } from './ui';
 
 interface Notification {
   id: number;
   message: string;
   type: 'success' | 'info' | 'warning' | 'error';
+  at: number;
 }
 
 interface LayoutProps {
@@ -47,6 +59,12 @@ interface LayoutProps {
   onToggleTheme: () => void;
 }
 
+interface NavItem {
+  id: AppTab;
+  label: string;
+  icon: LucideIcon;
+}
+
 const Layout: React.FC<LayoutProps> = ({
   activeTab,
   setActiveTab,
@@ -55,542 +73,646 @@ const Layout: React.FC<LayoutProps> = ({
   onToggleTheme,
 }) => {
   const { t } = useI18n();
+  const L = useL();
   const [isMusicOn, setIsMusicOn] = useState(false);
-  const [volume, setVolume] = useState(0.5);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [toasts, setToasts] = useState<Notification[]>([]);
+  const [history, setHistory] = useState<Notification[]>([]);
+  const [unread, setUnread] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [prefs, setPrefs] = useState<UserPreferences>(getPreferences());
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showLabsMenu, setShowLabsMenu] = useState(false);
-
-  // Sync preferences (user name, avatar, auth status, theme)
-  useEffect(() => {
-    const handlePrefsSync = () => {
-      setPrefs(getPreferences());
-    };
-    window.addEventListener('cybersens-prefs-changed', handlePrefsSync);
-    return () => window.removeEventListener('cybersens-prefs-changed', handlePrefsSync);
-  }, []);
-
-  // Primary tabs with Outils Sécu fully restored and Pratiques placed before Profil
-  const primaryTabs = [
-    { id: AppTab.HOME, label: t('nav.home', 'Accueil'), icon: House },
-    { id: AppTab.LEARN, label: t('nav.learn', 'Apprendre'), icon: BookOpen },
-    { id: AppTab.TOOLS, label: t('nav.tools', 'Outils Sécu'), icon: Wrench },
-    { id: AppTab.QUIZ, label: t('nav.quiz', 'Quiz'), icon: HelpCircle },
-    { id: AppTab.NEWS, label: t('nav.news', 'Actualités'), icon: Newspaper },
-    { id: AppTab.PRACTICES, label: t('nav.practices', 'Pratiques'), icon: ShieldCheck },
-    { id: AppTab.PROFILE, label: t('nav.profile', 'Profil'), icon: User },
-  ];
-
-  // Secondary tabs for desktop and labs access
-  const secondaryTabs = [
-    { id: AppTab.AI_CHAT, label: t('nav.ai_chat', 'CyberGuard IA'), icon: Bot },
-    { id: AppTab.CTF, label: t('nav.ctf', 'Arène CTF'), icon: Flag },
-    { id: AppTab.GAMES, label: t('nav.games', 'Jeux Menaces'), icon: Gamepad2 },
-  ];
+  const [showMore, setShowMore] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
 
   const isDark = theme === 'dark';
 
-  // Global notification listener
   useEffect(() => {
-    const handleNotify = (e: any) => {
-      const { message, type = 'info' } = e.detail;
-      const id = Date.now();
-      setNotifications((prev) => [...prev, { id, message, type }]);
-
-      setTimeout(() => {
-        setNotifications((prev) => prev.filter((n) => n.id !== id));
-      }, 4000);
-    };
-
-    window.addEventListener('cyber-notify' as any, handleNotify);
-    return () => window.removeEventListener('cyber-notify' as any, handleNotify);
+    const sync = () => setPrefs(getPreferences());
+    window.addEventListener('cybersens-prefs-changed', sync);
+    return () => window.removeEventListener('cybersens-prefs-changed', sync);
   }, []);
 
+  // Notifications : toast éphémère + historique consultable via la cloche
+  useEffect(() => {
+    const onNotify = (e: Event) => {
+      const { message, type = 'info' } = (e as CustomEvent).detail;
+      const n: Notification = { id: Date.now() + Math.random(), message, type, at: Date.now() };
+      setToasts((prev) => [...prev, n]);
+      setHistory((prev) => [n, ...prev].slice(0, 30));
+      setUnread(true);
+      setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== n.id)), 4000);
+    };
+    window.addEventListener('cyber-notify', onNotify);
+    return () => window.removeEventListener('cyber-notify', onNotify);
+  }, []);
+
+  const go = useCallback(
+    (tab: AppTab) => {
+      setActiveTab(tab);
+      setShowMore(false);
+      setShowUserMenu(false);
+      setShowMobileSearch(false);
+      window.scrollTo({ top: 0 });
+    },
+    [setActiveTab],
+  );
+
+  const mainNav: NavItem[] = [
+    {
+      id: AppTab.HOME,
+      label: t('nav.dashboard', L('Tableau de bord', 'Dashboard', 'Panel')),
+      icon: House,
+    },
+    {
+      id: AppTab.LEARN,
+      label: t('nav.courses', L('Formations', 'Courses', 'Formaciones')),
+      icon: BookOpen,
+    },
+    { id: AppTab.QUIZ, label: 'Quiz', icon: HelpCircle },
+    { id: AppTab.CTF, label: t('nav.ctf', L('Arène CTF', 'CTF Arena', 'Arena CTF')), icon: Flag },
+    {
+      id: AppTab.GAMES,
+      label: t('nav.minigames', L('Mini-jeux', 'Mini-games', 'Minijuegos')),
+      icon: Gamepad2,
+    },
+    {
+      id: AppTab.TOOLS,
+      label: t(
+        'nav.security_tools',
+        L('Outils de sécurité', 'Security tools', 'Herramientas de seguridad'),
+      ),
+      icon: Wrench,
+    },
+    {
+      id: AppTab.AI_CHAT,
+      label: t('nav.ai_assistant', L('Assistant IA', 'AI assistant', 'Asistente IA')),
+      icon: Bot,
+    },
+    { id: AppTab.NEWS, label: t('nav.news', L('Actualités', 'News', 'Noticias')), icon: Newspaper },
+    {
+      id: AppTab.LEADERBOARD,
+      label: L('Classements', 'Leaderboard', 'Clasificaciones'),
+      icon: Trophy,
+    },
+    { id: AppTab.COMMUNITY, label: L('Communauté', 'Community', 'Comunidad'), icon: Users },
+  ];
+
+  const moreNav: NavItem[] = [
+    { id: AppTab.PROFILE, label: L('Mon profil', 'My profile', 'Mi perfil'), icon: User },
+    {
+      id: AppTab.PRACTICES,
+      label: L('Bonnes pratiques', 'Best practices', 'Buenas prácticas'),
+      icon: ShieldCheck,
+    },
+    {
+      id: AppTab.DONATE,
+      label: L('Faire un don', 'Donate', 'Hacer una donación'),
+      icon: HeartHandshake,
+    },
+    { id: AppTab.ABOUT, label: L('À propos', 'About', 'Acerca de'), icon: Info },
+    ...(prefs.isAdmin ? [{ id: AppTab.DEVOPS, label: 'DevOps', icon: Terminal }] : []),
+  ];
+
+  // Barre du bas (mobile / PWA) : les 5 destinations principales + « Plus »
+  const bottomNav: NavItem[] = [
+    { id: AppTab.HOME, label: L('Accueil', 'Home', 'Inicio'), icon: House },
+    { id: AppTab.LEARN, label: L('Formations', 'Courses', 'Cursos'), icon: BookOpen },
+    { id: AppTab.CTF, label: 'CTF', icon: Flag },
+    { id: AppTab.TOOLS, label: L('Outils', 'Tools', 'Útiles'), icon: Wrench },
+    { id: AppTab.PROFILE, label: L('Profil', 'Profile', 'Perfil'), icon: User },
+  ];
+  const sheetNav = [
+    ...mainNav.filter((n) => ![AppTab.HOME, AppTab.LEARN, AppTab.CTF, AppTab.TOOLS].includes(n.id)),
+    ...moreNav.filter((n) => n.id !== AppTab.PROFILE),
+  ];
+  const moreActive = sheetNav.some((n) => n.id === activeTab);
+
   const handleToggleMusic = () => {
-    const newState = !isMusicOn;
-    setIsMusicOn(newState);
-    audioService.toggleBackgroundMusic(newState);
-    if (newState) {
-      audioService.setBackgroundVolume(volume);
-    }
+    const next = !isMusicOn;
+    setIsMusicOn(next);
+    audioService.toggleBackgroundMusic(next);
+    if (next) audioService.setBackgroundVolume(0.5);
   };
 
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVol = parseFloat(e.target.value);
-    setVolume(newVol);
-    audioService.setBackgroundVolume(newVol);
+  const fallbackAvatar =
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
+  const firstName = prefs.isAuthenticated
+    ? prefs.userName.split(' ')[0]
+    : t('header.guest_badge', L('Invité', 'Guest', 'Invitado'));
+
+  const ring =
+    'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-light focus-visible:ring-offset-2 focus-visible:ring-offset-transparent';
+  const iconBtn = `relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 hover:text-brand dark:border-white/10 dark:bg-ink-800/80 dark:text-slate-300 dark:hover:bg-ink-700 dark:hover:text-white ${ring}`;
+
+  const Logo = ({ compact = false }: { compact?: boolean }) => (
+    <button
+      onClick={() => go(AppTab.HOME)}
+      className={`flex items-center gap-3 text-left ${ring} rounded-xl`}
+      aria-label="CyberSens"
+    >
+      <img src="/favicon.svg" alt="" className={compact ? 'h-9 w-9' : 'h-11 w-11'} />
+      <span>
+        <span
+          className={`block font-black leading-tight text-slate-900 dark:text-white ${compact ? 'text-lg' : 'text-xl'}`}
+        >
+          Cyber<span className="text-brand-light">Sens</span>
+        </span>
+        {!compact && (
+          <span className="block text-[10px] font-medium text-slate-500 dark:text-slate-400">
+            {L(
+              'Apprendre • Pratiquer • Se protéger',
+              'Learn • Practice • Protect',
+              'Aprender • Practicar • Protegerse',
+            )}
+          </span>
+        )}
+      </span>
+    </button>
+  );
+
+  const SideLink: React.FC<{ item: NavItem; small?: boolean }> = ({ item, small }) => {
+    const Icon = item.icon;
+    const active = activeTab === item.id;
+    return (
+      <button
+        onClick={() => go(item.id)}
+        aria-current={active ? 'page' : undefined}
+        className={`flex w-full items-center gap-3 rounded-xl px-3.5 ${small ? 'py-2 text-xs' : 'py-2.5 text-sm'} text-left font-semibold transition-all ${ring} ${
+          active
+            ? 'bg-brand text-white shadow-glow'
+            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-white'
+        }`}
+      >
+        <Icon className={small ? 'h-4 w-4' : 'h-5 w-5'} aria-hidden="true" />
+        <span className="truncate">{item.label}</span>
+      </button>
+    );
   };
 
   return (
-    <div
-      className={`min-h-screen flex flex-col transition-colors duration-300 ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}
-    >
-      {/* Offline Status Indicator */}
+    <div className="min-h-screen bg-slate-50 text-slate-900 transition-colors duration-300 dark:bg-ink-950 dark:text-slate-100 dark:[background-image:radial-gradient(60rem_40rem_at_100%_-10%,rgba(37,99,235,0.18),transparent),radial-gradient(50rem_30rem_at_-10%_110%,rgba(124,58,237,0.14),transparent)]">
+      <a
+        href="#contenu"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[300] focus:rounded-lg focus:bg-brand focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-white"
+      >
+        {L('Aller au contenu', 'Skip to content', 'Ir al contenido')}
+      </a>
       <OfflineIndicator />
 
-      {/* Floating Notifications */}
-      <div className="fixed top-20 left-0 right-0 z-[200] pointer-events-none flex flex-col items-center gap-2 px-4">
-        {notifications.map((n) => (
+      {/* Toasts */}
+      <div
+        className="pointer-events-none fixed left-0 right-0 top-20 z-[200] flex flex-col items-center gap-2 px-4"
+        aria-live="polite"
+      >
+        {toasts.map((n) => (
           <div
             key={n.id}
-            className={`pointer-events-auto animate-in slide-in-from-top-4 duration-300 max-w-md w-full p-4 rounded-2xl border backdrop-blur-2xl shadow-2xl flex items-center gap-3.5 ${
+            className={`pointer-events-auto flex w-full max-w-md items-center gap-3.5 rounded-2xl border p-4 shadow-2xl backdrop-blur-2xl animate-in slide-in-from-top-4 duration-300 ${
               n.type === 'success'
-                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
+                ? 'border-emerald-500/40 bg-emerald-950/90 text-emerald-200'
                 : n.type === 'warning'
-                  ? 'bg-amber-500/10 border-amber-500/40 text-amber-300'
+                  ? 'border-amber-500/40 bg-amber-950/90 text-amber-200'
                   : n.type === 'error'
-                    ? 'bg-red-500/10 border-red-500/40 text-red-300'
-                    : 'bg-sky-500/10 border-sky-500/40 text-sky-300'
+                    ? 'border-red-500/40 bg-red-950/90 text-red-200'
+                    : 'border-sky-500/40 bg-ink-800/95 text-sky-100'
             }`}
+            role="status"
           >
             <div className="shrink-0">
               {n.type === 'success' ? (
-                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                <CheckCircle2 className="h-5 w-5 text-emerald-400" />
               ) : n.type === 'warning' ? (
-                <AlertTriangle className="w-5 h-5 text-amber-400" />
+                <AlertTriangle className="h-5 w-5 text-amber-400" />
               ) : n.type === 'error' ? (
-                <AlertOctagon className="w-5 h-5 text-red-400" />
+                <AlertOctagon className="h-5 w-5 text-red-400" />
               ) : (
-                <Shield className="w-5 h-5 text-sky-400" />
+                <Shield className="h-5 w-5 text-sky-400" />
               )}
             </div>
-            <div className="flex-1 text-xs md:text-sm font-semibold leading-snug">{n.message}</div>
+            <div className="flex-1 text-xs font-semibold leading-snug md:text-sm">{n.message}</div>
             <button
-              onClick={() => setNotifications((prev) => prev.filter((notif) => notif.id !== n.id))}
-              className="text-white/40 hover:text-white p-1"
+              onClick={() => setToasts((prev) => prev.filter((x) => x.id !== n.id))}
+              aria-label={L('Fermer', 'Close', 'Cerrar')}
+              className="rounded p-1 text-white/50 hover:text-white"
             >
-              <X className="w-4 h-4" />
+              <X className="h-4 w-4" />
             </button>
           </div>
         ))}
       </div>
 
-      {/* Global Header */}
-      <header
-        className={`sticky top-0 z-50 backdrop-blur-md border-b px-4 py-2.5 md:py-3 transition-colors ${
-          isDark
-            ? 'bg-slate-950/85 border-slate-800/80 text-white'
-            : 'bg-white/95 border-slate-200/90 shadow-sm text-slate-900'
-        }`}
-      >
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          {/* Brand matching CyberSens */}
-          <div
-            className="flex items-center gap-2.5 cursor-pointer group select-none"
-            onClick={() => setActiveTab(AppTab.HOME)}
+      {/* Barre latérale (bureau) */}
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-slate-200 bg-white px-4 py-5 dark:border-white/5 dark:bg-ink-900 lg:flex">
+        <div className="px-1.5 pb-5">
+          <Logo />
+        </div>
+        <nav
+          className="flex-1 space-y-1 overflow-y-auto pr-1"
+          aria-label={L('Navigation principale', 'Main navigation', 'Navegación principal')}
+        >
+          {mainNav.map((item) => (
+            <SideLink key={item.id} item={item} />
+          ))}
+          <div className="my-3 border-t border-slate-200 dark:border-white/10" />
+          {moreNav.map((item) => (
+            <SideLink key={item.id} item={item} small />
+          ))}
+        </nav>
+        <div className="mt-4 rounded-2xl border border-violet-500/30 [@media(max-height:800px)]:hidden bg-gradient-to-br from-violet-600/30 via-ink-800 to-ink-900 p-4 text-center">
+          <Trophy className="mx-auto h-10 w-10 text-gold" aria-hidden="true" />
+          <p className="mt-2 text-sm font-black text-white">
+            {L('Relève le défi !', 'Take the challenge!', '¡Acepta el reto!')}
+          </p>
+          <p className="mt-1 text-[11px] leading-snug text-slate-300">
+            {L(
+              'Relève des quiz chronométrés et grimpe dans le classement.',
+              'Take timed quizzes and climb the leaderboard.',
+              'Juega quizzes cronometrados y sube en la clasificación.',
+            )}
+          </p>
+          <button
+            onClick={() => go(AppTab.QUIZ)}
+            className={`mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-brand-light ${ring}`}
           >
-            <div className="relative w-9 h-9 md:w-10 md:h-10 rounded-2xl overflow-hidden shadow-md shadow-sky-600/20 transition-all group-hover:scale-105 border border-sky-500/30 bg-slate-950 flex items-center justify-center p-1">
-              <img
-                src="/favicon.svg"
-                alt="CyberSens Emblem"
-                className="w-full h-full object-contain"
-                referrerPolicy="no-referrer"
-              />
+            {L('Jouer maintenant', 'Play now', 'Jugar ahora')}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      </aside>
+
+      <div className="flex min-h-screen flex-col lg:pl-64">
+        {/* Barre du haut */}
+        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/85 px-4 py-3 backdrop-blur-md dark:border-white/5 dark:bg-ink-950/80 md:px-6">
+          <div className="flex items-center gap-3">
+            <div className="lg:hidden">
+              <Logo compact />
             </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span
-                  className={`text-lg md:text-xl font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}
-                >
-                  Cyber<span className="text-sky-600 dark:text-sky-400">Sens</span>
-                </span>
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-500/20 uppercase tracking-wider hidden sm:inline-block">
-                  PWA
-                </span>
-              </div>
-              <p
-                className={`text-[10px] hidden sm:block -mt-0.5 font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}
+            <div className="hidden max-w-xl flex-1 lg:block">
+              <GlobalSearch onNavigate={go} />
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={() => setShowMobileSearch((v) => !v)}
+                className={`${iconBtn} lg:hidden`}
+                aria-label={L('Rechercher', 'Search', 'Buscar')}
+                aria-expanded={showMobileSearch}
               >
-                Sensibiliser • Protéger • Agir
-              </p>
+                <Search className="h-[18px] w-[18px]" aria-hidden="true" />
+              </button>
+              <div className="hidden sm:block">
+                <PWAInstallButton variant="header" />
+              </div>
+              <button
+                onClick={() => {
+                  setShowNotifications(true);
+                  setUnread(false);
+                }}
+                className={iconBtn}
+                aria-label={L('Notifications', 'Notifications', 'Notificaciones')}
+              >
+                <Bell className="h-[18px] w-[18px]" aria-hidden="true" />
+                {unread && (
+                  <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full border-2 border-white bg-rose-500 dark:border-ink-800" />
+                )}
+              </button>
+              <button
+                onClick={handleToggleMusic}
+                className={`${iconBtn} hidden sm:flex ${isMusicOn ? 'text-brand dark:text-brand-light' : ''}`}
+                aria-label={
+                  isMusicOn
+                    ? L('Couper l’ambiance sonore', 'Mute ambient sound', 'Silenciar ambiente')
+                    : L('Activer l’ambiance sonore', 'Enable ambient sound', 'Activar ambiente')
+                }
+                aria-pressed={isMusicOn}
+              >
+                {isMusicOn ? (
+                  <Volume2 className="h-[18px] w-[18px]" />
+                ) : (
+                  <VolumeX className="h-[18px] w-[18px]" />
+                )}
+              </button>
+              <button
+                onClick={onToggleTheme}
+                className={`${iconBtn} hidden sm:flex`}
+                aria-label={
+                  isDark
+                    ? L('Passer en mode clair', 'Switch to light mode', 'Modo claro')
+                    : L('Passer en mode sombre', 'Switch to dark mode', 'Modo oscuro')
+                }
+              >
+                {isDark ? (
+                  <Sun className="h-[18px] w-[18px] text-amber-400" />
+                ) : (
+                  <Moon className="h-[18px] w-[18px]" />
+                )}
+              </button>
+              <div className="hidden sm:block">
+                <LanguageSelector />
+              </div>
+
+              {/* Profil */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowUserMenu((v) => !v)}
+                  aria-expanded={showUserMenu}
+                  aria-haspopup="menu"
+                  className={`flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white py-1 pl-1 pr-2 transition-colors hover:bg-slate-50 dark:border-white/10 dark:bg-ink-800/80 dark:hover:bg-ink-700 sm:pr-3 ${ring}`}
+                >
+                  <img
+                    src={prefs.userAvatar || fallbackAvatar}
+                    alt=""
+                    className="h-8 w-8 rounded-lg object-cover"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = fallbackAvatar;
+                    }}
+                  />
+                  <span className="hidden text-left sm:block">
+                    <span className="block max-w-[110px] truncate text-xs font-black leading-tight">
+                      {prefs.isAuthenticated ? prefs.userName : firstName}
+                    </span>
+                    <span className="block text-[10px] font-medium leading-tight text-slate-500 dark:text-slate-400">
+                      {prefs.isAuthenticated
+                        ? `${L('Niveau', 'Level', 'Nivel')} ${prefs.level ?? 1}`
+                        : L('Non connecté', 'Signed out', 'Sin conexión')}
+                    </span>
+                  </span>
+                  <ChevronDown
+                    className="hidden h-3.5 w-3.5 text-slate-400 sm:block"
+                    aria-hidden="true"
+                  />
+                </button>
+
+                {showUserMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
+                    <div
+                      role="menu"
+                      className="absolute right-0 z-50 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl animate-in fade-in zoom-in-95 duration-150 dark:border-white/10 dark:bg-ink-800"
+                    >
+                      <div className="border-b border-slate-100 p-3 dark:border-white/5">
+                        <div className="truncate text-sm font-extrabold">
+                          {prefs.isAuthenticated
+                            ? prefs.userName
+                            : L('Mode invité', 'Guest mode', 'Modo invitado')}
+                        </div>
+                        <div className="truncate text-[11px] text-slate-500 dark:text-slate-400">
+                          {prefs.isAuthenticated
+                            ? prefs.userEmail || prefs.userTitle
+                            : L('Non connecté', 'Signed out', 'Sin conexión')}
+                        </div>
+                      </div>
+                      <div className="space-y-0.5 py-1.5 text-xs font-semibold">
+                        <button
+                          role="menuitem"
+                          onClick={() => go(AppTab.PROFILE)}
+                          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left hover:bg-slate-100 dark:hover:bg-white/5"
+                        >
+                          <User className="h-4 w-4 text-brand" aria-hidden="true" />
+                          {t('header.my_profile', L('Mon profil', 'My profile', 'Mi perfil'))}
+                        </button>
+                        <button
+                          role="menuitem"
+                          onClick={() => {
+                            go(AppTab.PROFILE);
+                            window.dispatchEvent(new CustomEvent('open-avatar-modal'));
+                          }}
+                          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left hover:bg-slate-100 dark:hover:bg-white/5"
+                        >
+                          <Camera className="h-4 w-4 text-violet-500" aria-hidden="true" />
+                          {t(
+                            'header.change_avatar',
+                            L('Changer ma photo', 'Change my photo', 'Cambiar mi foto'),
+                          )}
+                        </button>
+                        <div className="my-1 border-t border-slate-100 dark:border-white/5" />
+                        {prefs.isAuthenticated ? (
+                          <button
+                            role="menuitem"
+                            onClick={() => {
+                              setPrefs(logoutLearnerAccount());
+                              setShowUserMenu(false);
+                              window.dispatchEvent(
+                                new CustomEvent('cyber-notify', {
+                                  detail: {
+                                    message: t(
+                                      'profile.logout_success',
+                                      L('Déconnexion réussie.', 'Signed out.', 'Sesión cerrada.'),
+                                    ),
+                                    type: 'info',
+                                  },
+                                }),
+                              );
+                            }}
+                            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
+                          >
+                            <LogOut className="h-4 w-4" aria-hidden="true" />
+                            {t('header.logout', L('Se déconnecter', 'Sign out', 'Cerrar sesión'))}
+                          </button>
+                        ) : (
+                          <button
+                            role="menuitem"
+                            onClick={() => go(AppTab.PROFILE)}
+                            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-500/10"
+                          >
+                            <LogIn className="h-4 w-4" aria-hidden="true" />
+                            {t(
+                              'header.login',
+                              L(
+                                'Connexion / Inscription',
+                                'Sign in / Sign up',
+                                'Iniciar sesión / Registrarse',
+                              ),
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
+          {showMobileSearch && (
+            <div className="mt-3 lg:hidden">
+              <GlobalSearch onNavigate={go} />
+            </div>
+          )}
+        </header>
 
-          {/* Desktop Navigation — Profil est déjà accessible via le menu avatar, pas besoin de le dupliquer ici.
-              N'apparaît qu'à partir de lg : en dessous, la nav mobile (icônes + libellés courts) prend le relais,
-              plutôt que de comprimer 6 libellés complets dans une largeur insuffisante. */}
-          <nav className="hidden lg:flex items-center gap-1">
-            {primaryTabs
-              .filter((tab) => tab.id !== AppTab.PROFILE)
-              .map((tab) => {
-                const Icon = tab.icon;
-                const active = activeTab === tab.id;
+        <main
+          id="contenu"
+          className="mx-auto w-full max-w-7xl flex-1 p-4 pb-28 md:p-6 lg:p-8 lg:pb-8"
+        >
+          {children}
+        </main>
+      </div>
+
+      {/* Barre d'onglets du bas (mobile / PWA) */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-[100] border-t border-slate-200 bg-white/95 px-1 pt-1 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-ink-900/95 lg:hidden"
+        style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}
+        aria-label={L('Navigation mobile', 'Mobile navigation', 'Navegación móvil')}
+      >
+        <div className="flex items-stretch justify-around">
+          {bottomNav.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => go(tab.id)}
+                aria-current={active ? 'page' : undefined}
+                className={`flex min-h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 transition-colors ${ring} ${
+                  active ? 'text-brand dark:text-brand-light' : 'text-slate-500 dark:text-slate-400'
+                }`}
+              >
+                <Icon className={`h-5 w-5 ${active ? 'stroke-[2.5]' : ''}`} aria-hidden="true" />
+                <span
+                  className={`max-w-full truncate text-[10px] ${active ? 'font-black' : 'font-semibold'}`}
+                >
+                  {tab.label}
+                </span>
+              </button>
+            );
+          })}
+          <button
+            onClick={() => setShowMore(true)}
+            aria-haspopup="dialog"
+            className={`flex min-h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 transition-colors ${ring} ${moreActive ? 'text-brand dark:text-brand-light' : 'text-slate-500 dark:text-slate-400'}`}
+          >
+            <Ellipsis className="h-5 w-5" aria-hidden="true" />
+            <span className={`text-[10px] ${moreActive ? 'font-black' : 'font-semibold'}`}>
+              {L('Plus', 'More', 'Más')}
+            </span>
+          </button>
+        </div>
+      </nav>
+
+      {/* Feuille « Plus » (mobile) */}
+      {showMore && (
+        <div
+          className="fixed inset-0 z-[130] lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label={L('Plus de sections', 'More sections', 'Más secciones')}
+        >
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowMore(false)} />
+          <div className="absolute inset-x-0 bottom-0 max-h-[80vh] overflow-y-auto rounded-t-3xl border-t border-white/10 bg-white p-4 pb-8 shadow-2xl animate-in slide-in-from-bottom-8 dark:bg-ink-900">
+            <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-slate-300 dark:bg-white/20" />
+            <div className="grid grid-cols-3 gap-3">
+              {sheetNav.map((item) => {
+                const Icon = item.icon;
+                const active = activeTab === item.id;
                 return (
                   <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    title={tab.label}
-                    className={`px-2.5 lg:px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    key={item.id}
+                    onClick={() => go(item.id)}
+                    className={`flex flex-col items-center gap-2 rounded-2xl p-3 text-center text-[11px] font-bold transition-colors ${ring} ${
                       active
-                        ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
-                        : `${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-900' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`
+                        ? 'bg-brand text-white'
+                        : 'bg-slate-100 text-slate-700 dark:bg-ink-800 dark:text-slate-200'
                     }`}
                   >
-                    <Icon className="w-4 h-4" />
-                    <span>{tab.label}</span>
+                    <Icon className="h-6 w-6" aria-hidden="true" />
+                    <span className="leading-tight">{item.label}</span>
                   </button>
                 );
               })}
-
-            {/* Desktop Labos & IA Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => setShowLabsMenu(!showLabsMenu)}
-                className={`px-2.5 lg:px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  [AppTab.AI_CHAT, AppTab.CTF, AppTab.GAMES].includes(activeTab)
-                    ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
-                    : isDark
-                      ? 'text-slate-400 hover:text-white hover:bg-slate-900'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`}
-                title="Laboratoires & Défis IA"
-              >
-                <Bot className="w-4 h-4 text-cyan-400" />
-                <span>Labos & IA</span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
-              </button>
-
-              {showLabsMenu && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowLabsMenu(false)} />
-                  <div
-                    className={`absolute right-0 mt-2 w-52 rounded-2xl border shadow-2xl z-50 p-2 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150 ${
-                      isDark
-                        ? 'bg-slate-900/95 border-slate-800 text-slate-200'
-                        : 'bg-white/95 border-slate-200 text-slate-800'
-                    }`}
-                  >
-                    {secondaryTabs.map((tab) => {
-                      const Icon = tab.icon;
-                      const active = activeTab === tab.id;
-                      return (
-                        <button
-                          key={tab.id}
-                          onClick={() => {
-                            setActiveTab(tab.id);
-                            setShowLabsMenu(false);
-                          }}
-                          className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-xs font-bold transition-colors ${
-                            active
-                              ? 'bg-sky-500/10 text-sky-500 dark:text-sky-400'
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                          }`}
-                        >
-                          <Icon className="w-4 h-4 text-sky-500" />
-                          <span>{tab.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
             </div>
-          </nav>
-
-          {/* Action Controls & PWA Install */}
-          <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2">
-            {/* PWA Install Button in Header */}
-            <PWAInstallButton variant="header" />
-
-            {/* Language Selector */}
-            <LanguageSelector />
-
-            {/* Notifications Bell */}
-            <button
-              onClick={() => setShowNotificationsModal(true)}
-              className={`p-1.5 sm:p-2 rounded-xl border transition-colors relative ${
-                isDark
-                  ? 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-400 hover:text-sky-400'
-                  : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600 hover:text-sky-600'
-              }`}
-              title="Alertes & Notifications"
-            >
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-sky-500"></span>
-            </button>
-
-            {/* Ambient Sound */}
-            <button
-              onClick={handleToggleMusic}
-              className={`p-1.5 sm:p-2 rounded-xl border transition-transform active:scale-90 ${
-                isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-slate-50'
-              } ${isMusicOn ? 'text-sky-600 dark:text-sky-400' : 'text-slate-400 hover:text-slate-600'}`}
-              title={isMusicOn ? 'Couper l’ambiance sonore' : 'Activer l’ambiance sonore'}
-            >
-              {isMusicOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-            </button>
-
-            {/* Theme Toggle */}
-            <button
-              onClick={onToggleTheme}
-              className={`p-1.5 sm:p-2 rounded-xl border transition-colors ${
-                isDark
-                  ? 'bg-slate-900 border-slate-800 text-amber-400 hover:bg-slate-800'
-                  : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-              }`}
-              title={isDark ? 'Passer en mode clair' : 'Passer en mode sombre'}
-            >
-              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
-
-            {/* User Account / Quick Logout Menu */}
-            <div className="relative">
+            <div className="mt-4 flex flex-wrap items-center gap-2 sm:hidden">
               <button
-                onClick={() => setShowUserMenu(!showUserMenu)}
-                className={`flex items-center gap-1.5 p-1 sm:px-2.5 sm:py-1 rounded-xl border transition-all ${
-                  isDark
-                    ? 'bg-slate-900 border-slate-800 hover:border-slate-700'
-                    : 'bg-slate-50 border-slate-200 hover:border-slate-300'
-                }`}
-                title={
-                  prefs.isAuthenticated ? `Compte : ${prefs.userName}` : 'Connexion / Inscription'
-                }
+                onClick={onToggleTheme}
+                className={`flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-bold dark:border-white/10 ${ring}`}
               >
-                <div className="relative">
-                  <img
-                    src={
-                      prefs.userAvatar ||
-                      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
-                    }
-                    alt="User Avatar"
-                    className="w-7 h-7 rounded-full object-cover border border-sky-500/40"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src =
-                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
-                    }}
-                  />
-                  <span
-                    className={`absolute bottom-0 right-0 w-2 h-2 rounded-full border border-white dark:border-slate-900 ${
-                      prefs.isAuthenticated ? 'bg-emerald-500' : 'bg-amber-500'
-                    }`}
-                  />
-                </div>
-                <span className="hidden lg:inline text-xs font-bold max-w-[90px] truncate text-slate-800 dark:text-slate-200">
-                  {prefs.isAuthenticated
-                    ? prefs.userName.split(' ')[0]
-                    : t('header.guest_badge', 'Invité')}
-                </span>
-                <ChevronDown className="w-3 h-3 text-slate-400 hidden sm:inline" />
+                {isDark ? (
+                  <Sun className="h-4 w-4 text-amber-400" aria-hidden="true" />
+                ) : (
+                  <Moon className="h-4 w-4" aria-hidden="true" />
+                )}
+                {isDark
+                  ? L('Mode clair', 'Light mode', 'Modo claro')
+                  : L('Mode sombre', 'Dark mode', 'Modo oscuro')}
               </button>
-
-              {showUserMenu && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
-                  <div
-                    className={`absolute right-0 mt-2 w-64 rounded-2xl border shadow-2xl z-50 p-2 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150 ${
-                      isDark
-                        ? 'bg-slate-900/95 border-slate-800 text-slate-200'
-                        : 'bg-white/95 border-slate-200 text-slate-800'
-                    }`}
-                  >
-                    {/* User Header */}
-                    <div className="p-3 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
-                      <img
-                        src={prefs.userAvatar}
-                        alt="Avatar"
-                        className="w-10 h-10 rounded-full object-cover border border-sky-500/50"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src =
-                            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
-                        }}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="font-extrabold text-sm truncate text-slate-900 dark:text-white">
-                          {prefs.isAuthenticated ? prefs.userName : 'Mode Invité'}
-                        </div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                          {prefs.isAuthenticated
-                            ? prefs.userEmail || prefs.userTitle
-                            : 'Non connecté'}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="py-1.5 space-y-1 text-xs">
-                      <button
-                        onClick={() => {
-                          setActiveTab(AppTab.PROFILE);
-                          setShowUserMenu(false);
-                        }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left font-bold text-slate-700 dark:text-slate-200 hover:bg-sky-50 dark:hover:bg-sky-500/10 hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
-                      >
-                        <User className="w-4 h-4 text-sky-500" />
-                        <span>{t('header.my_profile', 'Mon Profil Apprenant')}</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setActiveTab(AppTab.PROFILE);
-                          setShowUserMenu(false);
-                          window.dispatchEvent(new CustomEvent('open-avatar-modal'));
-                        }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                      >
-                        <Camera className="w-4 h-4 text-indigo-500" />
-                        <span>{t('header.change_avatar', 'Changer ma photo de profil')}</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setActiveTab(AppTab.TOOLS);
-                          setShowUserMenu(false);
-                        }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left font-bold text-slate-700 dark:text-slate-200 hover:bg-sky-50 dark:hover:bg-sky-500/10 hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
-                      >
-                        <Wrench className="w-4 h-4 text-cyan-500" />
-                        <span>{t('nav.tools', 'Outils Sécu & Testeurs')}</span>
-                      </button>
-
-                      <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
-
-                      {prefs.isAuthenticated ? (
-                        <button
-                          onClick={() => {
-                            const updated = logoutLearnerAccount();
-                            setPrefs(updated);
-                            setShowUserMenu(false);
-                            window.dispatchEvent(
-                              new CustomEvent('cyber-notify', {
-                                detail: {
-                                  message: t(
-                                    'profile.logout_success',
-                                    'Déconnexion réussie ! Vous êtes en mode invité.',
-                                  ),
-                                  type: 'info',
-                                },
-                              }),
-                            );
-                          }}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-                        >
-                          <LogOut className="w-4 h-4" />
-                          <span>{t('header.logout', 'Se déconnecter')}</span>
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setActiveTab(AppTab.PROFILE);
-                            setShowUserMenu(false);
-                          }}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors"
-                        >
-                          <LogIn className="w-4 h-4" />
-                          <span>{t('header.login', 'Connexion / Inscription')}</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
+              <PWAInstallButton variant="header" />
+              <LanguageSelector />
             </div>
           </div>
         </div>
-      </header>
+      )}
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl mx-auto w-full p-3 md:p-6 pb-24 lg:pb-8">{children}</main>
-
-      {/* Mobile & Tablet Bottom Navigation (jusqu'à lg : voir la nav desktop ci-dessus) */}
-      <nav
-        className={`lg:hidden fixed bottom-0 left-0 right-0 border-t px-1 py-1 flex justify-around items-center z-[100] transition-colors safe-area-bottom shadow-2xl backdrop-blur-xl ${
-          isDark ? 'bg-slate-950/95 border-slate-800/80' : 'bg-white/95 border-slate-200 shadow-md'
-        }`}
-      >
-        {primaryTabs.map((tab) => {
-          const Icon = tab.icon;
-          const active = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex flex-col items-center flex-1 min-w-0 py-1 px-0.5 rounded-xl transition-all active:scale-95 ${
-                active
-                  ? isDark
-                    ? 'text-sky-400 font-extrabold'
-                    : 'text-sky-600 font-extrabold'
-                  : isDark
-                    ? 'text-slate-400 hover:text-slate-300'
-                    : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <div
-                className={`p-1 sm:p-1.5 rounded-lg sm:rounded-xl transition-colors ${
-                  active ? (isDark ? 'bg-sky-500/10' : 'bg-sky-50') : ''
-                }`}
-              >
-                <Icon
-                  className={`w-4 h-4 sm:w-5 sm:h-5 ${active ? (isDark ? 'text-sky-400' : 'text-sky-600') : ''} transition-transform`}
-                />
-              </div>
-              <span className="text-[9px] font-semibold mt-0.5 tracking-tight truncate max-w-[48px] text-center leading-tight">
-                {tab.label}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* Bouton flottant Assistant IA : accès direct au chat CyberGuard depuis n'importe quel écran */}
-      {activeTab !== AppTab.AI_CHAT && (
+      {/* Bouton flottant Assistant IA (mobile uniquement : sur bureau, il est dans la barre latérale) */}
+      {activeTab !== AppTab.AI_CHAT && activeTab !== AppTab.HOME && (
         <button
-          onClick={() => setActiveTab(AppTab.AI_CHAT)}
-          title="Discuter avec l'assistant IA CyberGuard"
-          className="fixed z-[95] bottom-20 lg:bottom-6 right-4 lg:right-6 flex items-center gap-2 pl-4 pr-5 py-3.5 rounded-full bg-gradient-to-r from-sky-500 to-cyan-500 text-white font-bold text-sm shadow-2xl shadow-sky-500/40 hover:brightness-110 active:scale-95 transition-all"
+          onClick={() => go(AppTab.AI_CHAT)}
+          aria-label={L('Ouvrir l’assistant IA', 'Open the AI assistant', 'Abrir el asistente IA')}
+          className={`fixed bottom-[76px] right-4 z-[95] flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-brand to-cyan-500 text-white shadow-2xl shadow-brand/40 transition-all hover:brightness-110 active:scale-95 lg:hidden ${ring}`}
         >
-          <Bot className="w-5 h-5" />
-          <span className="hidden sm:inline">Assistant IA</span>
+          <Bot className="h-6 w-6" aria-hidden="true" />
         </button>
       )}
 
-      {/* Notifications Drawer Modal */}
-      {showNotificationsModal && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="relative w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-800 p-5 shadow-2xl text-slate-100 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+      {/* Panneau de don : 15 s toutes les minutes, fermable */}
+      <DonatePopup activeTab={activeTab} onLearnMore={() => go(AppTab.DONATE)} />
+
+      {/* Notifications */}
+      {showNotifications && (
+        <div
+          className="fixed inset-0 z-[140] flex items-start justify-end bg-black/60 p-4 backdrop-blur-sm sm:items-start"
+          role="dialog"
+          aria-modal="true"
+          aria-label={L('Notifications', 'Notifications', 'Notificaciones')}
+          onClick={() => setShowNotifications(false)}
+        >
+          <div
+            className="mt-14 w-full max-w-sm space-y-3 rounded-3xl border border-white/10 bg-ink-900 p-5 text-slate-100 shadow-2xl animate-in slide-in-from-top-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2">
-                <Bell className="w-4 h-4 text-sky-400" />
-                <h3 className="font-extrabold text-sm text-white">Alertes CyberSens</h3>
+                <Bell className="h-4 w-4 text-brand-light" aria-hidden="true" />
+                <h2 className="text-sm font-extrabold">
+                  {L('Notifications', 'Notifications', 'Notificaciones')}
+                </h2>
               </div>
               <button
-                onClick={() => setShowNotificationsModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
+                onClick={() => setShowNotifications(false)}
+                aria-label={L('Fermer', 'Close', 'Cerrar')}
+                className="rounded-lg p-1 text-slate-400 hover:text-white"
               >
-                <X className="w-4 h-4" />
+                <X className="h-4 w-4" />
               </button>
             </div>
-
-            <div className="space-y-2.5 text-xs">
-              <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-200">
-                <div className="font-bold text-white mb-0.5">Nouvelle alerte Mobile Money</div>
-                <p className="text-slate-300 text-[11px]">
-                  Attention aux faux messages USSD demandant la validation de soldes.
-                </p>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 text-slate-300">
-                <div className="font-bold text-white mb-0.5">Rappel de mise à jour</div>
-                <p className="text-slate-400 text-[11px]">
-                  Mettez à jour vos navigateurs et applications pour corriger les failles zero-day.
-                </p>
-              </div>
-
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
-                <div className="font-bold text-white mb-0.5">Score de défense actualisé</div>
-                <p className="text-emerald-400 text-[11px]">
-                  Vous avez gagné 450 points d'expérience ! Continuez ainsi.
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setShowNotificationsModal(false)}
-              className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold"
-            >
-              Fermer
-            </button>
+            {history.length === 0 ? (
+              <p className="py-6 text-center text-xs text-slate-400">
+                {L(
+                  'Aucune notification pour le moment.',
+                  'No notifications yet.',
+                  'Aún no hay notificaciones.',
+                )}
+              </p>
+            ) : (
+              <ul className="max-h-80 space-y-2 overflow-y-auto text-xs">
+                {history.map((n) => (
+                  <li
+                    key={n.id}
+                    className={`rounded-xl border p-3 ${n.type === 'success' ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200' : n.type === 'error' ? 'border-red-500/20 bg-red-500/10 text-red-200' : n.type === 'warning' ? 'border-amber-500/20 bg-amber-500/10 text-amber-200' : 'border-sky-500/20 bg-sky-500/10 text-sky-100'}`}
+                  >
+                    <p className="font-semibold leading-snug">{n.message}</p>
+                    <p className="mt-1 text-[10px] opacity-60">
+                      {new Date(n.at).toLocaleTimeString()}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {history.length > 0 && (
+              <button
+                onClick={() => setHistory([])}
+                className="w-full rounded-xl bg-white/5 py-2.5 text-xs font-bold text-slate-200 hover:bg-white/10"
+              >
+                {L('Tout effacer', 'Clear all', 'Borrar todo')}
+              </button>
+            )}
           </div>
         </div>
       )}

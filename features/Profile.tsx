@@ -41,6 +41,8 @@ import {
 import { AppTab, UserPreferences, Certificate, UserBadge } from '../types';
 import { PWAInstallButton } from '../components/PWAInstallButton';
 import { CertificateModal } from '../components/CertificateModal';
+import { BadgeIcon } from '../components/BadgeIcon';
+import { PasswordChangeCard } from '../components/PasswordChangeCard';
 import { useI18n } from '../services/i18n';
 import { compressImageFile, testImageUrl } from '../services/imageUtils';
 
@@ -328,7 +330,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
       {logoutNotice && (
         <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-bold flex items-center justify-between shadow-sm animate-in fade-in">
           <div className="flex items-center gap-2.5">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0" />
             <span>
               Vous avez été déconnecté avec succès. Votre progression et vos certificats restent
               sauvegardés.
@@ -346,7 +348,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
       {resetNotice && (
         <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs font-bold flex items-center justify-between shadow-sm animate-in fade-in">
           <div className="flex items-center gap-2.5">
-            <CheckCircle2 className="w-5 h-5 text-amber-600 shrink-0" />
+            <CheckCircle2 className="w-5 h-5 text-amber-700 shrink-0" />
             <span>L'historique des quiz et les données locales ont été réinitialisés.</span>
           </div>
           <button
@@ -364,7 +366,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
           onClick={() => setActiveTab('profile')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
             activeTab === 'profile'
-              ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20'
+              ? 'bg-sky-700 text-white shadow-md shadow-sky-500/20'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
@@ -376,7 +378,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
           onClick={() => setActiveTab('inscription')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
             activeTab === 'inscription'
-              ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20'
+              ? 'bg-sky-700 text-white shadow-md shadow-sky-500/20'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
@@ -388,7 +390,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
           onClick={() => setActiveTab('badges')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
             activeTab === 'badges'
-              ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20'
+              ? 'bg-sky-700 text-white shadow-md shadow-sky-500/20'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
@@ -402,7 +404,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
           onClick={() => setActiveTab('certificats')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
             activeTab === 'certificats'
-              ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20'
+              ? 'bg-sky-700 text-white shadow-md shadow-sky-500/20'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
@@ -420,7 +422,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
           {!prefs.isAuthenticated && (
             <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-sm">
               <div className="flex items-center gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0" />
                 <div>
                   <span className="font-extrabold text-amber-900 dark:text-amber-200 block text-sm">
                     {t('profile.guest_warning', 'Vous êtes actuellement en session invité.')}
@@ -476,7 +478,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                   setTempAvatar(prefs.userAvatar || AVATAR_PRESETS[2].url);
                   setShowAvatarModal(true);
                 }}
-                className="absolute -bottom-1.5 -right-1.5 p-2 rounded-xl bg-sky-600 text-white shadow-md hover:bg-sky-500 transition-colors"
+                className="absolute -bottom-1.5 -right-1.5 p-2 rounded-xl bg-sky-700 text-white shadow-md hover:bg-sky-600 transition-colors"
                 title="Changer ma photo de profil"
               >
                 <Camera className="w-3.5 h-3.5" />
@@ -491,7 +493,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                 </h2>
                 {prefs.isAuthenticated && (
                   <span className="inline-flex items-center gap-1 self-center sm:self-auto px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold border border-emerald-200 dark:border-emerald-800">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
                     <span>Compte Certifié ({prefs.role || 'Étudiant'})</span>
                   </span>
                 )}
@@ -547,7 +549,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
           {/* 3 Metrics Cards matching Screen 8 */}
           <div className="grid grid-cols-3 gap-3 sm:gap-4">
             <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-center shadow-sm">
-              <div className="text-sky-600 dark:text-sky-400 mb-1">
+              <div className="text-sky-700 dark:text-sky-400 mb-1">
                 <GraduationCap className="w-5 h-5" />
               </div>
               <span className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
@@ -599,14 +601,14 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
               className="w-full flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors text-left"
             >
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                <div className="p-2 rounded-xl bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400">
                   <BookOpen className="w-4 h-4" />
                 </div>
                 <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                   {t('profile.link_courses', 'Mes formations e-learning')}
                 </span>
               </div>
-              <ChevronRight className="w-4 h-4 text-slate-400" />
+              <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-400" />
             </button>
 
             <button
@@ -614,14 +616,14 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
               className="w-full flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors text-left"
             >
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400">
                   <Award className="w-4 h-4" />
                 </div>
                 <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                   {t('profile.link_quizzes', 'Mes quiz')} ({quizHistory.length} terminés)
                 </span>
               </div>
-              <ChevronRight className="w-4 h-4 text-slate-400" />
+              <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-400" />
             </button>
 
             <button
@@ -629,7 +631,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
               className="w-full flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors text-left"
             >
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400">
                   <Award className="w-4 h-4" />
                 </div>
                 <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
@@ -637,7 +639,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                   débloqués)
                 </span>
               </div>
-              <ChevronRight className="w-4 h-4 text-slate-400" />
+              <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-400" />
             </button>
 
             <button
@@ -645,14 +647,14 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
               className="w-full flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors text-left"
             >
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
                   <GraduationCap className="w-4 h-4" />
                 </div>
                 <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                   {t('profile.link_certs', 'Mes certificats officiels')} ({certificates.length})
                 </span>
               </div>
-              <ChevronRight className="w-4 h-4 text-slate-400" />
+              <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-400" />
             </button>
 
             <button
@@ -660,14 +662,14 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
               className="w-full flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors text-left"
             >
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400">
                   <Bookmark className="w-4 h-4" />
                 </div>
                 <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                   {t('profile.link_favorites', 'Mes favoris')} ({bookmarks.length})
                 </span>
               </div>
-              <ChevronRight className="w-4 h-4 text-slate-400" />
+              <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-400" />
             </button>
 
             <button
@@ -677,14 +679,14 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
               className="w-full flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors text-left"
             >
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
+                <div className="p-2 rounded-xl bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-400">
                   <HelpCircle className="w-4 h-4" />
                 </div>
                 <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                   {t('profile.link_help', 'Aide & support CyberGuard IA')}
                 </span>
               </div>
-              <ChevronRight className="w-4 h-4 text-slate-400" />
+              <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-400" />
             </button>
           </div>
 
@@ -699,7 +701,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
             </button>
             <button
               onClick={handleResetData}
-              className="flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 text-xs font-bold transition-colors"
+              className="flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 text-xs font-bold transition-colors"
               title="Réinitialiser l'historique"
             >
               <span>{t('profile.btn_reset', 'Réinitialiser')}</span>
@@ -712,7 +714,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
       {activeTab === 'inscription' && (
         <div className="max-w-xl mx-auto space-y-6">
           <div className="text-center space-y-2">
-            <div className="w-14 h-14 rounded-3xl bg-sky-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-sky-600/30">
+            <div className="w-14 h-14 rounded-3xl bg-sky-700 text-white flex items-center justify-center mx-auto shadow-lg shadow-sky-600/30">
               {isLoginMode ? <LogIn className="w-7 h-7" /> : <UserPlus className="w-7 h-7" />}
             </div>
             <h2 className="text-2xl font-black text-slate-900 dark:text-white">
@@ -727,7 +729,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
 
           {authSuccessMsg && (
             <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-bold flex items-center gap-2.5 animate-in fade-in">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0" />
               <span>{authSuccessMsg}</span>
             </div>
           )}
@@ -769,7 +771,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                 Nom complet (tel qu'il apparaîtra sur vos certificats) *
               </label>
               <div className="relative">
-                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 dark:text-slate-400" />
                 <input
                   type="text"
                   required
@@ -787,7 +789,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                 Adresse e-mail professionnelle ou personnelle *
               </label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 dark:text-slate-400" />
                 <input
                   type="email"
                   required
@@ -805,7 +807,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                 Mot de passe sécurisé (12+ caractères recommandés) *
               </label>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 dark:text-slate-400" />
                 <input
                   type="password"
                   required
@@ -832,7 +834,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                         onClick={() => setRegRole(r)}
                         className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
                           regRole === r
-                            ? 'bg-sky-500 text-white border-sky-500 shadow-md shadow-sky-500/20'
+                            ? 'bg-sky-700 text-white border-sky-500 shadow-md shadow-sky-500/20'
                             : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
                         }`}
                       >
@@ -857,7 +859,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                       setTempAvatar(regAvatar || AVATAR_PRESETS[2].url);
                       setShowAvatarModal(true);
                     }}
-                    className="text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1"
+                    className="text-[11px] font-bold text-sky-700 dark:text-sky-400 hover:underline flex items-center gap-1"
                   >
                     <Camera className="w-3 h-3" />
                     <span>Ou téléverser une photo</span>
@@ -892,7 +894,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
             <div className="pt-3">
               <button
                 type="submit"
-                className="w-full py-3.5 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-black text-sm shadow-lg shadow-sky-600/30 transition-all flex items-center justify-center gap-2 active:scale-98"
+                className="w-full py-3.5 rounded-2xl bg-sky-700 hover:bg-sky-600 text-white font-black text-sm shadow-lg shadow-sky-600/30 transition-all flex items-center justify-center gap-2 active:scale-98"
               >
                 {isLoginMode ? <LogIn className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
                 <span>
@@ -901,7 +903,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
               </button>
             </div>
 
-            <p className="text-[11px] text-center text-slate-400 pt-1">
+            <p className="text-[11px] text-center text-slate-500 dark:text-slate-400 pt-1">
               En vous inscrivant, vous accédez gratuitement à toutes les formations et
               certifications officielles CyberSens.
             </p>
@@ -941,7 +943,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                 onClick={() => setBadgeFilter(cat)}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
                   badgeFilter === cat
-                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20'
+                    ? 'bg-sky-700 text-white shadow-md shadow-sky-500/20'
                     : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
                 }`}
               >
@@ -963,13 +965,13 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
               >
                 {/* Badge Icon Emblem */}
                 <div
-                  className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0 shadow-sm ${
+                  className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
                     badge.unlocked
-                      ? 'bg-gradient-to-br from-amber-100 to-amber-300 dark:from-amber-950 dark:to-amber-800 border-2 border-amber-400'
-                      : 'bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 filter grayscale'
+                      ? 'bg-gradient-to-br from-amber-100 to-amber-300 dark:from-amber-950 dark:to-amber-800 border-2 border-amber-400 text-amber-700 dark:text-amber-300'
+                      : 'bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-400 dark:text-slate-500'
                   }`}
                 >
-                  {badge.icon}
+                  <BadgeIcon name={badge.icon} className="w-7 h-7" />
                 </div>
 
                 {/* Badge Info */}
@@ -979,7 +981,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                       {badge.title}
                     </h3>
                     {badge.unlocked ? (
-                      <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md">
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md">
                         <Check className="w-3 h-3" /> Débloqué
                       </span>
                     ) : (
@@ -1004,7 +1006,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                   </div>
 
                   {badge.unlockedAt && (
-                    <span className="text-[10px] text-slate-400 block pt-0.5">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block pt-0.5">
                       Obtenu le {badge.unlockedAt}
                     </span>
                   )}
@@ -1021,7 +1023,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-                <GraduationCap className="w-6 h-6 text-emerald-600" />
+                <GraduationCap className="w-6 h-6 text-emerald-700" />
                 <span>Mes Certificats Officiels CyberSens</span>
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
@@ -1032,7 +1034,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
 
           {certificates.length === 0 ? (
             <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 space-y-3">
-              <GraduationCap className="w-12 h-12 text-slate-400 mx-auto" />
+              <GraduationCap className="w-12 h-12 text-slate-500 dark:text-slate-400 mx-auto" />
               <h3 className="font-bold text-slate-800 dark:text-slate-200">
                 Aucun certificat pour le moment
               </h3>
@@ -1042,7 +1044,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
               </p>
               <button
                 onClick={() => onNavigate(AppTab.LEARN)}
-                className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-md shadow-sky-600/20"
+                className="px-5 py-2.5 rounded-xl bg-sky-700 hover:bg-sky-600 text-white font-bold text-xs shadow-md shadow-sky-600/20"
               >
                 Démarrer une formation
               </button>
@@ -1056,7 +1058,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                   className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-amber-400 shadow-sm hover:shadow-md transition-all cursor-pointer space-y-3 group"
                 >
                   <div className="flex items-start justify-between">
-                    <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center shadow-sm">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 flex items-center justify-center shadow-sm">
                       <Award className="w-5 h-5" />
                     </div>
                     <span className="text-[10px] font-mono text-slate-400 bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-lg">
@@ -1065,7 +1067,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                   </div>
 
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400">
                       Certificat d'Aptitude
                     </span>
                     <h3 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-sky-600 transition-colors">
@@ -1076,7 +1078,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                     </p>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-sky-600 dark:text-sky-400">
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-sky-700 dark:text-sky-400">
                     <span>Voir & Imprimer</span>
                     <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </div>
@@ -1093,7 +1095,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
           <div className="relative w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-6 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <h3 className="font-extrabold text-base flex items-center gap-2">
-                <Settings className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                <Settings className="w-4 h-4 text-sky-700 dark:text-sky-400" />
                 Paramètres de compte
               </h3>
               <button
@@ -1130,7 +1132,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                     setTempAvatar(prefs.userAvatar || AVATAR_PRESETS[2].url);
                     setShowAvatarModal(true);
                   }}
-                  className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-sm transition-colors flex items-center gap-1 shrink-0"
+                  className="px-3 py-1.5 rounded-xl bg-sky-700 hover:bg-sky-600 text-white font-bold text-xs shadow-sm transition-colors flex items-center gap-1 shrink-0"
                 >
                   <Camera className="w-3.5 h-3.5" />
                   <span>Modifier</span>
@@ -1159,7 +1161,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                   readOnly
                   className="w-full p-3 rounded-xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed"
                 />
-                <p className="mt-1 text-[11px] text-slate-400">
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                   Identifiant de connexion, non modifiable.
                 </p>
               </div>
@@ -1187,7 +1189,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                       onClick={() => setLang(code)}
                       className={`p-2.5 rounded-xl border font-bold uppercase transition-all ${
                         lang === code
-                          ? 'bg-sky-500 text-white border-sky-400 shadow-sm'
+                          ? 'bg-sky-700 text-white border-sky-400 shadow-sm'
                           : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
                       }`}
                     >
@@ -1199,14 +1201,14 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
             </div>
 
             {savedSuccess ? (
-              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold text-center flex items-center justify-center gap-2">
+              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-bold text-center flex items-center justify-center gap-2">
                 <CheckCircle2 className="w-4 h-4" />
                 Modifications enregistrées !
               </div>
             ) : (
               <button
                 onClick={handleSaveSettings}
-                className="w-full py-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/30 transition-all"
+                className="w-full py-3 rounded-xl bg-sky-700 hover:bg-sky-600 text-white text-xs font-bold shadow-md shadow-sky-600/30 transition-all"
               >
                 Enregistrer les paramètres
               </button>
@@ -1235,11 +1237,11 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
             <div className="space-y-2 text-xs max-h-60 overflow-y-auto">
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
                 <span>Comment repérer une arnaque en ligne ?</span>
-                <span className="text-sky-600 dark:text-sky-400 font-bold">Article</span>
+                <span className="text-sky-700 dark:text-sky-400 font-bold">Article</span>
               </div>
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
                 <span>Les bases de la cybersécurité</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-bold">Formation</span>
+                <span className="text-emerald-700 dark:text-emerald-400 font-bold">Formation</span>
               </div>
             </div>
 
@@ -1259,7 +1261,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
           <div className="relative w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-5 sm:p-6 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <h3 className="font-extrabold text-base flex items-center gap-2">
-                <Camera className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                <Camera className="w-5 h-5 text-sky-700 dark:text-sky-400" />
                 Changer ma photo de profil
               </h3>
               <button
@@ -1358,7 +1360,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                         {av.label}
                       </div>
                       {isSelected && (
-                        <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-sky-600 text-white flex items-center justify-center shadow">
+                        <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-sky-700 text-white flex items-center justify-center shadow">
                           <Check className="w-2.5 h-2.5" />
                         </div>
                       )}
@@ -1410,7 +1412,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
 
             {avatarSuccess ? (
               <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold text-center flex items-center justify-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-700" />
                 Photo de profil enregistrée avec succès !
               </div>
             ) : (
@@ -1426,7 +1428,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
                   type="button"
                   disabled={isUploadingAvatar}
                   onClick={() => handleSaveAvatar()}
-                  className="flex-1 py-3 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/30 transition-all flex items-center justify-center gap-1.5"
+                  className="flex-1 py-3 rounded-2xl bg-sky-700 hover:bg-sky-600 text-white text-xs font-bold shadow-md shadow-sky-600/30 transition-all flex items-center justify-center gap-1.5"
                 >
                   <Check className="w-4 h-4" />
                   <span>Confirmer & Sauvegarder</span>
@@ -1441,7 +1443,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
           <div className="relative w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 mx-auto flex items-center justify-center">
+            <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 mx-auto flex items-center justify-center">
               <LogOut className="w-7 h-7" />
             </div>
             <div className="space-y-1">
@@ -1469,11 +1471,17 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
         </div>
       )}
 
+      {prefs.isAuthenticated && (
+        <div className="mt-6">
+          <PasswordChangeCard />
+        </div>
+      )}
+
       {/* Reset Data Confirmation Modal */}
       {showResetModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
           <div className="relative w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 mx-auto flex items-center justify-center">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 mx-auto flex items-center justify-center">
               <AlertTriangle className="w-7 h-7" />
             </div>
             <div className="space-y-1">

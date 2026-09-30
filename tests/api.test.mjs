@@ -6,12 +6,14 @@ import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cybersens-test-'));
 process.env.DB_PATH = path.join(tmpDir, 'test.db');
 
 const { handleApi, getSessionUser } = await import('../server/api.mjs');
 const { handleGeminiProxy } = await import('../server/geminiProxy.mjs');
+const { checkOrigin } = await import('../server/csrf.mjs');
 const { closeDb } = await import('../server/db.mjs');
 const { COMPREHENSIVE_COURSE_MODULES } = await import('../services/coursesData.ts');
 
@@ -212,6 +214,34 @@ test('sécurité : CSRF, validation, injection SQL, IA réservée', async () => 
   const evil = "Robert'); DROP TABLE users;--";
   assert.equal((await call('PATCH', '/api/me', { name: evil })).status, 200);
   assert.equal((await call('GET', '/api/me')).data.user.name, evil);
+  assert.doesNotThrow(() =>
+    checkOrigin(
+      {
+        headers: {
+          origin: 'https://app.example.com',
+          host: 'internal:8080',
+          'x-forwarded-host': 'app.example.com',
+          'x-forwarded-proto': 'https',
+        },
+      },
+      { trustProxy: true },
+    ),
+  );
+  assert.throws(
+    () =>
+      checkOrigin(
+        {
+          headers: {
+            origin: 'https://evil.example.com',
+            host: 'internal:8080',
+            'x-forwarded-host': 'app.example.com',
+            'x-forwarded-proto': 'https',
+          },
+        },
+        { trustProxy: true },
+      ),
+    /Origine refusée/,
+  );
   assert.equal(
     (
       await call(
@@ -274,4 +304,218 @@ test('déconnexion, connexion, anti-énumération et verrouillage', async () => 
     ).status,
     429,
   );
+});
+
+test('administration DevOps : réservée aux administrateurs déclarés', async () => {
+  delete process.env.ADMIN_EMAILS;
+  process.env.BACKUP_DIR = path.join(tmpDir, 'backups');
+  await call('POST', '/api/auth/logout');
+
+  // Non configurée : routes invisibles, même pour un visiteur anonyme
+  for (const [method, url, body] of [
+    ['GET', '/api/devops/status'],
+    ['POST', '/api/devops/backup', {}],
+    ['POST', '/api/devops/exec', { action: 'vacuum' }],
+  ]) {
+    assert.equal((await call(method, url, body, { jar: false })).status, 404, `${url} désactivée`);
+  }
+
+  process.env.ADMIN_EMAILS = 'boss@test.bf';
+  assert.equal((await call('GET', '/api/devops/status', undefined, { jar: false })).status, 401);
+
+  // Un compte ordinaire (absent de ADMIN_EMAILS) est refusé
+  const reg = await call('POST', '/api/auth/register', {
+    name: 'Administrateur Test',
+    email: 'boss@test.bf',
+    password: PASSWORD,
+    role: 'Professionnel',
+  });
+  assert.equal(reg.status, 201);
+  process.env.ADMIN_EMAILS = 'autre-admin@test.bf';
+  assert.equal(
+    (await call('GET', '/api/devops/status')).status,
+    403,
+    'utilisateur ordinaire refusé',
+  );
+  assert.equal((await call('POST', '/api/devops/backup', {})).status, 403);
+  assert.equal((await call('POST', '/api/devops/exec', { action: 'vacuum' })).status, 403);
+
+  // Le même compte, une fois déclaré administrateur, est accepté
+  process.env.ADMIN_EMAILS = 'BOSS@test.bf';
+  const status = await call('GET', '/api/devops/status');
+  assert.equal(status.status, 200);
+  assert.ok(status.data.stats.users >= 2);
+  const backup = await call('POST', '/api/devops/backup', {});
+  assert.equal(backup.status, 200);
+  assert.ok(fs.readdirSync(process.env.BACKUP_DIR).some((f) => f.endsWith('.db')));
+  assert.doesNotMatch(backup.data.message, /[/\\]/, 'aucun chemin serveur divulgué');
+
+  // Une requête inter-sites sans en-tête Origin est refusée (CSRF)
+  assert.throws(
+    () => checkOrigin({ headers: { 'sec-fetch-site': 'cross-site', host: 'app.example.com' } }),
+    /Origine refusée/,
+  );
+  delete process.env.ADMIN_EMAILS;
+});
+
+test('relais Gemini : quota par compte, pas partagé entre utilisateurs', async () => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) =>
+    String(url).includes('googleapis')
+      ? new Response('{"candidates":[]}', { status: 200 })
+      : realFetch(url, init);
+  const send = async (user, headers = {}) => {
+    const req = Readable.from([Buffer.from('{}')]);
+    Object.assign(req, {
+      method: 'POST',
+      url: '/api/gemini/v1beta/models/gemini-3.8-flash:generateContent',
+      headers: { 'content-type': 'application/json', host: 'x', ...headers },
+      socket: { remoteAddress: '10.0.0.1' }, // adresse du reverse-proxy, identique pour tous
+    });
+    let status = 0;
+    const res = {
+      headersSent: false,
+      setHeader() {},
+      writeHead(code) {
+        status = code;
+      },
+      write() {},
+      end() {},
+    };
+    await handleGeminiProxy(req, res, 'cle-de-test', () => user);
+    return status;
+  };
+  try {
+    for (let i = 0; i < 30; i++) assert.equal(await send({ id: 9001 }), 200);
+    assert.equal(await send({ id: 9001 }), 429, 'le 31e appel du même compte est limité');
+    assert.equal(await send({ id: 9002 }), 200, 'un autre compte n’est pas pénalisé');
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test('classement et communauté : confidentialité, droits et limites', async () => {
+  // Accès réservé aux membres connectés
+  assert.equal((await call('GET', '/api/leaderboard', undefined, { jar: false })).status, 401);
+  assert.equal((await call('GET', '/api/community/posts', undefined, { jar: false })).status, 401);
+
+  // Membre A : le compte créé par le test précédent
+  const login = await call('POST', '/api/auth/login', {
+    email: 'boss@test.bf',
+    password: PASSWORD,
+  });
+  assert.equal(login.status, 200);
+  await call('POST', '/api/me/points', { delta: 50 });
+
+  // Classement : nom abrégé, jamais d'e-mail
+  const board = await call('GET', '/api/leaderboard');
+  assert.equal(board.status, 200);
+  const mine = board.data.entries.find((e) => e.isMe);
+  assert.ok(mine, 'le membre apparaît dans le classement');
+  assert.equal(mine.name, 'Administrateur T.', 'prénom + initiale uniquement');
+  assert.doesNotMatch(JSON.stringify(board.data), /@test\.bf/, 'aucune adresse e-mail divulguée');
+  assert.equal(board.data.me.visible, true);
+
+  // Option de confidentialité : masqué du classement
+  await call('PATCH', '/api/me', { settings: { showInLeaderboard: false } });
+  const hidden = await call('GET', '/api/leaderboard');
+  assert.equal(
+    hidden.data.entries.some((e) => e.isMe),
+    false,
+  );
+  assert.equal(hidden.data.me.visible, false);
+  assert.equal(hidden.data.me.rank, null);
+  await call('PATCH', '/api/me', { settings: { showInLeaderboard: true } });
+
+  // Communauté : validation
+  const tooShort = await call('POST', '/api/community/posts', { body: 'a' });
+  assert.equal(tooShort.status, 400);
+  const html = '<img src=x onerror=alert(1)> Bonjour\n\n\n\nla communauté';
+  const created = await call('POST', '/api/community/posts', {
+    body: html,
+    topic: 'inconnu',
+  });
+  assert.equal(created.status, 201);
+  const postId = created.data.id;
+
+  let feed = await call('GET', '/api/community/posts');
+  let post = feed.data.posts.find((p) => p.id === postId);
+  assert.equal(post.topic, 'general', 'sujet inconnu ramené à « general »');
+  assert.ok(
+    post.body.startsWith('<img src=x'),
+    'le texte est stocké tel quel (échappé à l’affichage)',
+  );
+  assert.doesNotMatch(post.body, /\n{3,}/, 'retours à la ligne normalisés');
+  assert.equal(post.mine, true);
+  assert.equal((await call('GET', '/api/community/posts?topic=hack')).status, 400);
+
+  // J'aime (bascule) et commentaire
+  assert.deepEqual((await call('POST', '/api/community/like', { postId })).data, {
+    liked: true,
+    likes: 1,
+  });
+  assert.deepEqual((await call('POST', '/api/community/like', { postId })).data, {
+    liked: false,
+    likes: 0,
+  });
+  assert.equal((await call('POST', '/api/community/like', { postId: 999999 })).status, 404);
+  const comment = await call('POST', '/api/community/comments', { postId, body: 'Merci !' });
+  assert.equal(comment.status, 201);
+
+  // Membre B : ne peut supprimer ni le message ni le commentaire d'un autre
+  await call('POST', '/api/auth/logout');
+  const other = await call('POST', '/api/auth/register', {
+    name: 'Membre Deux',
+    email: 'membre@test.bf',
+    password: PASSWORD,
+    role: 'Étudiant',
+  });
+  assert.equal(other.status, 201);
+  assert.equal((await call('DELETE', `/api/community/posts?id=${postId}`)).status, 403);
+  assert.equal((await call('DELETE', `/api/community/comments?id=${comment.data.id}`)).status, 403);
+  feed = await call('GET', '/api/community/posts');
+  post = feed.data.posts.find((p) => p.id === postId);
+  assert.equal(post.mine, false);
+  assert.equal(feed.data.canModerate, false);
+  assert.equal(post.comments[0].author, 'Administrateur T.');
+
+  // L'auteur peut supprimer ; la suppression emporte commentaires et « j'aime »
+  await call('POST', '/api/auth/logout');
+  await call('POST', '/api/auth/login', { email: 'boss@test.bf', password: PASSWORD });
+  assert.equal((await call('DELETE', `/api/community/posts?id=${postId}`)).status, 200);
+  assert.equal((await call('DELETE', `/api/community/posts?id=${postId}`)).status, 404);
+  feed = await call('GET', '/api/community/posts');
+  assert.equal(
+    feed.data.posts.some((p) => p.id === postId),
+    false,
+  );
+
+  // Limite de débit : 5 messages par tranche de 10 minutes et par membre
+  let last;
+  for (let i = 0; i < 5; i++)
+    last = await call('POST', '/api/community/posts', { body: `Message de test ${i}` });
+  assert.equal(last.status, 429, 'le 5e message de la fenêtre dépasse la limite (1 déjà envoyé)');
+});
+
+test('points déclarés : plafond quotidien (le classement ne peut pas être truqué)', async () => {
+  const login = await call('POST', '/api/auth/login', {
+    email: 'boss@test.bf',
+    password: PASSWORD,
+  });
+  assert.equal(login.status, 200);
+  const before = (await call('GET', '/api/me')).data.user.points;
+
+  // 10 x 200 = 2000 points demandés : le serveur n'en accorde pas plus que le plafond du jour
+  let last;
+  for (let i = 0; i < 10; i++) last = await call('POST', '/api/me/points', { delta: 200 });
+  assert.equal(last.status, 200);
+  const after = (await call('GET', '/api/me')).data.user.points;
+  const gained = after - before;
+  assert.ok(gained > 0 && gained <= 1500, `gain plafonné à 1500 (obtenu : ${gained})`);
+  assert.equal(last.data.granted, 0, 'plus aucun point accordé une fois le plafond atteint');
+  assert.equal(last.data.points, after, 'le total renvoyé correspond à la base');
+
+  // Le classement reflète le total plafonné, pas le total demandé
+  const board = await call('GET', '/api/leaderboard');
+  assert.ok(board.data.entries.find((e) => e.isMe).points <= before + 1500);
 });

@@ -26,7 +26,14 @@ dist-ssr
 # Base de données locale (ne jamais versionner)
 data/
 backups/
+*.db
+*.db-*
 .env
+.course-localization-progress.json
+.ui-localization-progress.json
 
 # Artefacts locaux de l'outil Claude Code
 .claude/
+
+# Artefacts du service worker générés en développement
+dev-dist/

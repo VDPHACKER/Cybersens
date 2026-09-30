@@ -65,26 +65,26 @@ export const BestPractices: React.FC<BestPracticesProps> = () => {
           onClick={() => setActiveSection('practices')}
           className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
             activeSection === 'practices'
-              ? 'bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-400 shadow-sm border border-slate-200/80 dark:border-slate-700'
-              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              ? 'bg-white dark:bg-slate-900 text-sky-700 dark:text-sky-400 shadow-sm border border-slate-200/80 dark:border-slate-700'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
           <ShieldCheck className="w-4 h-4" />
-          <span>Guide des Réflexes Vitaux</span>
+          <span>{t('practices.tab_reflexes', 'Guide des Réflexes Vitaux')}</span>
         </button>
 
         <button
           onClick={() => setActiveSection('deepfakes')}
           className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
             activeSection === 'deepfakes'
-              ? 'bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-400 shadow-sm border border-slate-200/80 dark:border-slate-700'
-              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              ? 'bg-white dark:bg-slate-900 text-sky-700 dark:text-sky-400 shadow-sm border border-slate-200/80 dark:border-slate-700'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
           <Cpu className="w-4 h-4 text-amber-500" />
-          <span>Testeur de Deepfakes IA</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[10px] font-black">
-            Nouveau
+          <span>{t('practices.tab_deepfakes', 'Testeur de Deepfakes IA')}</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-400 text-[10px] font-black">
+            {t('practices.badge_new', 'Nouveau')}
           </span>
         </button>
       </div>
@@ -107,7 +107,7 @@ export const BestPractices: React.FC<BestPracticesProps> = () => {
               </p>
             </div>
             <div className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-500/20 flex items-center gap-1.5 text-xs font-bold shadow-sm">
-              <Sparkles className="w-4 h-4 text-sky-600" />
+              <Sparkles className="w-4 h-4 text-sky-700" />
               <span className="hidden sm:inline">
                 {t('practices.vital_count', '6 réflexes vitaux')}
               </span>
@@ -166,7 +166,7 @@ export const BestPractices: React.FC<BestPracticesProps> = () => {
 
                       {/* Checklist */}
                       <div className="space-y-2">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                           {t(
                             'practices.actions_title',
                             'Actions recommandées (+10 XP par validation) :',

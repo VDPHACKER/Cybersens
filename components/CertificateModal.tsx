@@ -10,6 +10,7 @@ import {
   QrCode,
   Printer,
 } from 'lucide-react';
+import { useI18n } from '../services/i18n';
 
 interface CertificateModalProps {
   certificate: Certificate;
@@ -17,7 +18,66 @@ interface CertificateModalProps {
 }
 
 export const CertificateModal: React.FC<CertificateModalProps> = ({ certificate, onClose }) => {
+  const { language } = useI18n();
   const certRef = useRef<HTMLDivElement>(null);
+
+  const certTexts = {
+    fr: {
+      official: "Certificat Officiel d'Accomplissement",
+      subtitle: 'Plateforme Panafricaine de Sensibilisation & de Formation Numérique',
+      title: "Certificat d'Aptitude en Cybersécurité & IA",
+      certifies: 'Ce document officiel certifie avec honneur que',
+      validated:
+        "a validé avec succès l'ensemble des leçons, cas pratiques et évaluations d'aptitude de la formation :",
+      score: "Score d'aptitude validé",
+      level: 'Niveau Maîtrisé',
+      verify: "Vérification d'authenticité",
+      issued: 'Émis le',
+      verifiable: 'Vérifiable sur',
+      role: 'Formateur en cybersécurité et IA',
+      academy: 'CyberSens Academy • Certifié',
+      print: 'Imprimer / PDF',
+      share: 'Partager',
+      saved: 'Certificat enregistré dans votre profil apprenant.',
+    },
+    en: {
+      official: 'Official Certificate of Achievement',
+      subtitle: 'Pan-African Digital Awareness & Training Platform',
+      title: 'Cybersecurity & AI Proficiency Certificate',
+      certifies: 'This official document proudly certifies that',
+      validated:
+        'has successfully completed all lessons, practical cases, and proficiency assessments for the training:',
+      score: 'Validated Proficiency Score',
+      level: 'Mastery Level',
+      verify: 'Authenticity Verification',
+      issued: 'Issued on',
+      verifiable: 'Verifiable at',
+      role: 'Cybersecurity & AI Trainer',
+      academy: 'CyberSens Academy • Certified',
+      print: 'Print / PDF',
+      share: 'Share',
+      saved: 'Certificate saved in your learner profile.',
+    },
+    es: {
+      official: 'Certificado Oficial de Logro',
+      subtitle: 'Plataforma Panafricana de Concienciación y Formación Digital',
+      title: 'Certificado de Aptitud en Ciberseguridad e IA',
+      certifies: 'Este documento oficial certifica con honor que',
+      validated:
+        'ha completado con éxito todas las lecciones, casos prácticos y evaluaciones de aptitud de la formación:',
+      score: 'Puntuación de aptitud validada',
+      level: 'Nivel Dominado',
+      verify: 'Verificación de autenticidad',
+      issued: 'Emitido el',
+      verifiable: 'Verificable en',
+      role: 'Formador en Ciberseguridad e IA',
+      academy: 'CyberSens Academy • Certificado',
+      print: 'Imprimir / PDF',
+      share: 'Compartir',
+      saved: 'Certificado guardado en su perfil de alumno.',
+    },
+  };
+  const ct = certTexts[language as 'fr' | 'en' | 'es'] || certTexts.fr;
 
   const handlePrint = () => {
     window.print();
@@ -51,9 +111,7 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({ certificate,
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
           <div className="flex items-center gap-2">
             <Award className="w-5 h-5 text-amber-500" />
-            <span className="text-sm font-extrabold text-slate-900">
-              Certificat Officiel d'Accomplissement
-            </span>
+            <span className="text-sm font-extrabold text-slate-900">{ct.official}</span>
           </div>
           <button
             onClick={onClose}
@@ -93,17 +151,17 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({ certificate,
                 </span>
               </div>
               <p className="text-[11px] font-bold uppercase tracking-widest text-sky-700">
-                Plateforme Panafricaine de Sensibilisation & de Formation Numérique
+                {ct.subtitle}
               </p>
             </div>
 
             {/* Certificate Header */}
             <div className="space-y-2 relative z-10 pt-2">
               <span className="inline-block px-4 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-black uppercase tracking-wider">
-                Certificat d'Aptitude en Cybersécurité
+                {ct.title}
               </span>
               <h2 className="text-sm sm:text-base font-serif italic text-slate-500">
-                Ce document officiel certifie avec honneur que
+                {ct.certifies}
               </h2>
             </div>
 
@@ -116,16 +174,15 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({ certificate,
 
             {/* Course Title & Verification */}
             <div className="space-y-2 relative z-10 max-w-lg mx-auto">
-              <p className="text-xs sm:text-sm text-slate-600">
-                a validé avec succès l'ensemble des leçons, cas pratiques et évaluations d'aptitude
-                de la formation :
-              </p>
+              <p className="text-xs sm:text-sm text-slate-600">{ct.validated}</p>
               <h3 className="text-base sm:text-lg font-black text-slate-900 bg-sky-50 py-2 px-4 rounded-xl border border-sky-100">
                 « {certificate.courseTitle} »
               </h3>
               <p className="text-xs font-semibold text-emerald-600 flex items-center justify-center gap-1.5 pt-1">
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Score d'aptitude validé : {certificate.score}% • Niveau Maîtrisé</span>
+                <span>
+                  {ct.score} : {certificate.score}% • {ct.level}
+                </span>
               </p>
             </div>
 
@@ -135,14 +192,16 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({ certificate,
               <div className="space-y-1">
                 <div className="flex items-center gap-1 text-[11px] font-bold text-slate-700">
                   <QrCode className="w-4 h-4 text-sky-600" />
-                  <span>Vérification d'authenticité</span>
+                  <span>{ct.verify}</span>
                 </div>
                 <div className="text-[10px] font-mono text-slate-500 break-all">
                   {certificate.certificateNumber}
                 </div>
-                <div className="text-[9px] text-slate-400">Émis le : {certificate.issuedDate}</div>
+                <div className="text-[9px] text-slate-400">
+                  {ct.issued} : {certificate.issuedDate}
+                </div>
                 <div className="text-[9px] text-slate-400 break-all">
-                  Vérifiable sur : {window.location.host}/api/certificates/verify?number=
+                  {ct.verifiable} : {window.location.host}/api/certificates/verify?number=
                   {certificate.certificateNumber}
                 </div>
               </div>
@@ -165,11 +224,9 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({ certificate,
                   VDPHACKER
                 </div>
                 <div className="text-[10px] font-bold text-slate-800 uppercase tracking-wide">
-                  Directeur Académique & Sécurité
+                  {ct.role}
                 </div>
-                <div className="text-[9px] text-slate-500 font-medium">
-                  CyberSens Academy • Certifié
-                </div>
+                <div className="text-[9px] text-slate-500 font-medium">{ct.academy}</div>
               </div>
             </div>
           </div>
@@ -179,7 +236,7 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({ certificate,
         <div className="px-6 py-4 bg-white border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Certificat enregistré dans votre profil apprenant.</span>
+            <span>{ct.saved}</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -188,14 +245,14 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({ certificate,
               className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors"
             >
               <Printer className="w-4 h-4" />
-              <span>Imprimer / PDF</span>
+              <span>{ct.print}</span>
             </button>
             <button
               onClick={handleShare}
-              className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/20 transition-all active:scale-95"
+              className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-sky-700 hover:bg-sky-600 text-white text-xs font-bold shadow-md shadow-sky-600/20 transition-all active:scale-95"
             >
               <Share2 className="w-4 h-4" />
-              <span>Partager</span>
+              <span>{ct.share}</span>
             </button>
           </div>
         </div>

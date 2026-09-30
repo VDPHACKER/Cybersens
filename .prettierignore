@@ -5,3 +5,4 @@ backups
 backup-avant-allongement
 package-lock.json
 bun.lock
+dev-dist

@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "start": "node --env-file-if-exists=.env.local server/index.mjs",
     "db:backup": "node server/backup.mjs",
+    "admin:reset-password": "node --env-file-if-exists=.env.local server/resetPassword.mjs",
     "typecheck": "tsc --noEmit -p .",
     "test": "node --test --test-reporter=spec \"tests/**/*.test.mjs\"",
     "check": "npm run lint && npm run typecheck && npm test && npm run build",
@@ -34,6 +35,8 @@
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@types/node": "^22.14.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vite-pwa/assets-generator": "^1.0.4",
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.6.1",

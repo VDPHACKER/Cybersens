@@ -37,12 +37,16 @@ export const COMPREHENSIVE_COURSE_MODULES: CourseModule[] = [
         title: 'Le Triptyque CID et les Principes Fondamentaux de Sécurité',
         duration: '8 min',
         content: [
-          'La sécurité des systèmes d’information repose sur la triade CID : Confidentialité (les données ne sont accessibles qu’aux entités autorisées), Intégrité (les données ne peuvent être altérées sans détection), et Disponibilité (les services restent opérationnels pour les utilisateurs légitimes).',
-          'Les référentiels d’assurance de l’information (NIST, CNSSI 4009) complètent ce modèle avec l’Authenticité (vérification infalsifiable de l’identité) et la Non-répudiation (impossibilité pour un émetteur de nier une action effectuée cryptographiquement).',
-          'Toute cyberattaque vise à briser au moins l’un de ces piliers : le vol de base de données brise la Confidentialité, l’empoisonnement DNS brise l’Intégrité, et une attaque DDoS par réflexion brise la Disponibilité.',
-          'Exemple concret : un employé d’une clinique consulte par curiosité le dossier médical d’une célébrité hospitalisée. Aucun pirate, aucun malware, et pourtant la Confidentialité est violée. La sécurité ne vise donc pas seulement les attaquants extérieurs, mais aussi les erreurs et abus internes.',
-          'Chaque pilier dispose de ses outils : la Confidentialité s’appuie sur le chiffrement et le contrôle d’accès, l’Intégrité sur les empreintes (hash), les signatures numériques et la journalisation, la Disponibilité sur la redondance, les sauvegardes et la protection anti-DDoS.',
-          'Erreur fréquente : croire qu’un seul outil suffit (« nous avons un antivirus, nous sommes protégés »). La défense en profondeur part du principe inverse : chaque couche finira par être contournée un jour, et c’est la couche suivante qui doit arrêter ou ralentir l’attaquant.',
+          'La sécurité des systèmes d’information repose sur la triade CID fondamentale : Confidentialité (les données ne sont accessibles qu’aux entités autorisées), Intégrité (les données ne peuvent être altérées ou détruites sans détection), et Disponibilité (les services et données restent opérationnels et accessibles pour les utilisateurs légitimes au moment opportun).',
+          'Les référentiels internationaux d’assurance de l’information (NIST SP 800-53, CNSSI 4009) complètent ce modèle triadique avec l’Authenticité (vérification infalsifiable de l’identité des entités communicantes) et la Non-répudiation (impossibilité technique pour un émetteur de nier une action ou une transaction effectuée cryptographiquement). Le modèle étendu de Parker (Parkerian Hexad) intègre également la Possession et le Contrôle d’accès physique.',
+          'Toute cyberattaque ciblée ou opportuniste vise à briser au moins l’un de ces piliers stratégiques : l’exfiltration de bases de données clients anéantit la Confidentialité, l’empoisonnement de cache DNS ou la modification non autorisée de registres corrompt l’Intégrité, et une attaque par déni de service distribué (DDoS) par amplification sature la Disponibilité des services en ligne.',
+          'Exemple concret en milieu professionnel : un employé consultant par pure curiosité le dossier médical ou salarial d’un collègue commet une infraction directe à la Confidentialité, sans même l’aide d’un hacker externe ou d’un logiciel malveillant. La sécurité ne se focalise donc pas uniquement sur les menaces périmétriques externes, mais englobe l’ensemble des usages internes et le respect du principe du moindre privilège.',
+          'Chaque pilier de la sécurité exige des mécanismes technologiques et organisationnels spécifiques et redondants : le chiffrement au repos (AES-256) et en transit (TLS 1.3) garantit la Confidentialité ; les fonctions de hachage cryptographique (SHA-256) et les signatures numériques garantissent l’Intégrité ; la redondance géographique, les clusters hautement disponibles et les plans de reprise d’activité (PRA) assurent la Disponibilité opérationnelle.',
+          'Erreur classique de conception architecturale : estimer qu’un seul outil de protection (comme un antivirus de poste ou un pare-feu périmétrique) suffit à garantir la sécurité globale (« nous avons une solution EDR, nous sommes totalement protégés »).',
+          'La doctrine moderne de la « Défense en Profondeur » (Defense-in-Depth) issue des publications NIST SP 800-53 repose sur le principe inverse : aucune barrière technique n’est infaillible à 100%. Chaque couche (périmètre, réseau, hôte, application, données) doit opposer une résistance et détecter l’intrus.',
+          'En pratique, si le pare-feu externe est contourné par une faille zero-day ou une compromission d’identifiants VPN, le pare-feu applicatif (WAF) ou la segmentation VLAN interne doit bloquer la progression latérale. Si le réseau est traversé, l’EDR sur l’hôte doit détecter l’exécution anormale d’un processus.',
+          'La gestion des risques repose sur l’évaluation permanente de la surface d’attaque, de la criticité des actifs et de la probabilité d’occurrence des scénarios de menaces (méthodes EBIOS RM, ISO 27005 ou NIST Risk Management Framework).',
+          'Enfin, le facteur humain reste le maillon le plus sollicité : sensibilisation continue, phishing simulé et culture de signalement (Zero Trust Culture) transforment chaque collaborateur en un capteur de sécurité actif au sein de l’organisation.',
         ],
         diagramTitle: 'Architecture du Modèle de Sécurité CID & Défense en Profondeur',
         diagramAscii: `+--------------------------------------------------------+
@@ -54,7 +58,7 @@ export const COMPREHENSIVE_COURSE_MODULES: CourseModule[] = [
 | [Couche 4] Données : Chiffrement AES-256 + Hash SHA-256|
 +--------------------------------------------------------+`,
         proTip:
-          'Astuce NetAcad : Lors d’un audit de sécurité, classez toujours chaque vulnérabilité découverte selon l’impact sur C, I ou D. Ces trois impacts sont justement les métriques d’impact utilisées par le score CVSS (Common Vulnerability Scoring System).',
+          'Astuce CyberSens : Lors d’un audit de sécurité, classez toujours chaque vulnérabilité découverte selon l’impact sur C, I ou D. Ces trois impacts sont justement les métriques d’impact utilisées par le score CVSS (Common Vulnerability Scoring System).',
         securityAlert:
           'Attention : Un système 100% sécurisé et hermétique est souvent 0% utilisable. L’ingénieur sécurité doit concilier protection robuste et fluidité opérationnelle.',
         checkYourUnderstanding: {
@@ -81,12 +85,12 @@ export const COMPREHENSIVE_COURSE_MODULES: CourseModule[] = [
         title: 'Modèle OSI, Encapsulation et Surfaces d’Attaque par Couche',
         duration: '10 min',
         content: [
-          'Pour protéger un réseau informatique, il est obligatoire de maîtriser le modèle OSI (Open Systems Interconnection) composé de 7 couches : Physique (L1), Liaison (L2), Réseau (L3), Transport (L4), Session (L5), Présentation (L6) et Application (L7).',
-          'Chaque couche possède des protocoles dédiés et des surfaces d’attaques spécifiques : les attaques ARP Spoofing frappent la Couche 2, le spoofing IP et le routage BGP visent la Couche 3, le SYN Flood cible la Couche 4 (TCP), tandis que les failles XSS et SQLi ciblent la Couche 7.',
-          'L’encapsulation réseau ajoute un en-tête (Header) à chaque palier : les Données sont encapsulées dans un Segment (L4), puis dans un Paquet (L3), puis dans une Trame Ethernet (L2).',
-          'Pour s’en souvenir : Physique (câbles, ondes), Liaison (adresses MAC, commutateurs), Réseau (adresses IP, routeurs), Transport (ports TCP/UDP), Session, Présentation (formats, chiffrement) et Application (HTTP, DNS, SMTP). Dans la pratique, on utilise surtout le modèle TCP/IP à 4 couches, mais le vocabulaire OSI reste la référence pour décrire une attaque.',
-          'Savoir situer une attaque indique où la bloquer : un pare-feu classique filtre les couches 3 et 4 (adresses et ports) mais ne voit pas une injection SQL dans une requête HTTP autorisée. Pour cela, il faut un WAF (Web Application Firewall) qui inspecte la couche 7.',
-          'Lors de la réception, le processus s’inverse (décapsulation) : chaque équipement retire l’en-tête de sa couche et lit les informations qui le concernent. C’est pourquoi un commutateur ne « voit » que les adresses MAC, tandis qu’un proxy web peut analyser le contenu applicatif.',
+          'Pour concevoir une architecture réseau robuste et auditer les incidents de sécurité, il est impératif de maîtriser le modèle OSI (Open Systems Interconnection) normalisé par l’ISO, composé de 7 couches distinctes : Physique (L1), Liaison de données (L2), Réseau (L3), Transport (L4), Session (L5), Présentation (L6) et Application (L7).',
+          'Chaque couche du modèle OSI possède des protocoles normalisés spécifiques et des surfaces d’attaques et de vulnérabilités qui lui sont propres : les attaques d’empoisonnement ARP (ARP Spoofing) et le MAC Flooding frappent directement la Couche 2 ; le spoofing d’adresse IP et les détournements de routage BGP visent la Couche 3 ; les attaques par saturation SYN Flood ciblent la pile TCP de la Couche 4 ; tandis que les failles d’injection SQL, les Cross-Site Scripting (XSS) et les désérialisations non sécurisées ciblent la Couche 7 (Application).',
+          'Le processus d’encapsulation réseau consiste à ajouter un en-tête (Header) et parfois un pied de page (Trailer) à chaque palier hiérarchique : les données brutes de l’application sont segmentées au niveau transport, empaquetées avec les adresses IP au niveau réseau, puis encapsulées dans des trames Ethernet au niveau liaison pour transmission physique.',
+          'Moyen mémotechnique universel de référence : « Please Do Not Throw Sausage Pizza Away » ou « Pierre Dont Nicolas Traîne Ses Petites Affaires » pour retenir l’ordre des couches de la Physique (L1) à l’Application (L7). Dans la pratique opérationnelle quotidienne, les ingénieurs utilisent également le modèle TCP/IP simplifié à 4 couches, mais la nomenclature OSI reste indispensable pour qualifier précisément la nature et l’origine d’une attaque.',
+          'Savoir situer une attaque dans le modèle OSI indique immédiatement l’outil de défense requis pour l’intercepter : un pare-feu traditionnel stateful analyse et filtre les paquets aux couches 3 et 4 (adresses IP source/destination et ports TCP/UDP), mais s’avère totalement aveuglante face à une requête HTTP malveillante contenant une injection SQL. Pour contrer cette menace, le déploiement d’un pare-feu applicatif web (WAF) ou d’un proxy inverse inspectant la Couche 7 est obligatoire.',
+          'Lors de la réception sur l’équipement destinataire, le processus inverse, appelé décapsulation, s’exécute : chaque couche retire successivement l’en-tête qui la concerne, analyse les métadonnées et transmet la charge utile à la couche supérieure. C’est la raison fondamentale pour laquelle un commutateur (switch) de niveau 2 n’analyse que les adresses MAC sans connaître les adresses IP, tandis qu’un routeur traite les paquets IP et qu’un pare-feu applicatif décode les flux HTTP/HTTPS complets.',
         ],
         codeSnippet: {
           language: 'bash',
@@ -123,12 +127,12 @@ curl -Iv https://cybersens.org  # Inspection de la couche 7 (Handshake TLS & HTT
         title: 'Taxonomie des Cybermenaces : Malwares, Ransomwares & C2',
         duration: '9 min',
         content: [
-          'Les charges utiles malveillantes modernes se divisent en catégories précises : les Virus (nécessitent un hôte pour s’exécuter), les Vers (s’auto-propagent via des failles réseau comme EternalBlue), les Trojans (dissimulés dans des applications légitimes), et les Ransomwares.',
-          'Une attaque avancée moderne suit la "Cyber Kill Chain" de Lockheed Martin : 1) Reconnaissance, 2) Armement, 3) Livraison (Phishing), 4) Exploitation, 5) Installation de persistance, 6) Établissement du canal Command & Control (C2), et 7) Actions sur objectifs (Chiffrement et exfiltration).',
-          'Les serveurs C2 permettent à l’attaquant d’envoyer des ordres à distance via des canaux furtifs (HTTPS chiffré, requêtes DNS ou requêtes vers des API cloud légitimes).',
-          'Le ransomware moderne pratique la « double extorsion » : avant de chiffrer, il copie les données sensibles. Même si la victime restaure ses sauvegardes, l’attaquant menace de publier les fichiers volés. Certains groupes ajoutent une troisième pression en contactant directement les clients ou en lançant un DDoS.',
-          'D’autres familles complètent la taxonomie : les spywares (espionnage), les keyloggers (enregistrement des frappes), les rootkits (dissimulation au cœur du système), les botnets (réseaux de machines zombies) et les infostealers, qui aspirent en quelques secondes mots de passe enregistrés, cookies de session et portefeuilles crypto.',
-          'Le modèle économique « Ransomware-as-a-Service » (RaaS) a industrialisé le crime : des développeurs louent leur rançongiciel à des « affiliés » qui mènent les intrusions et reversent une commission. Des courtiers en accès initial revendent de leur côté des identifiants VPN ou RDP compromis.',
+          'Les charges utiles malveillantes (payloads) modernes se divisent en catégories taxonomiques précises : les Virus (programmes nécessitant un fichier hôte et une action humaine pour s’exécuter), les Vers (logiciels autonomes capables de s’auto-propager à travers le réseau sans intervention humaine, à l’instar de l’exploit EternalBlue), les Trojans (chevaux de Troie dissimulés dans des applications légitimes ou des utilitaires piratés), et les Ransomwares (rançongiciels).',
+          'Une attaque informatique ciblée sophistiquée (APT ou attaque de groupe criminel) suit généralement la méthodologie de la "Cyber Kill Chain" formalisée par Lockheed Martin : 1) Reconnaissance (collecte de renseignements open source OSINT sur la cible), 2) Armement (création du malware combiné à l’exploit), 3) Livraison (campagne de phishing ciblée ou spear-phishing), 4) Exploitation (exécution de la faille logicielle), 5) Installation de persistance (modification du registre ou création de services cachés), 6) Établissement du canal Command & Control (C2), et 7) Actions sur objectifs (chiffrement massif et exfiltration de données).',
+          'Les serveurs Command & Control (C2) permettent à l’attaquant de piloter à distance les machines compromises via des canaux furtifs et chiffrés : HTTPS sur des ports standards, tunneling DNS, ou trafic dissimulé au sein d’API cloud légitimes (GitHub, Telegram, Microsoft Graph).',
+          'Le ransomware moderne a évolué vers la technique de la « double extorsion » : avant de déclencher le chiffrement des disques, les attaquants exfiltrent des téraoctets de données confidentielles (propriété intellectuelle, dossiers RH, contrats). Même si la victime parvient à restaurer ses sauvegardes hors-ligne, l’attaquant menace de publier l’intégralité des secrets sur les sites de fuite (leak sites) du dark web.',
+          'D’autres familles de menaces spécialisées complètent le panorama : les spywares (logiciels espions d’ambiance), les keyloggers matériels et logiciels (enregistrement des frappes au clavier et vol de mots de passe), les rootkits (malwares s’installant au niveau noyau / kernel pour masquer leur présence aux outils de sécurité), les botnets (armées de machines zombies louées pour des attaques DDoS massives) et les infostealers (stealers de cookies et de sessions de navigateur).',
+          'Le modèle socio-économique du « Ransomware-as-a-Service » (RaaS) a industrialisé la cybercriminalité mondiale : des groupes de développeurs conçoivent des rançongiciels hautement sophistiqués qu’ils louent à des « affiliés » criminels chargés d’exécuter l’intrusion initiale. En parallèle, des courtiers en accès initiaux (Initial Access Brokers) se spécialisent dans le piratage d’identifiants VPN/RDP pour les revendre au plus offrant sur des forums clandestins.',
         ],
         diagramTitle: 'Cycle d’une Infection de Ransomware avec Double Extorsion',
         diagramAscii: `[Victime (Phishing)] ---> [Téléchargement Dropper] ---> [Infection Locale]
@@ -191,7 +195,7 @@ curl -Iv https://cybersens.org  # Inspection de la couche 7 (Handshake TLS & HTT
       {
         id: 'm1-l5',
         sectionNumber: '1.5',
-        title: 'Synthèse du Chapitre & Aide-Mémoire NetAcad',
+        title: 'Synthèse du Chapitre & Aide-Mémoire CyberSens',
         duration: '9 min',
         content: [
           'Vous avez complété les concepts clés du Module 1. Retenez que chaque action numérique laisse une trace et que la sécurité est une responsabilité partagée.',
@@ -216,6 +220,160 @@ curl -Iv https://cybersens.org  # Inspection de la couche 7 (Handshake TLS & HTT
           'Maîtrise de la triade CID et du modèle OSI.',
           'Capacité à identifier le cycle d’attaque Cyber Kill Chain.',
           'Préparation validée pour le laboratoire pratique et l’examen final de certification.',
+        ],
+      },
+      {
+        id: 'm1-l6',
+        sectionNumber: '1.6',
+        title: 'Contrôle d’Accès, Authentification et Gestion des Identités',
+        duration: '11 min',
+        content: [
+          'La sécurité ne se réduit pas au pare-feu. Le point de contrôle le plus critique est souvent l’identité : qui est autorisé à agir, dans quel contexte, sur quels systèmes et selon quelles règles.',
+          'L’authentification repose sur au moins trois facteurs de preuve : quelque chose que vous savez (mot de passe), quelque chose que vous avez (token, badge, mobile), et quelque chose que vous êtes (biométrie). Un mot de passe unique ne suffit plus en environnement sensible.',
+          'Le facteur fort du siècle est la méthode phishing-résistante : MFA basé sur une clé cryptographique FIDO2 / Passkey, ou une solution qui lie la session au domaine exact du site visité.',
+          'Le principe du moindre privilège impose que les comptes ne disposent que des droits strictement nécessaires pour leur mission.',
+          'Les entreprises utilisent aussi des identités de service, des comptes temporaires, la gestion des privilèges Just-in-Time et la révocation automatique à la sortie d’un emploi.',
+          'Un bon programme d’identité intègre le cycle complet : provisionnement, attestation, surveillance en temps réel, révocation et révision régulière des droits.',
+        ],
+        proTip:
+          'Un accès administratif non surveillé est souvent plus dangereux qu’un malware non détecté.',
+        checkYourUnderstanding: {
+          question:
+            'Quel élément distingue le plus clairement une solution MFA forte d’une solution faible ?',
+          options: [
+            'Un code SMS reçu par téléphone',
+            'Un push notification généré depuis un appareil déjà compromis',
+            'Une clé cryptographique liée au domaine exact (Passkey / FIDO2)',
+            'Un mot de passe stocké dans un fichier texte',
+          ],
+          correct: 2,
+          explanation:
+            'Les clés FIDO2 et Passkeys apportent une authentification plus robuste parce qu’elles sont liées au domaine et résident dans l’appareil sécurisé de l’utilisateur.',
+        },
+        keyTakeaways: [
+          'L’identité est la première ligne de défense.',
+          'La robustesse de l’authentification dépend de sa résistance au phishing.',
+        ],
+      },
+      {
+        id: 'm1-l7',
+        sectionNumber: '1.7',
+        title: 'Adresses IP, Sous-réseaux & NAT',
+        duration: '11 min',
+        content: [
+          'Les réseaux IP reposent sur des adresses qui identifient chaque interface et déterminent la façon dont les paquets circulent entre les hôtes.',
+          'Une adresse IPv4 est structurée en quatre octets. Le masque de sous-réseau permet de distinguer la partie réseau et la partie hôte.',
+          'Les sous-réseaux servent à séparer les flux, limiter la diffusion et réduire la surface d’attaque.',
+          'Le NAT (Network Address Translation) permet de masquer plusieurs machines derrière une seule adresse publique.',
+          'Le routage est le mécanisme qui permet de choisir le chemin optimal d’un paquet entre plusieurs réseaux interconnectés.',
+        ],
+        proTip: 'Règle de base : deux hôtes du même sous-réseau peuvent communiquer directement.',
+        checkYourUnderstanding: {
+          question: 'Que permet le masque de sous-réseau /24 dans un réseau IPv4 ?',
+          options: [
+            'De compresser les fichiers réseau',
+            'De séparer la partie réseau et la partie hôte pour identifier les machines du même segment',
+            'De faire passer les paquets dans l’ordre alphabétique',
+            'De remplacer entièrement le protocole TCP',
+          ],
+          correct: 1,
+          explanation:
+            'Le masque /24 signifie que les 24 premiers bits identifient le réseau et que les 8 bits restants sont disponibles pour l’adresse des hôtes.',
+        },
+        keyTakeaways: [
+          'Le sous-réseau structure la segmentation et la sécurité de l’architecture.',
+          'Les adresses et le routage sont les fondations de toute communication réseau.',
+        ],
+      },
+      {
+        id: 'm1-l8',
+        sectionNumber: '1.8',
+        title: 'DNS, DHCP & Services de Résolution du Réseau',
+        duration: '10 min',
+        content: [
+          'Le système DNS transforme des noms lisibles (www.cybersens.org) en adresses IP exploitables par les machines.',
+          'Le DNS repose sur une hiérarchie de domaines : domaine racine, TLD, sous-domaines, puis enregistrements de type A, AAAA, MX, TXT, CNAME et NS.',
+          'DHCP automatise la distribution des paramètres réseau aux postes : adresse IP, masque, passerelle, serveur DNS.',
+          'La sécurité de ces services repose sur des filtrages, des restrictions d’accès et des journaux centraux.',
+          'Les incidents de réseau ne sont pas toujours des pannes ; une mauvaise configuration DNS ou un serveur DHCP rogue peut servir d’initiation à une exfiltration.',
+        ],
+        proTip:
+          'Un serveur DHCP rogue peut se présenter sous le nom d’un bon routeur et distribuer de mauvaises passerelles.',
+        checkYourUnderstanding: {
+          question: 'Quel est le rôle principal du DNS dans une architecture réseau ?',
+          options: [
+            'Chiffrer les connexions Internet',
+            'Associer les noms lisibles à des adresses IP et résoudre les services internes et externes',
+            'Détecter les logiciels malveillants sur les postes',
+            'Remplacer la couche réseau du modèle OSI',
+          ],
+          correct: 1,
+          explanation:
+            'Le DNS transforme les noms en adresses et permet à l’utilisateur de demander simplement un domaine.',
+        },
+        keyTakeaways: [
+          'Le DNS et le DHCP sont des composants stratégiques de la connectivité.',
+          'Une mauvaise configuration sur ces services peut renseigner ou interrompre l’ensemble du réseau.',
+        ],
+      },
+      {
+        id: 'm1-l9',
+        sectionNumber: '1.9',
+        title: 'Wi‑Fi, VLAN & Ségrégation de Réseau',
+        duration: '11 min',
+        content: [
+          'Les réseaux Wi‑Fi ont révolutionné la mobilité, mais introduisent des risques : récupération de paquets, attaques evil twin, brouillage radio.',
+          'Les points d’accès doivent être authentifiés, segmentés et contrôlés par des VLAN.',
+          'Les VLAN permettent de scinder un réseau physique en plusieurs sous-réseaux logiques.',
+          'La segmentation réduit la surface d’attaque et limite la propagation latérale d’un malware.',
+          'Les bonnes pratiques incluent le minimum d’accès nécessaire et la gestion centralisée.',
+        ],
+        proTip:
+          'Un réseau Wi‑Fi ouvert ou mal segmenté est souvent un tunnel d’entrée discret pour les attaquants.',
+        checkYourUnderstanding: {
+          question: 'Pourquoi la segmentation réseau par VLAN est-elle importante ?',
+          options: [
+            'Parce qu’elle accélère le stockage local',
+            'Parce qu’elle isole les zones critiques et limite la propagation latérale des menaces',
+            'Parce qu’elle remplace les pare-feu',
+            'Parce qu’elle supprime les accès DNS',
+          ],
+          correct: 1,
+          explanation:
+            'La segmentation empêche qu’une intrusion touche immédiatement les zones critiques.',
+        },
+        keyTakeaways: [
+          'Le Wi‑Fi et les VLAN sont des composants de sécurité autant que de connectivité.',
+          'Une bonne segmentation réduit l’impact d’une compromission.',
+        ],
+      },
+      {
+        id: 'm1-l10',
+        sectionNumber: '1.10',
+        title: 'Synthèse Certifiante : Réseaux Fondamentaux & Délivrance du Certificat',
+        duration: '12 min',
+        content: [
+          'Vous avez parcouru les bases de la conception et de la sécurisation d’un réseau : architecture, adresses, NAT, DNS/DHCP, VLAN.',
+          'Le certificat de fin de parcours est délivré à l’issue d’une validation finale.',
+          'Le parcours prépare à la pratique : identifier une anomalie, segmenter un environnement, sécuriser un point d’accès.',
+          'L’objectif final est de maîtriser la posture de défense réseau opérationnelle.',
+          'Vous êtes prêts pour l’évaluation finale et la délivrance du certificat CyberSens.',
+        ],
+        checkYourUnderstanding: {
+          question: 'Pourquoi le certificat est-il délivré à la fin du parcours, et pas plus tôt ?',
+          options: [
+            'Parce qu’il faut uniquement un badge visuel',
+            'Parce que la validation finale confirme que les compétences et la compréhension ont bien été acquises',
+            'Parce que le système ne sait pas faire de certificats plus tôt',
+            'Parce que la théorie se suffit à elle-même',
+          ],
+          correct: 1,
+          explanation:
+            'Un certificat confirme une compétence réellement validée par l’examen final.',
+        },
+        keyTakeaways: [
+          'Les réseaux sont la base de la sécurité numérique.',
+          'La validation finale est la preuve que la compétence est acquise.',
         ],
       },
     ],
@@ -469,7 +627,7 @@ print(f"Entropie : {entropy:.2f} bits (Excellente si > 75 bits)")`,
       {
         id: 'm2-l5',
         sectionNumber: '2.5',
-        title: 'Synthèse du Chapitre & Aide-Mémoire NetAcad',
+        title: 'Synthèse du Chapitre & Aide-Mémoire CyberSens',
         duration: '8 min',
         content: [
           'Récapitulatif des acquis : calcul d’entropie, abandon des mots de passe faibles, déploiement du MFA non contournable, stockage de hashs sécurisés avec Argon2id, et chiffrement hybride TLS.',
@@ -752,7 +910,7 @@ dig +short TXT _dmarc.google.com        # Affichage de la politique DMARC (ex: p
       {
         id: 'm3-l5',
         sectionNumber: '3.5',
-        title: 'Synthèse du Chapitre & Aide-Mémoire NetAcad',
+        title: 'Synthèse du Chapitre & Aide-Mémoire CyberSens',
         duration: '9 min',
         content: [
           'Bilan des compétences du Module 3 : identification des biais psychologiques, vérification des en-têtes SMTP (SPF/DKIM/DMARC), parade contre le Spear-Phishing et application des procédures de vérification financière.',

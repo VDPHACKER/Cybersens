@@ -78,7 +78,11 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    if (await handleGeminiProxy(req, res, process.env.GEMINI_API_KEY, (r) => !!getSessionUser(r)))
+    if (
+      await handleGeminiProxy(req, res, process.env.GEMINI_API_KEY, (r) => getSessionUser(r), {
+        trustProxy: TRUST_PROXY,
+      })
+    )
       return;
     if (await handleApi(req, res, { trustProxy: TRUST_PROXY })) return;
 

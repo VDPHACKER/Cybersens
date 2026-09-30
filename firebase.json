@@ -1,0 +1,12 @@
+{
+  "hosting": {
+    "public": "firebase-public",
+    "cleanUrls": false,
+    "rewrites": [
+      {
+        "source": "**",
+        "run": { "serviceId": "cybersens", "region": "europe-west1" }
+      }
+    ]
+  }
+}

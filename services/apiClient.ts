@@ -1,4 +1,5 @@
 // Client HTTP de l'API CyberSens (même origine, cookie de session HttpOnly envoyé automatiquement).
+import { localizeServerError } from './serverErrors';
 
 export class ApiError extends Error {
   status: number;
@@ -25,7 +26,7 @@ export const api = async <T = unknown>(
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch {
-    throw new ApiError(0, 'Serveur injoignable. Vérifiez votre connexion.');
+    throw new ApiError(0, localizeServerError('Serveur injoignable. Vérifiez votre connexion.'));
   }
 
   let data: any = null;
@@ -39,7 +40,12 @@ export const api = async <T = unknown>(
     // Session expirée pendant l'utilisation : l'application revient à l'écran de connexion
     if (res.status === 401 && !path.startsWith('/api/auth/'))
       window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
-    throw new ApiError(res.status, data?.error || 'Une erreur est survenue.');
+    throw new ApiError(
+      res.status,
+      localizeServerError(
+        typeof data?.error === 'string' ? data.error : 'Une erreur est survenue.',
+      ),
+    );
   }
   return data as T;
 };
@@ -148,6 +154,8 @@ export interface ServerSnapshot {
     level: number;
     createdAt: string;
     migrated: boolean;
+    isAdmin?: boolean;
+    communityPosts?: number;
     settings: {
       theme?: 'dark' | 'light';
       language?: 'fr' | 'en' | 'es';
@@ -155,6 +163,7 @@ export interface ServerSnapshot {
       defaultQuizCount?: number;
       defaultQuizDifficulty?: string;
       onboarded?: boolean;
+      showInLeaderboard?: boolean;
     };
   };
   progress: Record<string, string[]>;

@@ -627,7 +627,7 @@ export const AiThreatsGame: React.FC<AiThreatsGameProps> = ({ onExit }) => {
           <div className="flex justify-end pt-2">
             <button
               onClick={nextRound}
-              className="px-8 py-3.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-2xl font-bold text-sm transition-all shadow-xl shadow-cyan-600/30 flex items-center gap-2"
+              className="px-8 py-3.5 bg-cyan-700 hover:bg-cyan-700 text-white rounded-2xl font-bold text-sm transition-all shadow-xl shadow-cyan-600/30 flex items-center gap-2"
             >
               <span>
                 {language === 'en'
@@ -689,7 +689,7 @@ export const AiThreatsGame: React.FC<AiThreatsGameProps> = ({ onExit }) => {
           <div className="flex justify-center gap-3 pt-2">
             <button
               onClick={restartGame}
-              className="px-6 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-lg"
+              className="px-6 py-3 rounded-xl bg-cyan-700 hover:bg-cyan-700 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-lg"
             >
               <RotateCcw className="w-4 h-4" />
               <span>
@@ -741,7 +741,7 @@ export const AiThreatsGame: React.FC<AiThreatsGameProps> = ({ onExit }) => {
           <div className="flex justify-center gap-3 pt-2">
             <button
               onClick={restartGame}
-              className="px-6 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-lg"
+              className="px-6 py-3 rounded-xl bg-cyan-700 hover:bg-cyan-700 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-lg"
             >
               <RotateCcw className="w-4 h-4" />
               <span>

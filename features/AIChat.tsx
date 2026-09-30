@@ -29,11 +29,12 @@ import {
   Terminal,
   Bot,
   Code,
+  Lock,
 } from 'lucide-react';
 import { chatWithCyberExpertStream, summarizeConversation } from '../services/geminiService';
 import { getStats, getPreferences } from '../services/persistenceService';
 import { UserPreferences } from '../types';
-import { useI18n } from '../services/i18n';
+import { localizeUiText, useI18n } from '../services/i18n';
 
 interface Message {
   id: string;
@@ -49,9 +50,9 @@ interface AIChatProps {
 
 const TOPICS = [
   { id: 'all', label: 'Tout explorer', icon: Sparkles },
-  { id: 'code', label: '💻 Codes & Scripts Pratiques', icon: FileCode },
-  { id: 'ai_threats', label: '🧠 Menaces & Sécurité IA', icon: Bot },
-  { id: 'ctf_help', label: '🚩 Défis & Indices CTF', icon: Flag },
+  { id: 'code', label: 'Codes & Scripts Pratiques', icon: FileCode },
+  { id: 'ai_threats', label: 'Menaces & Sécurité IA', icon: Bot },
+  { id: 'ctf_help', label: 'Défis & Indices CTF', icon: Flag },
   { id: 'phishing', label: 'Phishing & Arnaques', icon: ShieldAlert },
   { id: 'passwords', label: 'Mots de passe & 2FA', icon: KeyRound },
   { id: 'mobile', label: 'Smartphones & Appels', icon: Smartphone },
@@ -367,7 +368,7 @@ const MessageItem = memo(function MessageItem({
         className={`w-9 h-9 md:w-11 md:h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-lg border ${
           isAssistant
             ? 'bg-slate-900 border-cyan-500/30 text-cyan-400 shadow-cyan-500/10'
-            : 'bg-cyan-600 border-cyan-400 text-white shadow-cyan-600/20'
+            : 'bg-cyan-700 border-cyan-400 text-white shadow-cyan-600/20'
         }`}
       >
         {isAssistant ? (
@@ -387,7 +388,7 @@ const MessageItem = memo(function MessageItem({
           <span className="text-[11px] font-semibold tracking-wider uppercase text-slate-400">
             {isAssistant ? 'CyberGuard IA' : 'Vous'}
           </span>
-          <span className="text-[10px] text-slate-500 font-mono">{message.timestamp}</span>
+          <span className="text-[10px] text-slate-400 font-mono">{message.timestamp}</span>
         </div>
 
         <div
@@ -590,7 +591,7 @@ const AIChat: React.FC<AIChatProps> = ({ onBack, initialPrompt }) => {
     setStreamingMessage('');
 
     try {
-      const history = [...messages, newUserMessage].map((m) => ({
+      const history = messages.map((m) => ({
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: m.parts.map((p) => ({ text: p.text })),
       }));
@@ -864,7 +865,7 @@ ${messages.map((m) => `[${m.timestamp}] ${m.role === 'assistant' ? 'CYBERGUARD' 
                     onClick={() => setSelectedTopic(topic.id)}
                     className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all ${
                       active
-                        ? 'bg-cyan-500 text-white shadow-md shadow-cyan-500/20'
+                        ? 'bg-cyan-700 text-white shadow-md shadow-cyan-500/20'
                         : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
                     }`}
                   >
@@ -880,7 +881,7 @@ ${messages.map((m) => `[${m.timestamp}] ${m.role === 'assistant' ? 'CYBERGUARD' 
               {currentQuestions.map((q, idx) => (
                 <button
                   key={idx}
-                  onClick={() => handleSend(q)}
+                  onClick={() => handleSend(localizeUiText(q))}
                   className="p-3.5 text-left rounded-2xl bg-slate-900/60 hover:bg-slate-900 border border-slate-800 hover:border-cyan-500/40 text-slate-300 hover:text-white transition-all text-xs md:text-sm font-medium flex items-start gap-2.5 group shadow-sm"
                 >
                   <Sparkles className="w-4 h-4 text-cyan-400 mt-0.5 shrink-0 group-hover:scale-110 transition-transform" />
@@ -963,7 +964,7 @@ ${messages.map((m) => `[${m.timestamp}] ${m.role === 'assistant' ? 'CYBERGUARD' 
 
           {/* Quick Code & Security Prompts Bar */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
               <Terminal className="w-3 h-3 text-cyan-400" />
               <span>Scripts :</span>
             </span>
@@ -976,7 +977,10 @@ ${messages.map((m) => `[${m.timestamp}] ${m.role === 'assistant' ? 'CYBERGUARD' 
               }
               className="px-2.5 py-1 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-300 transition-colors shrink-0 flex items-center gap-1 font-mono text-[11px]"
             >
-              <span>🐍 Python Passwords</span>
+              <span className="inline-flex items-center gap-1.5">
+                <FileCode className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                Python Passwords
+              </span>
             </button>
             <button
               type="button"
@@ -987,7 +991,10 @@ ${messages.map((m) => `[${m.timestamp}] ${m.role === 'assistant' ? 'CYBERGUARD' 
               }
               className="px-2.5 py-1 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-300 transition-colors shrink-0 flex items-center gap-1 font-mono text-[11px]"
             >
-              <span>🛡️ Guardrail Anti-Prompt-Injection</span>
+              <span className="inline-flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                Guardrail Anti-Prompt-Injection
+              </span>
             </button>
             <button
               type="button"
@@ -998,7 +1005,10 @@ ${messages.map((m) => `[${m.timestamp}] ${m.role === 'assistant' ? 'CYBERGUARD' 
               }
               className="px-2.5 py-1 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-300 transition-colors shrink-0 flex items-center gap-1 font-mono text-[11px]"
             >
-              <span>🔒 Headers Express Sécurisés</span>
+              <span className="inline-flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                Headers Express Sécurisés
+              </span>
             </button>
             <button
               type="button"
@@ -1009,7 +1019,10 @@ ${messages.map((m) => `[${m.timestamp}] ${m.role === 'assistant' ? 'CYBERGUARD' 
               }
               className="px-2.5 py-1 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-300 transition-colors shrink-0 flex items-center gap-1 font-mono text-[11px]"
             >
-              <span>💻 Audit Bash Serveur</span>
+              <span className="inline-flex items-center gap-1.5">
+                <Terminal className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                Audit Bash Serveur
+              </span>
             </button>
           </div>
 
@@ -1079,14 +1092,14 @@ ${messages.map((m) => `[${m.timestamp}] ${m.role === 'assistant' ? 'CYBERGUARD' 
               type="button"
               onClick={() => handleSend()}
               disabled={isLoading || (!input.trim() && !capturedImage)}
-              className="p-2.5 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-30 disabled:hover:bg-cyan-600 text-white rounded-xl font-bold transition-all shrink-0 shadow-lg shadow-cyan-600/20 active:scale-95 mb-0.5"
+              className="p-2.5 bg-cyan-700 hover:bg-cyan-600 disabled:opacity-30 disabled:hover:bg-cyan-600 text-white rounded-xl font-bold transition-all shrink-0 shadow-lg shadow-cyan-600/20 active:scale-95 mb-0.5"
               title="Envoyer la question"
             >
               <Send className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-slate-500 px-2 pt-1">
+          <div className="flex items-center justify-between text-[11px] text-slate-400 px-2 pt-1">
             <span>CyberGuard IA est conçu pour la sensibilisation et les bonnes pratiques.</span>
             <span className="hidden sm:inline">
               Entrée pour envoyer, Maj+Entrée pour un saut de ligne
@@ -1118,7 +1131,7 @@ ${messages.map((m) => `[${m.timestamp}] ${m.role === 'assistant' ? 'CYBERGUARD' 
 
             <button
               onClick={capturePhoto}
-              className="px-8 py-3 rounded-xl bg-cyan-600 text-white font-bold text-sm shadow-xl shadow-cyan-600/30 hover:bg-cyan-500 transition-all active:scale-95 flex items-center gap-2"
+              className="px-8 py-3 rounded-xl bg-cyan-700 text-white font-bold text-sm shadow-xl shadow-cyan-600/30 hover:bg-cyan-600 transition-all active:scale-95 flex items-center gap-2"
             >
               <Camera className="w-4 h-4" />
               Prendre la photo
@@ -1157,13 +1170,13 @@ ${messages.map((m) => `[${m.timestamp}] ${m.role === 'assistant' ? 'CYBERGUARD' 
                   key={idx}
                   onClick={() => {
                     setShowEmergencyModal(false);
-                    handleSend(item.prompt);
+                    handleSend(localizeUiText(item.prompt));
                   }}
                   className="w-full text-left p-3.5 rounded-2xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 hover:border-red-500/40 transition-all group"
                 >
                   <p className="text-sm font-bold text-white group-hover:text-red-300 transition-colors flex items-center justify-between">
                     <span>{item.title}</span>
-                    <ArrowLeft className="w-4 h-4 rotate-180 text-slate-500 group-hover:text-red-400 transition-colors" />
+                    <ArrowLeft className="w-4 h-4 rotate-180 text-slate-400 group-hover:text-red-400 transition-colors" />
                   </p>
                   <p className="text-xs text-slate-400 mt-1">{item.desc}</p>
                 </button>

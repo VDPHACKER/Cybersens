@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { CourseModule, Certificate, CourseCaseStudy } from '../types';
+import { CourseModule, Certificate, CourseCaseStudy, Language } from '../types';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -31,9 +31,193 @@ import {
 } from '../services/persistenceService';
 import { api, ApiError } from '../services/apiClient';
 import { CertificateModal } from './CertificateModal';
-import { NetAcadLabRunner } from './NetAcadLabRunner';
+import { CyberSensLabRunner } from './CyberSensLabRunner';
+import { useI18n } from '../services/i18n';
 
 const PASS_THRESHOLD = 70;
+
+const COURSE_READER_COPY: Record<Language, Record<string, string>> = {
+  fr: {
+    beginner: 'Débutant',
+    intermediate: 'Intermédiaire',
+    advanced: 'Avancé',
+    exit: 'Quitter la salle',
+    listen: 'Synthèse vocale',
+    stop: 'Arrêter',
+    manual: 'Manuel de cours',
+    lab: 'Laboratoire pratique interactif',
+    case: 'Étude de cas réel',
+    exam: 'Examen & certificat',
+    objectives: 'Objectifs d’apprentissage du module :',
+    coursePlan: 'Plan du cours',
+    sections: 'sections',
+    completed: 'terminées',
+    section: 'Section',
+    lesson: 'Leçon',
+    progress: 'Progression du module :',
+    tip: 'Astuce pratique :',
+    alert: 'Alerte de sécurité :',
+    diagramLabel: 'Schéma ASCII',
+    exercise: 'À vous de pratiquer',
+    instructions: 'Consigne',
+    expectedOutcome: 'Résultat attendu',
+    quiz: 'Vérifiez votre compréhension (+15 XP) :',
+    explanation: 'Explication pédagogique :',
+    takeaways: 'À retenir pour cette section',
+    previous: 'Précédent',
+    next: 'Section suivante (+25 XP)',
+    goLab: 'Accéder au laboratoire pratique',
+    labComplete: 'Objectif du laboratoire validé ! (+30 XP)',
+    caseIntro: 'Analysez la menace et les erreurs critiques à éviter.',
+    scenario: 'Scénario de l’incident :',
+    attack: 'Mode opératoire de l’attaque :',
+    mistake: 'Erreur critique à éviter',
+    reaction: 'Réflexe recommandé',
+    examTitle: 'Examen de certification',
+    issuer: 'Délivré sous la supervision du Formateur en cybersécurité et IA VDPHACKER',
+    passRule: 'Un score minimum de',
+    required: 'est requis pour obtenir le certificat vérifiable.',
+    congratulations: 'Félicitations ! Examen validé',
+    insufficient: 'Score insuffisant pour la certification',
+    finalScore: 'Votre score final :',
+    threshold: 'Seuil requis :',
+    certificateReady: 'Votre certificat officiel a été généré et archivé dans votre profil.',
+    certificateAction: 'Consulter / Imprimer mon certificat',
+    retry: 'Recommencer l’examen',
+    correction: 'Correction détaillée',
+    yourAnswer: 'Votre réponse :',
+    correctAnswer: 'Bonne réponse :',
+    question: 'Question',
+    submit: 'Valider mes réponses',
+    submitCertificate: 'Soumettre mes réponses & obtenir ma certification',
+    submitting: 'Correction en cours…',
+    copy: 'Copier',
+    copied: 'Copié !',
+    examOffline:
+      'La correction nécessite une connexion Internet. Vos réponses restent sélectionnées; réessayez une fois en ligne.',
+    examError: 'Impossible de corriger l’examen pour le moment.',
+  },
+  en: {
+    beginner: 'Beginner',
+    intermediate: 'Intermediate',
+    advanced: 'Advanced',
+    exit: 'Leave course',
+    listen: 'Listen to lesson',
+    stop: 'Stop',
+    manual: 'Course guide',
+    lab: 'Interactive hands-on lab',
+    case: 'Real-world case study',
+    exam: 'Exam & certificate',
+    objectives: 'Module learning objectives:',
+    coursePlan: 'Course outline',
+    sections: 'sections',
+    completed: 'completed',
+    section: 'Section',
+    lesson: 'Lesson',
+    progress: 'Module progress:',
+    tip: 'Practical tip:',
+    alert: 'Security alert:',
+    diagramLabel: 'ASCII diagram',
+    exercise: 'Put it into practice',
+    instructions: 'Instructions',
+    expectedOutcome: 'Expected outcome',
+    quiz: 'Check your understanding (+15 XP):',
+    explanation: 'Explanation:',
+    takeaways: 'Key takeaways',
+    previous: 'Previous',
+    next: 'Next section (+25 XP)',
+    goLab: 'Open the hands-on lab',
+    labComplete: 'Lab objective completed! (+30 XP)',
+    caseIntro: 'Analyze the threat and the critical mistakes to avoid.',
+    scenario: 'Incident scenario:',
+    attack: 'Attack method:',
+    mistake: 'Critical mistake to avoid',
+    reaction: 'Recommended response',
+    examTitle: 'Certification exam',
+    issuer: 'Issued under the supervision of Cybersecurity & AI Trainer VDPHACKER',
+    passRule: 'A minimum score of',
+    required: 'is required to earn the verifiable certificate.',
+    congratulations: 'Congratulations! Exam passed',
+    insufficient: 'Score too low for certification',
+    finalScore: 'Your final score:',
+    threshold: 'Required score:',
+    certificateReady: 'Your official certificate has been generated and saved to your profile.',
+    certificateAction: 'View / Print my certificate',
+    retry: 'Retake the exam',
+    correction: 'Answer review',
+    yourAnswer: 'Your answer:',
+    correctAnswer: 'Correct answer:',
+    question: 'Question',
+    submit: 'Submit answers',
+    submitCertificate: 'Submit answers & earn my certificate',
+    submitting: 'Grading…',
+    copy: 'Copy',
+    copied: 'Copied!',
+    examOffline:
+      'Grading requires an internet connection. Your answers are saved; try again when you are online.',
+    examError: 'Unable to grade the exam right now.',
+  },
+  es: {
+    beginner: 'Principiante',
+    intermediate: 'Intermedio',
+    advanced: 'Avanzado',
+    exit: 'Salir del curso',
+    listen: 'Escuchar la lección',
+    stop: 'Detener',
+    manual: 'Guía del curso',
+    lab: 'Laboratorio práctico interactivo',
+    case: 'Caso práctico real',
+    exam: 'Examen y certificado',
+    objectives: 'Objetivos de aprendizaje del módulo:',
+    coursePlan: 'Índice del curso',
+    sections: 'secciones',
+    completed: 'completadas',
+    section: 'Sección',
+    lesson: 'Lección',
+    progress: 'Progreso del módulo:',
+    tip: 'Consejo práctico:',
+    alert: 'Alerta de seguridad:',
+    diagramLabel: 'Diagrama ASCII',
+    exercise: 'Ponlo en práctica',
+    instructions: 'Instrucciones',
+    expectedOutcome: 'Resultado esperado',
+    quiz: 'Comprueba lo aprendido (+15 XP):',
+    explanation: 'Explicación:',
+    takeaways: 'Puntos clave de esta sección',
+    previous: 'Anterior',
+    next: 'Siguiente sección (+25 XP)',
+    goLab: 'Ir al laboratorio práctico',
+    labComplete: '¡Objetivo del laboratorio completado! (+30 XP)',
+    caseIntro: 'Analiza la amenaza y los errores críticos que debes evitar.',
+    scenario: 'Escenario del incidente:',
+    attack: 'Método del ataque:',
+    mistake: 'Error crítico que debes evitar',
+    reaction: 'Respuesta recomendada',
+    examTitle: 'Examen de certificación',
+    issuer: 'Emitido bajo la supervisión del Formador en Ciberseguridad e IA VDPHACKER',
+    passRule: 'Se requiere una puntuación mínima de',
+    required: 'para obtener el certificado verificable.',
+    congratulations: '¡Enhorabuena! Examen aprobado',
+    insufficient: 'Puntuación insuficiente para certificarte',
+    finalScore: 'Tu puntuación final:',
+    threshold: 'Puntuación mínima:',
+    certificateReady: 'Tu certificado oficial se ha generado y guardado en tu perfil.',
+    certificateAction: 'Ver / Imprimir mi certificado',
+    retry: 'Repetir el examen',
+    correction: 'Revisión detallada',
+    yourAnswer: 'Tu respuesta:',
+    correctAnswer: 'Respuesta correcta:',
+    question: 'Pregunta',
+    submit: 'Enviar respuestas',
+    submitCertificate: 'Enviar respuestas y obtener mi certificado',
+    submitting: 'Corrigiendo…',
+    copy: 'Copiar',
+    copied: '¡Copiado!',
+    examOffline:
+      'La corrección requiere conexión a Internet. Tus respuestas se conservan; inténtalo de nuevo cuando estés conectado.',
+    examError: 'No se pudo corregir el examen en este momento.',
+  },
+};
 
 interface ExamItem {
   id: string;
@@ -99,6 +283,8 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
   onClose,
   onComplete,
 }) => {
+  const { language } = useI18n();
+  const text = COURSE_READER_COPY[language];
   const [activeTab, setActiveTab] = useState<'lessons' | 'lab' | 'cas_pratique' | 'evaluation'>(
     'lessons',
   );
@@ -180,7 +366,7 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
       window.speechSynthesis.cancel();
       const textToRead = `${currentLesson.title}. ${currentLesson.content.join(' ')}`;
       const utterance = new SpeechSynthesisUtterance(textToRead);
-      utterance.lang = 'fr-FR';
+      utterance.lang = language === 'en' ? 'en-US' : language === 'es' ? 'es-ES' : 'fr-FR';
       utterance.rate = 1.0;
       utterance.onend = () => setIsSpeaking(false);
       utterance.onerror = () => setIsSpeaking(false);
@@ -251,10 +437,10 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
     } catch (err) {
       setExamError(
         err instanceof ApiError && err.status === 0
-          ? 'L’examen de certification est corrigé par le serveur : il nécessite une connexion Internet. Vos réponses restent sélectionnées, réessayez une fois en ligne.'
+          ? text.examOffline
           : err instanceof ApiError
             ? err.message
-            : 'Impossible de corriger l’examen pour le moment.',
+            : text.examError,
       );
     } finally {
       setExamPending(false);
@@ -264,7 +450,7 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md flex justify-center p-2 sm:p-4 animate-in fade-in duration-200">
       <div className="relative w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-2xl my-auto text-slate-900 dark:text-slate-100 max-h-[94vh] flex flex-col">
-        {/* Top NetAcad Navigation & Status Bar */}
+        {/* Top CyberSens Navigation & Status Bar */}
         <div className="flex flex-wrap items-center justify-between px-5 py-3.5 bg-slate-900 text-white border-b border-slate-800 gap-3">
           <div className="flex items-center gap-3">
             <button
@@ -275,7 +461,7 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
               className="flex items-center gap-1.5 p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors shadow-sm text-xs font-bold"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Quitter la salle</span>
+              <span className="hidden sm:inline">{text.exit}</span>
             </button>
 
             <div className="flex items-center gap-2">
@@ -301,24 +487,24 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                   ? 'bg-amber-500 text-white border-amber-600 shadow-md animate-pulse'
                   : 'bg-slate-800 text-slate-200 border-slate-700 hover:border-sky-500'
               }`}
-              title="Écouter la leçon lue à voix haute"
+              title={text.listen}
             >
               {isSpeaking ? (
                 <>
                   <VolumeX className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Arrêter</span>
+                  <span className="hidden sm:inline">{text.stop}</span>
                 </>
               ) : (
                 <>
                   <Volume2 className="w-3.5 h-3.5 text-sky-400" />
-                  <span className="hidden sm:inline">Synthèse Vocale</span>
+                  <span className="hidden sm:inline">{text.listen}</span>
                 </>
               )}
             </button>
           </div>
         </div>
 
-        {/* NetAcad Modern Tab Navigation */}
+        {/* CyberSens Modern Tab Navigation */}
         <div className="flex border-b border-slate-200 dark:border-slate-800 px-5 bg-white dark:bg-slate-900 text-xs font-bold gap-4 overflow-x-auto no-scrollbar shadow-sm">
           <button
             onClick={() => setActiveTab('lessons')}
@@ -329,7 +515,9 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
             }`}
           >
             <BookOpen className="w-4 h-4" />
-            <span>Manuel de Cours ({course.lessons.length})</span>
+            <span>
+              {text.manual} ({course.lessons.length})
+            </span>
           </button>
 
           <button
@@ -341,7 +529,7 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
             }`}
           >
             <Terminal className="w-4 h-4 text-emerald-500" />
-            <span>Lab Pratique Interactif</span>
+            <span>{text.lab}</span>
           </button>
 
           <button
@@ -353,7 +541,7 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
             }`}
           >
             <Sparkles className="w-4 h-4 text-amber-500" />
-            <span>Étude de Cas Réel</span>
+            <span>{text.case}</span>
           </button>
 
           <button
@@ -365,7 +553,7 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
             }`}
           >
             <Award className="w-4 h-4 text-amber-500" />
-            <span>Examen & Certificat</span>
+            <span>{text.exam}</span>
           </button>
         </div>
 
@@ -375,35 +563,55 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
           {activeTab === 'lessons' && (
             <div className="space-y-6">
               {/* Module Header Card with Objectives */}
-              <div className="p-5 rounded-2xl bg-gradient-to-r from-sky-50 via-blue-50 to-indigo-50 dark:from-sky-950/40 dark:via-blue-950/40 dark:to-indigo-950/40 border border-sky-200 dark:border-sky-800/40 space-y-3">
+              <div className="p-6 rounded-3xl bg-gradient-to-r from-sky-50 via-blue-50 to-indigo-50 dark:from-sky-950/40 dark:via-blue-950/40 dark:to-indigo-950/40 border border-sky-200 dark:border-sky-800/40 space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center shadow-md">
+                  <div className="w-10 h-10 rounded-xl bg-sky-700 text-white flex items-center justify-center shadow-md">
                     <BookOpen className="w-5 h-5" />
                   </div>
                   <div>
                     <span className="text-[11px] font-black uppercase tracking-wider text-sky-700 dark:text-sky-400 block">
-                      {course.moduleCode || 'NETACAD'} • {course.level}
+                      {course.moduleCode || 'NETACAD'} •{' '}
+                      {course.level === 'Débutant'
+                        ? text.beginner
+                        : course.level === 'Intermédiaire'
+                          ? text.intermediate
+                          : text.advanced}
                     </span>
-                    <h2 className="text-base sm:text-xl font-black text-slate-900 dark:text-white">
+                    <h2 className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white leading-tight">
                       {course.title}
                     </h2>
                   </div>
                 </div>
 
-                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-7">
                   {course.description}
                 </p>
+
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <span className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-sky-700 dark:border-sky-700 dark:bg-sky-950/20 dark:text-sky-300">
+                    {course.lessons.length} leçons
+                  </span>
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300">
+                    {course.caseStudy ? 'Cas pratique' : 'Guide'}
+                  </span>
+                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300">
+                    Certification
+                  </span>
+                </div>
 
                 {/* Module Learning Objectives */}
                 {course.moduleObjectives && course.moduleObjectives.length > 0 && (
                   <div className="pt-2 border-t border-sky-200/60 dark:border-sky-800/40">
                     <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 block mb-1.5">
-                      Objectifs d’apprentissage du module :
+                      {text.objectives}
                     </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-slate-600 dark:text-slate-300">
                       {course.moduleObjectives.map((obj, i) => (
-                        <div key={i} className="flex items-start gap-2">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
+                        <div
+                          key={i}
+                          className="flex items-start gap-2.5 rounded-xl border border-sky-100 bg-sky-50/40 p-2 dark:border-sky-900 dark:bg-sky-950/10"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
                           <span>{obj}</span>
                         </div>
                       ))}
@@ -416,14 +624,14 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Plan du cours ({course.lessons.length} sections)
+                    {text.coursePlan} ({course.lessons.length} {text.sections})
                   </h3>
                   <span className="text-xs font-bold text-sky-600 dark:text-sky-400">
-                    {completedLessons.length} / {course.lessons.length} terminées
+                    {completedLessons.length} / {course.lessons.length} {text.completed}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                   {course.lessons.map((lesson, idx) => {
                     const isCurrent = idx === activeLessonIdx;
                     const isDone = completedLessons.includes(idx);
@@ -437,7 +645,7 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                             setIsSpeaking(false);
                           }
                         }}
-                        className={`p-2.5 rounded-xl border text-left transition-all text-xs font-semibold ${
+                        className={`p-3 rounded-xl border text-left transition-all text-sm font-semibold ${
                           isCurrent
                             ? 'bg-sky-50 border-sky-500 text-sky-950 dark:bg-sky-600/20 dark:border-sky-500 dark:text-white shadow-sm ring-2 ring-sky-500/20'
                             : isDone
@@ -447,11 +655,13 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                       >
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[10px] font-black uppercase text-slate-400">
-                            {lesson.sectionNumber ? `Sec ${lesson.sectionNumber}` : `#${idx + 1}`}
+                            {lesson.sectionNumber
+                              ? `${text.section} ${lesson.sectionNumber}`
+                              : `#${idx + 1}`}
                           </span>
                           {isDone && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
                         </div>
-                        <span className="line-clamp-1 block text-[11px] font-bold">
+                        <span className="line-clamp-1 block text-[12px] sm:text-sm font-bold">
                           {lesson.title}
                         </span>
                       </button>
@@ -461,14 +671,14 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
               </div>
 
               {/* Active Lesson Reader Card */}
-              <div className="p-6 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 space-y-5 shadow-sm">
+              <div className="course-reader-content p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-6 shadow-sm">
                 {/* Lesson Header */}
                 <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3 gap-2">
                   <div className="flex items-center gap-2">
                     <span className="px-2.5 py-0.5 rounded-md bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 text-xs font-black font-mono">
                       {currentLesson.sectionNumber
-                        ? `Section ${currentLesson.sectionNumber}`
-                        : `Leçon ${activeLessonIdx + 1}`}
+                        ? `${text.section} ${currentLesson.sectionNumber}`
+                        : `${text.lesson} ${activeLessonIdx + 1}`}
                     </span>
                     <span className="text-xs text-slate-400">•</span>
                     <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 font-medium">
@@ -477,29 +687,29 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                   </div>
 
                   <span className="text-xs font-bold text-slate-400">
-                    Progression du module :{' '}
+                    {text.progress}{' '}
                     {Math.round((completedLessons.length / course.lessons.length) * 100)}%
                   </span>
                 </div>
 
-                <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
+                <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white leading-tight">
                   {currentLesson.title}
                 </h3>
 
                 {/* Lesson Body Paragraphs */}
-                <div className="space-y-3.5 text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed font-normal">
+                <div className="space-y-5 text-sm sm:text-base text-slate-700 dark:text-slate-200 leading-7 font-normal">
                   {currentLesson.content.map((p, idx) => (
                     <p key={idx}>{p}</p>
                   ))}
                 </div>
 
-                {/* Pro Tip Box (NetAcad Callout) */}
+                {/* Pro Tip Box (CyberSens Callout) */}
                 {currentLesson.proTip && (
-                  <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50 flex items-start gap-3 text-xs text-amber-950 dark:text-amber-200">
+                  <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50 flex items-start gap-3 text-sm text-amber-950 dark:text-amber-200 leading-6">
                     <Lightbulb className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                     <div>
                       <span className="font-black uppercase tracking-wider block mb-0.5 text-amber-800 dark:text-amber-400">
-                        Astuce NetAcad Pro :
+                        {text.tip}
                       </span>
                       <span>{currentLesson.proTip}</span>
                     </div>
@@ -508,11 +718,11 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
 
                 {/* Security Alert Box */}
                 {currentLesson.securityAlert && (
-                  <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/50 flex items-start gap-3 text-xs text-rose-950 dark:text-rose-200">
+                  <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/50 flex items-start gap-3 text-sm text-rose-950 dark:text-rose-200 leading-6">
                     <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                     <div>
                       <span className="font-black uppercase tracking-wider block mb-0.5 text-rose-800 dark:text-rose-400">
-                        Alerte de Sécurité Opérationnelle :
+                        {text.alert}
                       </span>
                       <span>{currentLesson.securityAlert}</span>
                     </div>
@@ -527,7 +737,9 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                         <Layers className="w-3.5 h-3.5 text-sky-400" />
                         {currentLesson.diagramTitle || 'Schéma d’Architecture & Flux Réseau'}
                       </span>
-                      <span className="font-mono text-[10px] text-slate-500">ASCII Topology</span>
+                      <span className="font-mono text-[10px] text-slate-500">
+                        {text.diagramLabel}
+                      </span>
                     </div>
                     <pre className="p-4 text-[11px] sm:text-xs font-mono text-emerald-400 overflow-x-auto leading-relaxed select-text">
                       {currentLesson.diagramAscii}
@@ -552,7 +764,7 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                         ) : (
                           <Copy className="w-3.5 h-3.5" />
                         )}
-                        <span>{copiedSnippet ? 'Copié !' : 'Copier'}</span>
+                        <span>{copiedSnippet ? text.copied : text.copy}</span>
                       </button>
                     </div>
                     <pre className="p-4 text-[11px] sm:text-xs font-mono text-slate-200 overflow-x-auto leading-relaxed select-text">
@@ -566,12 +778,28 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                   </div>
                 )}
 
+                {currentLesson.practicalExercise && (
+                  <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/50 space-y-2">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                      {text.exercise}: {currentLesson.practicalExercise.title}
+                    </h4>
+                    <p className="text-xs text-emerald-950 dark:text-emerald-100 leading-relaxed">
+                      <strong>{text.instructions}: </strong>
+                      {currentLesson.practicalExercise.instructions}
+                    </p>
+                    <p className="text-xs text-emerald-800 dark:text-emerald-300 leading-relaxed">
+                      <strong>{text.expectedOutcome}: </strong>
+                      {currentLesson.practicalExercise.expectedOutcome}
+                    </p>
+                  </div>
+                )}
+
                 {/* Check Your Understanding (Instant Mini-Quiz) */}
                 {currentQuiz && (
                   <div className="p-5 rounded-2xl bg-sky-50/70 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-800/40 space-y-3">
                     <div className="flex items-center gap-2 text-sky-800 dark:text-sky-300 font-black text-xs uppercase tracking-wider">
                       <HelpCircle className="w-4 h-4 text-sky-600" />
-                      <span>Vérifiez votre compréhension (+15 XP) :</span>
+                      <span>{text.quiz}</span>
                     </div>
 
                     <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
@@ -613,7 +841,7 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                     {lessonQuizFeedback[currentLesson.id] && (
                       <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-xs text-slate-700 dark:text-slate-300 font-medium">
                         <span className="font-bold text-sky-600 block mb-0.5">
-                          Explication pédagogique :
+                          {text.explanation}
                         </span>
                         {currentQuiz.explanation}
                       </div>
@@ -625,7 +853,7 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                 <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 space-y-2">
                   <div className="flex items-center gap-2 text-sky-700 dark:text-sky-300 font-bold text-xs uppercase tracking-wider">
                     <ShieldCheck className="w-4 h-4 text-sky-600" />
-                    <span>À retenir pour cette section</span>
+                    <span>{text.takeaways}</span>
                   </div>
                   <ul className="space-y-1.5">
                     {currentLesson.keyTakeaways.map((point, idx) => (
@@ -652,17 +880,15 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                     disabled={activeLessonIdx === 0}
                     className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold disabled:opacity-40 hover:bg-slate-50 transition-colors"
                   >
-                    Précédent
+                    {text.previous}
                   </button>
 
                   <button
                     onClick={handleCompleteCurrentLesson}
-                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/20 transition-all active:scale-95"
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-sky-700 hover:bg-sky-600 text-white text-xs font-bold shadow-md shadow-sky-600/20 transition-all active:scale-95"
                   >
                     <span>
-                      {activeLessonIdx + 1 < course.lessons.length
-                        ? 'Section Suivante (+25 XP)'
-                        : 'Accéder au Lab Pratique'}
+                      {activeLessonIdx + 1 < course.lessons.length ? text.next : text.goLab}
                     </span>
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -674,14 +900,15 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
           {/* TAB 2: INTERACTIVE LAB (HANDS-ON SIMULATION) */}
           {activeTab === 'lab' && (
             <div className="space-y-4">
-              <NetAcadLabRunner
+              <CyberSensLabRunner
                 lab={course.interactiveLab}
                 courseId={course.id}
+                language={language}
                 onLabCompleted={() => {
                   window.dispatchEvent(
                     new CustomEvent('cyber-notify', {
                       detail: {
-                        message: 'Objectif du Lab NetAcad validé avec succès ! (+30 XP)',
+                        message: text.labComplete,
                         type: 'success',
                       },
                     }),
@@ -698,17 +925,14 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                 <Sparkles className="w-6 h-6 text-amber-600 shrink-0" />
                 <div>
                   <h4 className="text-sm font-bold">{practicalCase.title}</h4>
-                  <p className="text-xs text-amber-700 dark:text-amber-300">
-                    Étude d’incident réel en entreprise. Analysez la menace et les erreurs critiques
-                    à éviter.
-                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300">{text.caseIntro}</p>
                 </div>
               </div>
 
-              <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 space-y-4 shadow-sm">
+              <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-4 shadow-sm">
                 <div className="space-y-1.5">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    Scénario de l’incident :
+                    {text.scenario}
                   </span>
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium italic">
                     {practicalCase.scenario}
@@ -718,7 +942,7 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                 {practicalCase.threatDetails && (
                   <div className="space-y-1.5">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                      Mode opératoire de l’attaque :
+                      {text.attack}
                     </span>
                     <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
                       {practicalCase.threatDetails}
@@ -729,7 +953,7 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                   <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 space-y-1.5">
                     <span className="text-xs font-bold text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
-                      <AlertCircle className="w-4 h-4" /> Erreur critique à ne jamais commettre
+                      <AlertCircle className="w-4 h-4" /> {text.mistake}
                     </span>
                     <p className="text-xs text-rose-900 dark:text-rose-200 leading-relaxed">
                       {practicalCase.criticalMistake}
@@ -738,7 +962,7 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
 
                   <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 space-y-1.5">
                     <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4" /> Réflexe d’expert recommandé
+                      <CheckCircle2 className="w-4 h-4" /> {text.reaction}
                     </span>
                     <p className="text-xs text-emerald-900 dark:text-emerald-200 leading-relaxed">
                       {practicalCase.goodReaction}
@@ -759,52 +983,47 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                   </div>
                   <div>
                     <h3 className="text-base font-black text-slate-900 dark:text-white">
-                      Examen de Certification Officielle
+                      {text.examTitle}
                     </h3>
                     <span className="text-xs text-slate-500 dark:text-slate-400">
-                      Délivré sous la supervision du Directeur Académique VDPHACKER
+                      {text.issuer}
                     </span>
                   </div>
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-300">
-                  Répondez correctement aux questions pour valider votre certification. Un score
-                  minimum de {PASS_THRESHOLD}% est requis pour débloquer le certificat officiel
-                  vérifiable.
+                  {text.passRule} {PASS_THRESHOLD}% {text.required}
                 </p>
               </div>
 
               {examSubmitted ? (
-                <div className="p-6 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 text-center space-y-5 shadow-sm">
+                <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-center space-y-5 shadow-sm">
                   <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700 flex items-center justify-center mx-auto text-amber-600">
                     <Award className="w-8 h-8" />
                   </div>
 
                   <div>
                     <h4 className="text-lg font-black text-slate-900 dark:text-white">
-                      {examScore >= PASS_THRESHOLD
-                        ? 'Félicitations ! Examen Validé'
-                        : 'Score insuffisant pour la certification'}
+                      {examScore >= PASS_THRESHOLD ? text.congratulations : text.insufficient}
                     </h4>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Votre score final :{' '}
+                      {text.finalScore}{' '}
                       <span className="font-bold text-sky-600 dark:text-sky-400 text-sm">
                         {examScore}%
                       </span>{' '}
-                      (Seuil requis : {PASS_THRESHOLD}%)
+                      ({text.threshold} {PASS_THRESHOLD}%)
                     </p>
                   </div>
 
                   {examScore >= PASS_THRESHOLD ? (
                     <div className="space-y-3">
                       <p className="text-xs text-emerald-700 dark:text-emerald-300 font-semibold">
-                        Votre certificat officiel signé par VDPHACKER a été généré et archivé dans
-                        votre profil !
+                        {text.certificateReady}
                       </p>
                       <button
                         onClick={() => earnedCertificate && setIssuedCertificate(earnedCertificate)}
                         className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-black text-xs shadow-lg shadow-amber-500/20 transition-all"
                       >
-                        Consulter / Imprimer mon Certificat
+                        {text.certificateAction}
                       </button>
                     </div>
                   ) : (
@@ -814,16 +1033,16 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                         setExamAnswers({});
                         setExamAttempt((a) => a + 1);
                       }}
-                      className="px-6 py-2.5 rounded-xl bg-sky-600 text-white text-xs font-bold shadow-md hover:bg-sky-500 transition-colors"
+                      className="px-6 py-2.5 rounded-xl bg-sky-700 text-white text-xs font-bold shadow-md hover:bg-sky-600 transition-colors"
                     >
-                      Recommencer l’examen
+                      {text.retry}
                     </button>
                   )}
 
                   {/* Correction détaillée : chaque question avec la bonne réponse et son explication */}
                   <div className="pt-4 border-t border-slate-100 dark:border-slate-700 space-y-3 text-left">
                     <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 block">
-                      Correction détaillée
+                      {text.correction}
                     </span>
                     {examQuestions.map((q, idx) => {
                       const isRight = examAnswers[idx] === q.correct;
@@ -848,11 +1067,11 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                           </div>
                           {!isRight && (
                             <p className="text-xs text-rose-800 dark:text-rose-300 pl-6">
-                              Votre réponse : {q.options[examAnswers[idx]]}
+                              {text.yourAnswer} {q.options[examAnswers[idx]]}
                             </p>
                           )}
                           <p className="text-xs text-emerald-800 dark:text-emerald-300 pl-6 font-semibold">
-                            Bonne réponse : {q.options[q.correct]}
+                            {text.correctAnswer} {q.options[q.correct]}
                           </p>
                           <p className="text-xs text-slate-600 dark:text-slate-300 pl-6">
                             {q.explanation}
@@ -867,7 +1086,7 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                   {examQuestions.map((q, idx) => (
                     <div
                       key={idx}
-                      className="p-5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 space-y-3 shadow-sm"
+                      className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-3 shadow-sm"
                     >
                       <span className="text-xs font-bold text-sky-600 dark:text-sky-400 block">
                         Question {idx + 1} / {examQuestions.length}
@@ -889,7 +1108,7 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                             <div
                               className={`w-4 h-4 rounded-full border flex items-center justify-center text-[10px] font-bold ${
                                 examAnswers[idx] === oIdx
-                                  ? 'bg-sky-600 border-sky-600 text-white'
+                                  ? 'bg-sky-700 border-sky-600 text-white'
                                   : 'border-slate-400'
                               }`}
                             >
@@ -913,11 +1132,9 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                   <button
                     onClick={handleSubmitExam}
                     disabled={examPending || Object.keys(examAnswers).length < examQuestions.length}
-                    className="w-full py-3 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-black text-xs shadow-md transition-all"
+                    className="w-full py-3 rounded-xl bg-sky-700 hover:bg-sky-600 disabled:opacity-50 text-white font-black text-xs shadow-md transition-all"
                   >
-                    {examPending
-                      ? 'Correction en cours…'
-                      : 'Soumettre mes réponses & Obtenir ma certification'}
+                    {examPending ? text.submitting : text.submitCertificate}
                   </button>
                 </div>
               )}

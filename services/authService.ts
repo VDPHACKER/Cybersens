@@ -177,3 +177,27 @@ export const restoreSession = async (): Promise<{
     throw err;
   }
 };
+
+/* --- Google, mot de passe oublié --- */
+
+export interface AuthConfig {
+  googleClientId: string | null;
+  passwordReset: boolean;
+}
+
+export const getAuthConfig = async (): Promise<AuthConfig> => {
+  try {
+    return await api<AuthConfig>('GET', '/api/auth/config');
+  } catch {
+    return { googleClientId: null, passwordReset: false };
+  }
+};
+
+export const loginWithGoogle = async (credential: string, role: AccountRole) =>
+  finishLogin(await api<ServerSnapshot>('POST', '/api/auth/google', { credential, role }));
+
+export const requestPasswordReset = (email: string, lang: string) =>
+  api('POST', '/api/auth/forgot', { email, lang });
+
+export const resetPassword = (token: string, password: string) =>
+  api('POST', '/api/auth/reset', { token, password });

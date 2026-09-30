@@ -1,25 +1,72 @@
 // API JSON de CyberSens : comptes, sessions, progression, certificats, quiz.
 // Monté sous /api par server/index.mjs (production) et par vite.config.ts (développement).
 import crypto from 'node:crypto';
-import { promisify } from 'node:util';
-import { db, transaction, getServerSecret } from './db.mjs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { db, transaction, getServerSecret, backupTo } from './db.mjs';
 import { getCourse, isValidLesson, gradeExam } from './courses.mjs';
 import { HttpError } from './httpError.mjs';
 import { checkOrigin } from './csrf.mjs';
-
-const scrypt = promisify(crypto.scrypt);
+import { hashPassword, verifyPassword } from './passwords.mjs';
+import { getNews } from './news.mjs';
+import { answerRoom, createRoom, joinRoom, leaveRoom, openStream, startRoom } from './rooms.mjs';
+import { verifyGoogleIdToken } from './google.mjs';
+import { mailConfigured, publicUrl, sendMail } from './mail.mjs';
 
 // ---------- Paramètres ----------
-const SESSION_COOKIE = 'cs_session';
+// Firebase Hosting ne transmet à Cloud Run que le cookie nommé « __session » : SESSION_COOKIE_NAME=__session
+const SESSION_COOKIE = /^[\w-]{1,40}$/.test(process.env.SESSION_COOKIE_NAME || '')
+  ? process.env.SESSION_COOKIE_NAME
+  : 'cs_session';
 const SESSION_DAYS = 30;
 const MAX_BODY_BYTES = 1024 * 1024;
 const MAX_AVATAR_CHARS = 400_000; // ≈ 300 Ko d'image en data URL
-const SCRYPT = { N: 2 ** 15, r: 8, p: 3, maxmem: 64 * 1024 * 1024 }; // paramètres recommandés par l'OWASP
 const MIN_PASSWORD = 12;
+const RESET_TTL_MS = 30 * 60_000;
 const LOGIN_MAX_FAILURES = 5;
 const LOGIN_LOCK_MS = 15 * 60_000;
 const ROLES = new Set(['Particulier', 'Étudiant', 'Professionnel', 'Entreprise']);
 const QUIZ_MODES = new Set(['Solo', 'Multi']);
+const TOPICS = new Set(['general', 'question', 'astuce', 'alerte']);
+// Points qu'un membre peut déclarer par jour via l'API (quiz, jeux, leçons). Les examens créditent leurs points côté serveur.
+const DAILY_POINTS_CAP = 1500;
+
+const RESET_MESSAGES = {
+  fr: (link) => ({
+    subject: 'CyberSens : réinitialisation de votre mot de passe',
+    text: `Bonjour,
+
+Pour choisir un nouveau mot de passe, ouvrez ce lien (valable 30 minutes, à usage unique) :
+${link}
+
+Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : votre mot de passe reste inchangé.
+
+CyberSens`,
+  }),
+  en: (link) => ({
+    subject: 'CyberSens: reset your password',
+    text: `Hello,
+
+To choose a new password, open this link (valid for 30 minutes, single use):
+${link}
+
+If you did not request this, ignore this message: your password stays unchanged.
+
+CyberSens`,
+  }),
+  es: (link) => ({
+    subject: 'CyberSens: restablecer su contraseña',
+    text: `Hola,
+
+Para elegir una nueva contraseña, abra este enlace (válido 30 minutos, de un solo uso):
+${link}
+
+Si no lo solicitó, ignore este mensaje: su contraseña no cambia.
+
+CyberSens`,
+  }),
+};
+const resetMessage = (lang, link) => RESET_MESSAGES[lang](link);
 
 // ---------- Utilitaires HTTP ----------
 const send = (res, status, data, headers = {}) => {
@@ -150,29 +197,32 @@ const settings = (v) => {
   if ('defaultQuizDifficulty' in v)
     out.defaultQuizDifficulty = str(v.defaultQuizDifficulty, { max: 20, field: 'Difficulté' });
   if ('onboarded' in v) out.onboarded = !!v.onboarded;
+  if ('showInLeaderboard' in v) out.showInLeaderboard = !!v.showInLeaderboard;
   return out;
 };
 
+// Texte libre multi-lignes (messages de la communauté) : garde les retours à la ligne, retire les caractères de contrôle
+const longText = (v, { min = 1, max = 1000, field = 'Message' } = {}) => {
+  if (typeof v !== 'string') throw new HttpError(400, `${field} invalide`);
+  const s = v
+    .replace(/\r\n?/g, '\n')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  if (s.length < min || s.length > max)
+    throw new HttpError(400, `${field} : entre ${min} et ${max} caractères`);
+  return s;
+};
+
+// Nom affiché aux autres membres : prénom + initiale (jamais l'e-mail ni le nom complet)
+const publicName = (name) => {
+  const [first, ...rest] = String(name).trim().split(/\s+/);
+  const initial = rest.length ? ` ${rest[rest.length - 1][0].toUpperCase()}.` : '';
+  return `${first}${initial}`;
+};
+
 // ---------- Mots de passe ----------
-const hashPassword = async (plain) => {
-  const salt = crypto.randomBytes(16);
-  const key = await scrypt(plain, salt, 32, SCRYPT);
-  return `scrypt$${SCRYPT.N}$${SCRYPT.r}$${SCRYPT.p}$${salt.toString('hex')}$${key.toString('hex')}`;
-};
-
-const verifyPassword = async (plain, stored) => {
-  const [algo, N, r, p, saltHex, keyHex] = String(stored).split('$');
-  if (algo !== 'scrypt') return false;
-  const expected = Buffer.from(keyHex, 'hex');
-  const key = await scrypt(plain, Buffer.from(saltHex, 'hex'), expected.length, {
-    N: +N,
-    r: +r,
-    p: +p,
-    maxmem: SCRYPT.maxmem,
-  });
-  return crypto.timingSafeEqual(key, expected);
-};
-
 // Empreinte factice : même temps de calcul que l'e-mail existe ou non (pas d'énumération des comptes)
 let dummyHash;
 const getDummyHash = async () =>
@@ -218,6 +268,25 @@ const requireUser = (req) => {
   if (!user) throw new HttpError(401, 'Session expirée, veuillez vous reconnecter');
   return user;
 };
+
+// Administrateurs : liste d'e-mails dans ADMIN_EMAILS (séparés par des virgules).
+// Sans cette variable, les routes d'administration sont désactivées (404).
+const adminEmails = () =>
+  (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+const isAdmin = (user) => adminEmails().includes(user.email.toLowerCase());
+const requireAdmin = (req) => {
+  if (adminEmails().length === 0) throw new HttpError(404, 'Route inconnue');
+  const user = requireUser(req);
+  if (!isAdmin(user)) throw new HttpError(403, 'Accès réservé aux administrateurs');
+  return user;
+};
+
+const backupDir = () =>
+  process.env.BACKUP_DIR ||
+  path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'backups');
 
 const logSecurity = (event, req, trustProxy, userId = null) =>
   db
@@ -268,7 +337,7 @@ const certificateDto = (c, user) => ({
   verificationHash: c.verification_hash,
   issuer: c.imported
     ? 'CyberSens Academy • importé (non vérifié par examen serveur)'
-    : 'CyberSens Academy • Directeur: VDPHACKER',
+    : 'CyberSens Academy • Formateur en Cybersécurité & IA : VDPHACKER',
 });
 
 const snapshot = (user) => {
@@ -292,6 +361,9 @@ const snapshot = (user) => {
       level: levelFor(user.points),
       createdAt: user.created_at.slice(0, 10),
       migrated: !!user.migrated_at,
+      isAdmin: isAdmin(user),
+      communityPosts: db.prepare('SELECT COUNT(*) AS n FROM posts WHERE user_id = ?').get(user.id)
+        .n,
       settings: JSON.parse(user.settings || '{}'),
     },
     progress,
@@ -409,6 +481,139 @@ const routes = {
     send(res, 200, snapshot(user));
   },
 
+  // Fonctions d'authentification disponibles (le navigateur masque ce qui n'est pas configuré)
+  'GET /api/auth/config': async ({ res }) =>
+    send(res, 200, {
+      googleClientId: process.env.GOOGLE_CLIENT_ID || null,
+      passwordReset: mailConfigured(),
+    }),
+
+  // « Se connecter avec Google » : le jeton est vérifié côté serveur (signature, audience, e-mail validé)
+  'POST /api/auth/google': async ({ req, res, body, ip, trustProxy }) => {
+    rateLimit(`google:${ip}`, 20, 60_000);
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) throw new HttpError(501, 'La connexion Google n’est pas activée sur ce site.');
+    const identity = await verifyGoogleIdToken(body.credential, { clientId });
+
+    let user = db.prepare('SELECT * FROM users WHERE email = ?').get(identity.email);
+    let created = false;
+    if (!user) {
+      const role = ROLES.has(body.role) ? body.role : 'Étudiant';
+      const name = (identity.name || identity.email.split('@')[0]).slice(0, 60).padEnd(2, ' ');
+      // Mot de passe aléatoire : le compte reste protégé, l'utilisateur pourra en définir un via « mot de passe oublié »
+      const hash = await hashPassword(crypto.randomBytes(32).toString('base64url'));
+      const id = Number(
+        db
+          .prepare(
+            'INSERT INTO users (email, name, role, title, password_hash) VALUES (?, ?, ?, ?, ?)',
+          )
+          .run(identity.email, name.trim(), role, `${role} certifié`, hash).lastInsertRowid,
+      );
+      user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+      created = true;
+    }
+    logSecurity(created ? 'register_google' : 'login_google', req, trustProxy, user.id);
+    createSession(res, req, user.id, trustProxy);
+    send(res, created ? 201 : 200, snapshot(user));
+  },
+
+  // Mot de passe oublié : envoie un lien à usage unique (30 min). Réponse identique que l'e-mail existe ou non.
+  'POST /api/auth/forgot': async ({ req, res, body, ip, trustProxy }) => {
+    if (!mailConfigured())
+      throw new HttpError(
+        501,
+        'La réinitialisation par e-mail n’est pas activée. Contactez l’administrateur du site.',
+      );
+    rateLimit(`forgot:${ip}`, 10, 60 * 60_000);
+    const mail = email(body.email);
+    rateLimit(`forgot-mail:${mail}`, 3, 60 * 60_000);
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(mail);
+    if (user) {
+      const token = crypto.randomBytes(32).toString('base64url');
+      transaction(() => {
+        db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(user.id);
+        db.prepare(
+          'INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES (?, ?, ?)',
+        ).run(sha256(token), user.id, new Date(Date.now() + RESET_TTL_MS).toISOString());
+      });
+      const lang = ['fr', 'en', 'es'].includes(body.lang) ? body.lang : 'fr';
+      const link = `${publicUrl()}/?reset=${token}`;
+      try {
+        await sendMail({ to: user.email, ...resetMessage(lang, link) });
+        logSecurity('password_reset_requested', req, trustProxy, user.id);
+      } catch (err) {
+        console.error('[api] Envoi de l’e-mail de réinitialisation impossible :', err.message);
+      }
+    }
+    send(res, 200, { ok: true });
+  },
+
+  'POST /api/auth/reset': async ({ req, res, body, ip, trustProxy }) => {
+    rateLimit(`reset:${ip}`, 10, 60 * 60_000);
+    if (typeof body.token !== 'string' || body.token.length > 100)
+      throw new HttpError(400, 'Lien invalide ou expiré.');
+    const row = db
+      .prepare(
+        `SELECT r.token_hash, u.* FROM password_resets r JOIN users u ON u.id = r.user_id
+         WHERE r.token_hash = ? AND r.expires_at > ?`,
+      )
+      .get(sha256(body.token), new Date().toISOString());
+    if (!row) throw new HttpError(400, 'Lien invalide ou expiré. Refaites une demande.');
+    const next = password(body.password, { name: row.name, mail: row.email });
+    const hash = await hashPassword(next);
+    transaction(() => {
+      db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, row.id);
+      db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(row.id);
+      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.id);
+    });
+    clearFailures(row.email);
+    logSecurity('password_reset_done', req, trustProxy, row.id);
+    send(res, 200, { ok: true });
+  },
+
+  // ---------- Quiz multijoueur (salles) ----------
+  'POST /api/rooms': async ({ res, req, body }) => {
+    const user = requireUser(req);
+    rateLimit(`room-create:${user.id}`, 10, 10 * 60_000);
+    const room = createRoom(
+      { id: user.id, displayName: publicName(user.name) },
+      { count: body.count, seconds: body.seconds },
+    );
+    send(res, 201, room);
+  },
+
+  'POST /api/rooms/join': async ({ res, req, body }) => {
+    const user = requireUser(req);
+    rateLimit(`room-join:${user.id}`, 30, 60_000);
+    send(res, 200, joinRoom({ id: user.id, displayName: publicName(user.name) }, body.code));
+  },
+
+  'POST /api/rooms/start': async ({ res, req, body }) => {
+    const user = requireUser(req);
+    rateLimit(`room-start:${user.id}`, 20, 60_000);
+    startRoom(user, body.code);
+    send(res, 200, { ok: true });
+  },
+
+  'POST /api/rooms/answer': async ({ res, req, body }) => {
+    const user = requireUser(req);
+    rateLimit(`room-answer:${user.id}`, 120, 60_000);
+    answerRoom(user, body.code, body.choice);
+    send(res, 200, { ok: true });
+  },
+
+  'POST /api/rooms/leave': async ({ res, req }) => {
+    leaveRoom(requireUser(req).id);
+    send(res, 200, { ok: true });
+  },
+
+  // Flux temps réel (Server-Sent Events) : état de la salle poussé à chaque changement
+  'GET /api/rooms/stream': async ({ req, res, url }) => {
+    const user = requireUser(req);
+    rateLimit(`room-stream:${user.id}`, 60, 60_000);
+    openStream(req, res, user, url.searchParams.get('code'));
+  },
+
   'POST /api/auth/logout': async ({ req, res }) => {
     const token = parseCookies(req.headers.cookie)[SESSION_COOKIE];
     if (token) db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha256(token));
@@ -437,11 +642,49 @@ const routes = {
     send(res, 200, { ok: true });
   },
 
+  // Changement de mot de passe : exige l'ancien, ferme les autres sessions (appareils perdus ou volés)
+  'POST /api/me/password': async ({ req, res, body, trustProxy }) => {
+    const user = requireUser(req);
+    rateLimit(`pwchange:${user.id}`, 5, 15 * 60_000);
+    if (typeof body.current !== 'string' || body.current.length > 128)
+      throw new HttpError(400, 'Mot de passe actuel invalide');
+    if (!(await verifyPassword(body.current, user.password_hash))) {
+      logSecurity('password_change_failed', req, trustProxy, user.id);
+      throw new HttpError(403, 'Le mot de passe actuel est incorrect.');
+    }
+    const next = password(body.next, { name: user.name, mail: user.email });
+    if (next === body.current)
+      throw new HttpError(400, 'Le nouveau mot de passe doit être différent de l’ancien.');
+    const hash = await hashPassword(next);
+    const current = parseCookies(req.headers.cookie)[SESSION_COOKIE];
+    transaction(() => {
+      db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, user.id);
+      db.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?').run(
+        user.id,
+        sha256(current || ''),
+      );
+    });
+    clearFailures(user.email);
+    logSecurity('password_changed', req, trustProxy, user.id);
+    send(res, 200, { ok: true });
+  },
+
   'POST /api/me/points': async ({ req, res, body }) => {
     const user = requireUser(req);
     rateLimit(`points:${user.id}`, 120, 60_000);
     const delta = int(body.delta, 1, 200, 'Points');
-    send(res, 200, { points: addPoints(user.id, delta) });
+    // Le navigateur déclare ses points : le serveur en plafonne le total quotidien pour que le classement reste fiable
+    const day = new Date().toISOString().slice(0, 10);
+    const used =
+      db.prepare('SELECT total FROM points_daily WHERE user_id = ? AND day = ?').get(user.id, day)
+        ?.total ?? 0;
+    const granted = Math.max(0, Math.min(delta, DAILY_POINTS_CAP - used));
+    if (granted > 0)
+      db.prepare(
+        `INSERT INTO points_daily (user_id, day, total) VALUES (?, ?, ?)
+         ON CONFLICT(user_id, day) DO UPDATE SET total = total + excluded.total`,
+      ).run(user.id, day, granted);
+    send(res, 200, { points: addPoints(user.id, granted), granted });
   },
 
   'POST /api/progress': async ({ req, res, body }) => {
@@ -599,6 +842,242 @@ const routes = {
       issuedAt: c.issued_at.slice(0, 10),
     });
   },
+
+  // Actualités cyber agrégées depuis des flux RSS externes (public, mis en cache)
+  'GET /api/news': async ({ res, ip }) => {
+    rateLimit(`news:${ip}`, 60, 60_000);
+    send(res, 200, await getNews(), { 'Cache-Control': 'public, max-age=60' });
+  },
+
+  // Classement général : membres visibles (option désactivable dans les réglages), triés par points
+  'GET /api/leaderboard': async ({ req, res }) => {
+    const user = requireUser(req);
+    rateLimit(`leaderboard:${user.id}`, 60, 60_000);
+    const visible = "COALESCE(json_extract(u.settings, '$.showInLeaderboard'), 1) != 0";
+    const rows = db
+      .prepare(
+        `SELECT u.id, u.name, u.title, u.points,
+                (SELECT COUNT(*) FROM certificates c WHERE c.user_id = u.id) AS certificates
+         FROM users u WHERE u.points > 0 AND ${visible}
+         ORDER BY u.points DESC, u.id ASC LIMIT 50`,
+      )
+      .all();
+    const myVisible =
+      db.prepare(`SELECT 1 FROM users u WHERE u.id = ? AND ${visible}`).get(user.id) !== undefined;
+    const myRank =
+      myVisible && user.points > 0
+        ? db
+            .prepare(`SELECT COUNT(*) + 1 AS rank FROM users u WHERE u.points > ? AND ${visible}`)
+            .get(user.points).rank
+        : null;
+    send(res, 200, {
+      entries: rows.map((r, i) => ({
+        rank: i + 1,
+        name: publicName(r.name),
+        title: r.title || '',
+        level: levelFor(r.points),
+        points: r.points,
+        certificates: r.certificates,
+        isMe: r.id === user.id,
+      })),
+      me: { rank: myRank, points: user.points, level: levelFor(user.points), visible: myVisible },
+    });
+  },
+
+  // Communauté : fil de messages (texte brut), commentaires et « j'aime »
+  'GET /api/community/posts': async ({ req, res, url }) => {
+    const user = requireUser(req);
+    rateLimit(`community-read:${user.id}`, 120, 60_000);
+    const topic = url.searchParams.get('topic');
+    const before = Number(url.searchParams.get('before')) || Number.MAX_SAFE_INTEGER;
+    if (topic && !TOPICS.has(topic)) throw new HttpError(400, 'Sujet invalide');
+    const posts = db
+      .prepare(
+        `SELECT p.id, p.user_id, p.topic, p.body, p.created_at, u.name, u.title, u.points,
+                (SELECT COUNT(*) FROM post_likes l WHERE l.post_id = p.id) AS likes,
+                EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id = p.id AND l.user_id = ?) AS liked,
+                EXISTS(SELECT 1 FROM post_reports r WHERE r.post_id = p.id AND r.user_id = ?) AS reported,
+                (SELECT COUNT(*) FROM post_reports r WHERE r.post_id = p.id) AS reports
+         FROM posts p JOIN users u ON u.id = p.user_id
+         WHERE p.id < ? AND (? IS NULL OR p.topic = ?)
+         ORDER BY p.id DESC LIMIT 20`,
+      )
+      .all(user.id, user.id, before, topic, topic);
+    const ids = posts.map((p) => p.id);
+    const comments = ids.length
+      ? db
+          .prepare(
+            `SELECT c.id, c.post_id, c.user_id, c.body, c.created_at, u.name
+             FROM post_comments c JOIN users u ON u.id = c.user_id
+             WHERE c.post_id IN (${ids.map(() => '?').join(',')}) ORDER BY c.id`,
+          )
+          .all(...ids)
+      : [];
+    send(res, 200, {
+      canModerate: isAdmin(user),
+      posts: posts.map((p) => ({
+        id: p.id,
+        topic: p.topic,
+        body: p.body,
+        createdAt: p.created_at.replace(' ', 'T') + 'Z',
+        author: publicName(p.name),
+        authorTitle: p.title || '',
+        authorLevel: levelFor(p.points),
+        likes: p.likes,
+        liked: !!p.liked,
+        reportedByMe: !!p.reported,
+        // Le nombre de signalements n'est visible que des modérateurs
+        reports: isAdmin(user) ? p.reports : undefined,
+        mine: p.user_id === user.id,
+        comments: comments
+          .filter((c) => c.post_id === p.id)
+          .map((c) => ({
+            id: c.id,
+            body: c.body,
+            createdAt: c.created_at.replace(' ', 'T') + 'Z',
+            author: publicName(c.name),
+            mine: c.user_id === user.id,
+          })),
+      })),
+    });
+  },
+
+  'POST /api/community/posts': async ({ req, res, body }) => {
+    const user = requireUser(req);
+    rateLimit(`community-post:${user.id}`, 5, 10 * 60_000);
+    const topic = TOPICS.has(body.topic) ? body.topic : 'general';
+    const text = longText(body.body, { min: 3, max: 1000 });
+    const id = Number(
+      db
+        .prepare('INSERT INTO posts (user_id, topic, body) VALUES (?, ?, ?)')
+        .run(user.id, topic, text).lastInsertRowid,
+    );
+    send(res, 201, { id });
+  },
+
+  'POST /api/community/comments': async ({ req, res, body }) => {
+    const user = requireUser(req);
+    rateLimit(`community-comment:${user.id}`, 20, 10 * 60_000);
+    const postId = int(body.postId, 1, Number.MAX_SAFE_INTEGER, 'Message');
+    if (!db.prepare('SELECT 1 FROM posts WHERE id = ?').get(postId))
+      throw new HttpError(404, 'Message introuvable');
+    const text = longText(body.body, { min: 1, max: 500, field: 'Commentaire' });
+    const id = Number(
+      db
+        .prepare('INSERT INTO post_comments (post_id, user_id, body) VALUES (?, ?, ?)')
+        .run(postId, user.id, text).lastInsertRowid,
+    );
+    send(res, 201, { id });
+  },
+
+  'POST /api/community/like': async ({ req, res, body }) => {
+    const user = requireUser(req);
+    rateLimit(`community-like:${user.id}`, 60, 60_000);
+    const postId = int(body.postId, 1, Number.MAX_SAFE_INTEGER, 'Message');
+    if (!db.prepare('SELECT 1 FROM posts WHERE id = ?').get(postId))
+      throw new HttpError(404, 'Message introuvable');
+    const removed = db
+      .prepare('DELETE FROM post_likes WHERE post_id = ? AND user_id = ?')
+      .run(postId, user.id).changes;
+    if (!removed)
+      db.prepare('INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)').run(postId, user.id);
+    const likes = db
+      .prepare('SELECT COUNT(*) AS n FROM post_likes WHERE post_id = ?')
+      .get(postId).n;
+    send(res, 200, { liked: !removed, likes });
+  },
+
+  // Signalement d'un message (modération) : un par membre et par message, pas sur ses propres messages
+  'POST /api/community/report': async ({ req, res, body }) => {
+    const user = requireUser(req);
+    rateLimit(`community-report:${user.id}`, 10, 10 * 60_000);
+    const postId = int(body.postId, 1, Number.MAX_SAFE_INTEGER, 'Message');
+    const post = db.prepare('SELECT user_id FROM posts WHERE id = ?').get(postId);
+    if (!post) throw new HttpError(404, 'Message introuvable');
+    if (post.user_id === user.id)
+      throw new HttpError(400, 'Vous ne pouvez pas signaler votre propre message.');
+    db.prepare('INSERT OR IGNORE INTO post_reports (post_id, user_id) VALUES (?, ?)').run(
+      postId,
+      user.id,
+    );
+    send(res, 200, { reported: true });
+  },
+
+  // Suppression : auteur du message ou administrateur
+  'DELETE /api/community/posts': async ({ req, res, url }) => {
+    const user = requireUser(req);
+    const id = int(Number(url.searchParams.get('id')), 1, Number.MAX_SAFE_INTEGER, 'Message');
+    const post = db.prepare('SELECT user_id FROM posts WHERE id = ?').get(id);
+    if (!post) throw new HttpError(404, 'Message introuvable');
+    if (post.user_id !== user.id && !isAdmin(user))
+      throw new HttpError(403, 'Action non autorisée');
+    db.prepare('DELETE FROM posts WHERE id = ?').run(id);
+    send(res, 200, { ok: true });
+  },
+
+  'DELETE /api/community/comments': async ({ req, res, url }) => {
+    const user = requireUser(req);
+    const id = int(Number(url.searchParams.get('id')), 1, Number.MAX_SAFE_INTEGER, 'Commentaire');
+    const c = db.prepare('SELECT user_id FROM post_comments WHERE id = ?').get(id);
+    if (!c) throw new HttpError(404, 'Commentaire introuvable');
+    if (c.user_id !== user.id && !isAdmin(user)) throw new HttpError(403, 'Action non autorisée');
+    db.prepare('DELETE FROM post_comments WHERE id = ?').run(id);
+    send(res, 200, { ok: true });
+  },
+
+  // Administration (DevOps) : réservée aux comptes listés dans ADMIN_EMAILS
+  'GET /api/devops/status': async ({ req, res }) => {
+    requireAdmin(req);
+    const mem = process.memoryUsage();
+    const count = (table) => db.prepare(`SELECT COUNT(*) as cnt FROM ${table}`).get().cnt;
+    send(res, 200, {
+      status: 'healthy',
+      uptime: Math.round(process.uptime()),
+      nodeVersion: process.version,
+      platform: process.platform,
+      memory: {
+        rss: Math.round(mem.rss / 1024 / 1024) + ' MB',
+        heapUsed: Math.round(mem.heapUsed / 1024 / 1024) + ' MB',
+      },
+      stats: {
+        users: count('users'),
+        certificates: count('certificates'),
+        activeSessions: count('sessions'),
+      },
+      timestamp: new Date().toISOString(),
+    });
+  },
+
+  'POST /api/devops/backup': async ({ req, res }) => {
+    const admin = requireAdmin(req);
+    rateLimit(`backup:${admin.id}`, 5, 10 * 60_000);
+    const name = `cybersens-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.db`;
+    backupTo(path.join(backupDir(), name));
+    send(res, 200, { success: true, message: `Sauvegarde ${name} créée sur le serveur.` });
+  },
+
+  'POST /api/devops/exec': async ({ req, res, body }) => {
+    const admin = requireAdmin(req);
+    rateLimit(`devops-exec:${admin.id}`, 10, 10 * 60_000);
+    const action = body.action;
+    if (action === 'clear_sessions') {
+      const info = db
+        .prepare('DELETE FROM sessions WHERE expires_at < ?')
+        .run(new Date().toISOString());
+      return send(res, 200, {
+        success: true,
+        message: `${info.changes} sessions expirées purgées.`,
+      });
+    }
+    if (action === 'vacuum') {
+      db.prepare('VACUUM').run();
+      return send(res, 200, {
+        success: true,
+        message: 'Base de données optimisée (VACUUM exécuté).',
+      });
+    }
+    send(res, 400, { error: 'Action DevOps inconnue' });
+  },
 };
 
 /**
@@ -612,7 +1091,7 @@ export const handleApi = async (req, res, { trustProxy = false } = {}) => {
   try {
     if (!handler) throw new HttpError(404, 'Route inconnue');
     const mutating = req.method !== 'GET' && req.method !== 'HEAD';
-    if (mutating) checkOrigin(req);
+    if (mutating) checkOrigin(req, { trustProxy });
     const body =
       mutating && req.method !== 'DELETE' && url.pathname !== '/api/auth/logout'
         ? await readJson(req)

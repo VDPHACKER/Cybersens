@@ -13,20 +13,129 @@ import {
   Filter,
   Radio,
 } from 'lucide-react';
-import { InteractiveLab } from '../types';
+import { InteractiveLab, Language } from '../types';
 import { addPoints } from '../services/persistenceService';
 
-interface NetAcadLabRunnerProps {
+interface CyberSensLabRunnerProps {
   lab?: InteractiveLab;
   courseId: string;
+  language: Language;
   onLabCompleted?: () => void;
 }
 
-export const NetAcadLabRunner: React.FC<NetAcadLabRunnerProps> = ({
+const LAB_COPY: Record<Language, Record<string, string>> = {
+  fr: {
+    validated: 'Validé (+30 XP)',
+    reset: 'Réinitialiser l’environnement',
+    helpPrompt: 'Tapez "help" pour voir les commandes ou choisissez une suggestion ci-dessous.',
+    labGoal: 'Objectif : utiliser les outils d’inspection pour vérifier le système.',
+    sessionReset: 'Session réinitialisée.',
+    fallbackTitle: 'Laboratoire pratique interactif',
+    instruction: 'Consigne :',
+    fallbackInstruction: 'Effectuez les actions demandées pour valider l’objectif du laboratoire.',
+    shortcuts: 'Raccourcis :',
+    placeholder: 'Entrez une commande (ex. nmap, ping, ss)...',
+    run: 'Exécuter',
+    filter: 'Filtre Wireshark :',
+    frames: 'trames capturées',
+    frame: 'Trame',
+    anomaly: 'ANOMALIE DE SÉCURITÉ CRITIQUE DÉTECTÉE',
+    policy: 'Politique par défaut',
+    policyDescription: 'Action appliquée aux paquets sans règle correspondante',
+    rules: 'Règles du pare-feu :',
+    testFirewall: 'Tester la politique du pare-feu',
+    sample: 'Échantillon à analyser :',
+    voice: 'Voix clonée',
+    video: 'Vidéo manipulée',
+    prompt: 'Injection de prompt',
+    analyze: 'Analyser le deepfake',
+    analyzing: 'Analyse en cours…',
+    scanResult: 'Résultat :',
+    fakeIndex: 'Indice de manipulation :',
+    firewallSuccess: 'EXCELLENT : politique Zero Trust validée. Les flux sensibles sont isolés.',
+    firewallFailure:
+      'ATTENTION : risque détecté. Refusez par défaut et bloquez l’exposition directe des services sensibles.',
+  },
+  en: {
+    validated: 'Completed (+30 XP)',
+    reset: 'Reset environment',
+    helpPrompt: 'Type "help" to see available commands, or choose a suggestion below.',
+    labGoal: 'Goal: use inspection tools to check the system.',
+    sessionReset: 'Session reset.',
+    fallbackTitle: 'Interactive hands-on lab',
+    instruction: 'Instructions:',
+    fallbackInstruction: 'Complete the requested actions to meet the lab objective.',
+    shortcuts: 'Quick commands:',
+    placeholder: 'Enter a command (e.g. nmap, ping, ss)...',
+    run: 'Run',
+    filter: 'Wireshark filter:',
+    frames: 'frames captured',
+    frame: 'Frame',
+    anomaly: 'CRITICAL SECURITY ANOMALY DETECTED',
+    policy: 'Default policy',
+    policyDescription: 'Action applied to packets that match no rule',
+    rules: 'Firewall rules:',
+    testFirewall: 'Test firewall policy',
+    sample: 'Sample to analyze:',
+    voice: 'Cloned voice',
+    video: 'Manipulated video',
+    prompt: 'Prompt injection',
+    analyze: 'Analyze deepfake',
+    analyzing: 'Analyzing…',
+    scanResult: 'Result:',
+    fakeIndex: 'Manipulation score:',
+    firewallSuccess: 'EXCELLENT: Zero Trust policy validated. Sensitive traffic is isolated.',
+    firewallFailure:
+      'WARNING: risk detected. Deny by default and block direct exposure of sensitive services.',
+  },
+  es: {
+    validated: 'Validado (+30 XP)',
+    reset: 'Restablecer el entorno',
+    helpPrompt: 'Escribe "help" para ver los comandos o elige una sugerencia a continuación.',
+    labGoal: 'Objetivo: utiliza herramientas de inspección para comprobar el sistema.',
+    sessionReset: 'Sesión restablecida.',
+    fallbackTitle: 'Laboratorio práctico interactivo',
+    instruction: 'Instrucciones:',
+    fallbackInstruction:
+      'Completa las acciones solicitadas para alcanzar el objetivo del laboratorio.',
+    shortcuts: 'Comandos rápidos:',
+    placeholder: 'Introduce un comando (p. ej., nmap, ping, ss)...',
+    run: 'Ejecutar',
+    filter: 'Filtro de Wireshark:',
+    frames: 'tramas capturadas',
+    frame: 'Trama',
+    anomaly: 'ANOMALÍA CRÍTICA DE SEGURIDAD DETECTADA',
+    policy: 'Política predeterminada',
+    policyDescription: 'Acción aplicada a los paquetes sin una regla coincidente',
+    rules: 'Reglas del cortafuegos:',
+    testFirewall: 'Probar la política del cortafuegos',
+    sample: 'Muestra para analizar:',
+    voice: 'Voz clonada',
+    video: 'Vídeo manipulado',
+    prompt: 'Inyección de instrucciones',
+    analyze: 'Analizar el deepfake',
+    analyzing: 'Analizando…',
+    scanResult: 'Resultado:',
+    fakeIndex: 'Índice de manipulación:',
+    firewallSuccess: 'EXCELENTE: política Zero Trust validada. El tráfico sensible está aislado.',
+    firewallFailure:
+      'ATENCIÓN: riesgo detectado. Deniega por defecto y bloquea la exposición directa de servicios sensibles.',
+  },
+};
+
+const cleanHint = (hint: string) =>
+  hint
+    .replace(/^(?:type|enter|run|tapez|escribe|escriba|ejecuta|ejecute)\s*["“]?/i, '')
+    .replace(/["”]$/, '')
+    .trim();
+
+export const CyberSensLabRunner: React.FC<CyberSensLabRunnerProps> = ({
   lab,
   courseId,
+  language,
   onLabCompleted,
 }) => {
+  const text = LAB_COPY[language];
   const [labCompleted, setLabCompleted] = useState(false);
 
   // Terminal State
@@ -34,13 +143,13 @@ export const NetAcadLabRunner: React.FC<NetAcadLabRunnerProps> = ({
   const [terminalHistory, setTerminalHistory] = useState<
     Array<{ text: string; type: 'cmd' | 'output' | 'success' | 'error' }>
   >([
-    { text: 'CyberSens Virtual Lab Environment v2.4 (NetAcad Edition)', type: 'output' },
+    { text: 'CyberSens Virtual Lab Environment v2.4 (CyberSens Edition)', type: 'output' },
     {
-      text: 'Tapez "help" pour voir les commandes disponibles ou cliquez sur les suggestions ci-dessous.',
+      text: text.helpPrompt,
       type: 'output',
     },
     {
-      text: 'Objectif : exécuter les outils d’inspection pour valider la conformité du système.',
+      text: text.labGoal,
       type: 'output',
     },
   ]);
@@ -274,14 +383,10 @@ export const NetAcadLabRunner: React.FC<NetAcadLabRunnerProps> = ({
     const isHttpsAllowed = firewallRules.find((r) => r.port.includes('443'))?.action === 'ACCEPT';
 
     if (isDbBlocked && isSmbBlocked && isHttpsAllowed && defaultPolicy === 'DROP') {
-      setFirewallTestResult(
-        'EXCELLENT : Politique Zero Trust validée ! Les flux administratifs et de données sont hermétiquement isolés.',
-      );
+      setFirewallTestResult(text.firewallSuccess);
       checkCompletion();
     } else {
-      setFirewallTestResult(
-        'ATTENTION : Risque de sécurité détecté ! Activez la politique DROP par défaut et bloquez l’exposition directe des bases de données et SMB.',
-      );
+      setFirewallTestResult(text.firewallFailure);
     }
   };
 
@@ -348,39 +453,38 @@ export const NetAcadLabRunner: React.FC<NetAcadLabRunnerProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-400/20 text-sky-300 border border-sky-400/30">
-                NetAcad Virtual Lab
+                CyberSens Virtual Lab
               </span>
               {labCompleted && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> Validé (+30 XP)
+                  <CheckCircle2 className="w-3 h-3" /> {text.validated}
                 </span>
               )}
             </div>
             <h4 className="text-sm font-bold text-white mt-0.5">
-              {lab?.title || 'Laboratoire Pratique Interactif'}
+              {lab?.title || text.fallbackTitle}
             </h4>
           </div>
         </div>
 
         <button
           onClick={() => {
-            setTerminalHistory([{ text: 'Session réinitialisée.', type: 'output' }]);
+            setTerminalHistory([{ text: text.sessionReset, type: 'output' }]);
             setLabCompleted(false);
           }}
           className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
-          title="Réinitialiser l'environnement"
+          title={text.reset}
         >
           <RotateCcw className="w-4 h-4" />
         </button>
       </div>
 
       {/* Lab Instructions */}
-      <div className="px-5 py-3 bg-slate-50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 flex items-start gap-2.5 text-xs text-slate-600 dark:text-slate-300">
+      <div className="px-5 py-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-start gap-2.5 text-xs text-slate-600 dark:text-slate-300">
         <HelpCircle className="w-4 h-4 text-sky-500 shrink-0 mt-0.5" />
         <div>
-          <span className="font-bold text-slate-900 dark:text-white">Consigne : </span>
-          {lab?.instructions ||
-            'Exécutez les actions requises pour valider l’objectif opérationnel du laboratoire.'}
+          <span className="font-bold text-slate-900 dark:text-white">{text.instruction} </span>
+          {lab?.instructions || text.fallbackInstruction}
         </div>
       </div>
 
@@ -389,8 +493,8 @@ export const NetAcadLabRunner: React.FC<NetAcadLabRunnerProps> = ({
         <div className="p-4 sm:p-5 bg-slate-950 text-slate-100 font-mono text-xs space-y-4">
           {/* Quick command buttons */}
           <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-            <span className="text-slate-400 font-sans font-bold text-[10px] uppercase mr-1">
-              Raccourcis :
+            <span className="text-slate-500 dark:text-slate-400 font-sans font-bold text-[10px] uppercase mr-1">
+              {text.shortcuts}
             </span>
             {(
               lab?.hints || [
@@ -404,18 +508,11 @@ export const NetAcadLabRunner: React.FC<NetAcadLabRunnerProps> = ({
               <button
                 key={idx}
                 onClick={() => {
-                  const cleaned = cmd
-                    .replace(/^Tapez\s*"/, '')
-                    .replace(/"$/, '')
-                    .trim();
-                  executeCommand(cleaned);
+                  executeCommand(cleanHint(cmd));
                 }}
                 className="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 transition-all active:scale-95"
               >
-                {cmd
-                  .replace(/^Tapez\s*"/, '')
-                  .replace(/"$/, '')
-                  .trim()}
+                {cleanHint(cmd)}
               </button>
             ))}
           </div>
@@ -453,15 +550,15 @@ export const NetAcadLabRunner: React.FC<NetAcadLabRunnerProps> = ({
               type="text"
               value={commandInput}
               onChange={(e) => setCommandInput(e.target.value)}
-              placeholder="Entrez une commande (ex: nmap, ping, ss)..."
+              placeholder={text.placeholder}
               className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-sky-500 font-mono text-xs"
             />
             <button
               type="submit"
-              className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold flex items-center gap-1.5 transition-colors"
+              className="px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-600 text-white font-bold flex items-center gap-1.5 transition-colors"
             >
               <Play className="w-3.5 h-3.5" />
-              <span>Exécuter</span>
+              <span>{text.run}</span>
             </button>
           </form>
         </div>
@@ -472,9 +569,9 @@ export const NetAcadLabRunner: React.FC<NetAcadLabRunnerProps> = ({
         <div className="p-4 sm:p-5 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
             <div className="flex items-center gap-1.5">
-              <Filter className="w-4 h-4 text-slate-400" />
+              <Filter className="w-4 h-4 text-slate-500 dark:text-slate-400" />
               <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                Filtre Wireshark :
+                {text.filter}
               </span>
               {(['all', 'tls', 'dns', 'wlan'] as const).map((filter) => (
                 <button
@@ -482,7 +579,7 @@ export const NetAcadLabRunner: React.FC<NetAcadLabRunnerProps> = ({
                   onClick={() => setActivePacketFilter(filter)}
                   className={`px-2.5 py-1 rounded-lg text-xs font-bold uppercase transition-colors ${
                     activePacketFilter === filter
-                      ? 'bg-sky-600 text-white'
+                      ? 'bg-sky-700 text-white'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
                   }`}
                 >
@@ -490,8 +587,8 @@ export const NetAcadLabRunner: React.FC<NetAcadLabRunnerProps> = ({
                 </button>
               ))}
             </div>
-            <span className="text-[11px] text-slate-400">
-              {filteredPackets.length} trames capturées
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+              {filteredPackets.length} {text.frames}
             </span>
           </div>
 
@@ -510,22 +607,22 @@ export const NetAcadLabRunner: React.FC<NetAcadLabRunnerProps> = ({
                       ? 'border-sky-500 bg-sky-50/50 dark:bg-sky-950/30'
                       : pkt.alert
                         ? 'border-rose-300 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-950/20'
-                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 hover:bg-slate-50'
+                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50'
                   }`}
                 >
                   <div className="flex items-center justify-between font-mono mb-1">
-                    <span className="font-bold text-sky-600 dark:text-sky-400">
-                      Trame #{pkt.id} [{pkt.proto}]
+                    <span className="font-bold text-sky-700 dark:text-sky-400">
+                      {text.frame} #{pkt.id} [{pkt.proto}]
                     </span>
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
                       {pkt.src} → {pkt.dst}
                     </span>
                   </div>
                   <div className="text-slate-700 dark:text-slate-200 font-medium">{pkt.info}</div>
                   {pkt.alert && (
-                    <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-rose-600 dark:text-rose-400">
+                    <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-rose-700 dark:text-rose-400">
                       <AlertTriangle className="w-3.5 h-3.5" />
-                      <span>ANOMALIE DE SÉCURITÉ CRITIQUE DÉTECTÉE</span>
+                      <span>{text.anomaly}</span>
                     </div>
                   )}
                 </div>
@@ -540,12 +637,8 @@ export const NetAcadLabRunner: React.FC<NetAcadLabRunnerProps> = ({
         <div className="p-4 sm:p-5 space-y-4">
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs">
             <div>
-              <span className="font-bold text-slate-900 dark:text-white block">
-                Politique par Défaut (Default Chain Policy)
-              </span>
-              <span className="text-slate-500">
-                Comportement appliqué aux paquets ne correspondant à aucune règle
-              </span>
+              <span className="font-bold text-slate-900 dark:text-white block">{text.policy}</span>
+              <span className="text-slate-500">{text.policyDescription}</span>
             </div>
             <button
               onClick={() => setDefaultPolicy((p) => (p === 'ACCEPT' ? 'DROP' : 'ACCEPT'))}
@@ -558,16 +651,16 @@ export const NetAcadLabRunner: React.FC<NetAcadLabRunnerProps> = ({
           </div>
 
           <div className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Table des Règles IPTables :
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              {text.rules}
             </span>
             {firewallRules.map((rule) => (
               <div
                 key={rule.id}
-                className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 text-xs"
+                className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs"
               >
                 <div className="flex items-center gap-2.5">
-                  <span className="font-mono font-bold text-sky-600">{rule.port}</span>
+                  <span className="font-mono font-bold text-sky-700">{rule.port}</span>
                   <span className="text-slate-700 dark:text-slate-300 font-semibold">
                     {rule.service}
                   </span>
@@ -599,14 +692,14 @@ export const NetAcadLabRunner: React.FC<NetAcadLabRunnerProps> = ({
           <div className="pt-2">
             <button
               onClick={runFirewallTest}
-              className="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-md transition-colors"
+              className="w-full py-2.5 rounded-xl bg-sky-700 hover:bg-sky-600 text-white font-bold text-xs shadow-md transition-colors"
             >
-              Tester la Résilience de la Politique Pare-Feu
+              {text.testFirewall}
             </button>
             {firewallTestResult && (
               <div
                 className={`mt-3 p-3 rounded-xl border text-xs font-medium ${
-                  firewallTestResult.startsWith('EXCELLENT')
+                  /^(EXCELLENT|EXCELENTE)/.test(firewallTestResult)
                     ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 text-emerald-800 dark:text-emerald-300'
                     : 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 text-amber-800 dark:text-amber-300'
                 }`}
@@ -622,7 +715,7 @@ export const NetAcadLabRunner: React.FC<NetAcadLabRunnerProps> = ({
       {labType === 'deepfake' && (
         <div className="p-4 sm:p-5 space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-            <span className="text-xs font-bold text-slate-500">Échantillon IA à tester :</span>
+            <span className="text-xs font-bold text-slate-500">{text.sample}</span>
             {(['vocal', 'video', 'text'] as const).map((type) => (
               <button
                 key={type}
@@ -633,25 +726,21 @@ export const NetAcadLabRunner: React.FC<NetAcadLabRunnerProps> = ({
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
                 }`}
               >
-                {type === 'vocal'
-                  ? 'Voix Clonée'
-                  : type === 'video'
-                    ? 'Vidéo FaceSwap'
-                    : 'Prompt Injection'}
+                {type === 'vocal' ? text.voice : type === 'video' ? text.video : text.prompt}
               </button>
             ))}
           </div>
 
-          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 space-y-3">
+          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-3">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-slate-700 dark:text-slate-300">
                 {deepfakeSample === 'vocal'
-                  ? 'Enregistrement audio suspect : "Transfert d’urgence DG"'
+                  ? `${text.voice}: "CEO emergency transfer"`
                   : deepfakeSample === 'video'
-                    ? 'Flux visio suspect : "Appel Visio PDG"'
-                    : 'Document PDF : "Facture fournisseur avec injection"'}
+                    ? `${text.video}: "executive video call"`
+                    : 'PDF document: "supplier invoice with injection"'}
               </span>
-              <span className="text-slate-400 font-mono">
+              <span className="text-slate-500 dark:text-slate-400 font-mono">
                 Format : {deepfakeSample === 'vocal' ? 'WAV 48kHz' : 'MP4 H.264'}
               </span>
             </div>
@@ -678,12 +767,12 @@ export const NetAcadLabRunner: React.FC<NetAcadLabRunnerProps> = ({
               {isAnalyzing ? (
                 <>
                   <Activity className="w-4 h-4 animate-spin" />
-                  <span>Analyse spectrale neuronale en cours...</span>
+                  <span>{text.analyzing}</span>
                 </>
               ) : (
                 <>
                   <Cpu className="w-4 h-4" />
-                  <span>Lancer l’Audit Heuristique Deepfake</span>
+                  <span>{text.analyze}</span>
                 </>
               )}
             </button>
@@ -693,10 +782,10 @@ export const NetAcadLabRunner: React.FC<NetAcadLabRunnerProps> = ({
             <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 space-y-2 animate-in fade-in">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-black text-rose-700 dark:text-rose-300 uppercase tracking-wider">
-                  Résultat du Scanner : {deepfakeResult.verdict}
+                  {text.scanResult} {deepfakeResult.verdict}
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-rose-200 dark:bg-rose-900 text-rose-800 dark:text-rose-200 text-xs font-bold">
-                  Indice de faux : {deepfakeResult.score}%
+                  {text.fakeIndex} {deepfakeResult.score}%
                 </span>
               </div>
               <ul className="space-y-1 text-xs text-rose-900 dark:text-rose-200">

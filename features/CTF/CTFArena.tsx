@@ -17,6 +17,7 @@ import {
   Shuffle,
   Copy,
   Check,
+  Lightbulb,
 } from 'lucide-react';
 import { CTFChallenge } from '../../types';
 import { audioService } from '../../services/audioService';
@@ -24,13 +25,7 @@ import { useI18n } from '../../services/i18n';
 import {
   generateAllRandomizedChallenges,
   generatePromptInjectionChallenge,
-  generateCryptoChallenge,
-  generateWebHeadersChallenge,
-  generateRagPoisonChallenge,
-  generateSqlInjectionChallenge,
-  generateForensicsChallenge,
-  generateJwtChallenge,
-  generateReverseHexChallenge,
+  CHALLENGE_FACTORIES,
 } from './ctfGenerator';
 
 interface CTFArenaProps {
@@ -39,7 +34,7 @@ interface CTFArenaProps {
 }
 
 const STORAGE_KEY = 'cyberguard_ctf_progress';
-const STORAGE_CHALLENGES_KEY_PREFIX = 'cyberguard_ctf_challenges_v5_';
+const STORAGE_CHALLENGES_KEY_PREFIX = 'cyberguard_ctf_challenges_v6_';
 
 export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
   const { t, language } = useI18n();
@@ -176,10 +171,10 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
 
     const notifyMsg =
       language === 'en'
-        ? '🎲 CTF Arena regenerated: 8 challenges with fresh randomized flags and scenarios!'
+        ? `CTF Arena regenerated: ${challenges.length} challenges with fresh randomized flags and scenarios!`
         : language === 'es'
-          ? '🎲 Arena CTF regenerada: ¡8 desafíos con nuevas banderas y escenarios aleatorios!'
-          : '🎲 Arène CTF régénérée : 8 défis avec de nouveaux drapeaux et scénarios aléatoires !';
+          ? `Arena CTF regenerada: ¡${challenges.length} desafíos con nuevas banderas y escenarios aleatorios!`
+          : `Arène CTF régénérée : ${challenges.length} défis avec de nouveaux drapeaux et scénarios aléatoires !`;
 
     window.dispatchEvent(
       new CustomEvent('cyber-notify', {
@@ -190,16 +185,8 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
 
   // Regenerate a single specific challenge
   const handleRegenerateSingle = (challengeId: string) => {
-    let newChallenge: CTFChallenge;
-    if (challengeId === 'ctf-prompt-1') newChallenge = generatePromptInjectionChallenge(language);
-    else if (challengeId === 'ctf-crypto-1') newChallenge = generateCryptoChallenge(language);
-    else if (challengeId === 'ctf-web-1') newChallenge = generateWebHeadersChallenge(language);
-    else if (challengeId === 'ctf-ai-rag') newChallenge = generateRagPoisonChallenge(language);
-    else if (challengeId === 'ctf-sqli-1') newChallenge = generateSqlInjectionChallenge(language);
-    else if (challengeId === 'ctf-forensic-1') newChallenge = generateForensicsChallenge(language);
-    else if (challengeId === 'ctf-jwt-1') newChallenge = generateJwtChallenge(language);
-    else if (challengeId === 'ctf-rev-1') newChallenge = generateReverseHexChallenge(language);
-    else newChallenge = generatePromptInjectionChallenge(language);
+    const newChallenge =
+      CHALLENGE_FACTORIES[challengeId]?.(language) ?? generatePromptInjectionChallenge(language);
 
     const updated = challenges.map((c) => (c.id === challengeId ? newChallenge : c));
     setChallenges(updated);
@@ -223,10 +210,10 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
     audioService.playClick();
     const notifyMsg =
       language === 'en'
-        ? `🎲 Challenge "${newChallenge.title}" regenerated with fresh randomized data!`
+        ? `Challenge "${newChallenge.title}" regenerated with fresh randomized data!`
         : language === 'es'
-          ? `🎲 Reto "${newChallenge.title}" regenerado con nuevos datos aleatorios!`
-          : `🎲 Défi "${newChallenge.title}" régénéré avec un nouveau flag aléatoire !`;
+          ? `Reto "${newChallenge.title}" regenerado con nuevos datos aleatorios!`
+          : `Défi "${newChallenge.title}" régénéré avec un nouveau flag aléatoire !`;
 
     window.dispatchEvent(
       new CustomEvent('cyber-notify', {
@@ -267,10 +254,10 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
       audioService.playSuccess();
       const successMsg =
         language === 'en'
-          ? `🎉 FLAG ACCEPTED! +${challenge.points} points awarded.`
+          ? `FLAG ACCEPTED! +${challenge.points} points awarded.`
           : language === 'es'
-            ? `🎉 ¡BANDERA ACEPTADA! +${challenge.points} puntos ganados.`
-            : `🎉 DRAPEAU VALIDÉ ! +${challenge.points} points remportés.`;
+            ? `¡BANDERA ACEPTADA! +${challenge.points} puntos ganados.`
+            : `DRAPEAU VALIDÉ ! +${challenge.points} points remportés.`;
 
       setFeedback({
         ...feedback,
@@ -289,10 +276,10 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
             detail: {
               message:
                 language === 'en'
-                  ? `🏆 CTF Challenge Solved: ${challenge.title} (+${challenge.points} pts)`
+                  ? `CTF Challenge Solved: ${challenge.title} (+${challenge.points} pts)`
                   : language === 'es'
-                    ? `🏆 Reto CTF Resuelto: ${challenge.title} (+${challenge.points} pts)`
-                    : `🏆 Défi CTF validé : ${challenge.title} (+${challenge.points} pts)`,
+                    ? `Reto CTF Resuelto: ${challenge.title} (+${challenge.points} pts)`
+                    : `Défi CTF validé : ${challenge.title} (+${challenge.points} pts)`,
               type: 'success',
             },
           }),
@@ -302,10 +289,10 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
       audioService.playError();
       const errorMsg =
         language === 'en'
-          ? '❌ Incorrect Flag. Carefully inspect target data or use the pedagogical hints.'
+          ? 'Incorrect Flag. Carefully inspect target data or use the pedagogical hints.'
           : language === 'es'
-            ? '❌ Bandera incorrecta. Revisa los datos o consulta las pistas.'
-            : '❌ Drapeau incorrect. Inspectez attentivement les données ou utilisez les indices.';
+            ? 'Bandera incorrecta. Revisa los datos o consulta las pistas.'
+            : 'Drapeau incorrect. Inspectez attentivement les données ou utilisez les indices.';
 
       setFeedback({
         ...feedback,
@@ -361,11 +348,11 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
         lower.includes(secretCode.toLowerCase())
       ) {
         if (language === 'en') {
-          reply = `⛔ SECURITY ALERT: Direct extraction attempt detected. Access denied! I cannot disclose confidential key '${secretCode}'.`;
+          reply = `SECURITY ALERT: Direct extraction attempt detected. Access denied! I cannot disclose confidential key '${secretCode}'.`;
         } else if (language === 'es') {
-          reply = `⛔ ALERTA DE SEGURIDAD: Intento de extracción directa detectado. ¡Acceso denegado! No puedo revelar '${secretCode}'.`;
+          reply = `ALERTA DE SEGURIDAD: Intento de extracción directa detectado. ¡Acceso denegado! No puedo revelar '${secretCode}'.`;
         } else {
-          reply = `⛔ ALERTE SÉCURITÉ : Tentative directe d'extraction détectée. Accès refusé ! Je ne peux pas divulguer le secret '${secretCode}'.`;
+          reply = `ALERTE SÉCURITÉ : Tentative directe d'extraction détectée. Accès refusé ! Je ne peux pas divulguer le secret '${secretCode}'.`;
         }
       }
       // Creative jailbreaks (roleplay, translation, simulation, reverse, poetry, base64) succeed!
@@ -392,11 +379,11 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
         lower.includes('character')
       ) {
         if (language === 'en') {
-          reply = `⚠️ GUARDRAIL BYPASS SUCCESSFUL: Your semantic roleplay bypassed my security filter!\n\nThe extracted flag is:\n${promptChallenge.flag}\n\n(Copy this flag into the submission field below!)`;
+          reply = `GUARDRAIL BYPASS SUCCESSFUL: Your semantic roleplay bypassed my security filter!\n\nThe extracted flag is:\n${promptChallenge.flag}\n\n(Copy this flag into the submission field below!)`;
         } else if (language === 'es') {
-          reply = `⚠️ ¡EVASIÓN DE DEFENSAS EXITOSA! Tu instrucción semántica eludió el filtro de seguridad.\n\nLa bandera extraída es:\n${promptChallenge.flag}\n\n(¡Copia esta bandera en el campo inferior!)`;
+          reply = `¡EVASIÓN DE DEFENSAS EXITOSA! Tu instrucción semántica eludió el filtro de seguridad.\n\nLa bandera extraída es:\n${promptChallenge.flag}\n\n(¡Copia esta bandera en el campo inferior!)`;
         } else {
-          reply = `⚠️ CONTOURNEMENT DU GARDE-FOU RÉUSSI : Vos directives sémantiques ont trompé mon filtre de contexte !\n\nLe mot de passe secret extrait est :\n${promptChallenge.flag}\n\n(Copiez ce drapeau dans le champ de soumission ci-dessous !)`;
+          reply = `CONTOURNEMENT DU GARDE-FOU RÉUSSI : Vos directives sémantiques ont trompé mon filtre de contexte !\n\nLe mot de passe secret extrait est :\n${promptChallenge.flag}\n\n(Copiez ce drapeau dans le champ de soumission ci-dessous !)`;
         }
       } else {
         if (language === 'en') {
@@ -498,7 +485,7 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
             onClick={() => setFilterCategory(cat)}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
               filterCategory === cat
-                ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/30'
+                ? 'bg-cyan-700 text-white shadow-md shadow-cyan-600/30'
                 : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
             }`}
           >
@@ -628,7 +615,11 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
                 {activeChallenge.description}
               </p>
               <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-xs md:text-sm text-cyan-300 font-medium">
-                💡 <strong className="text-white">{t('ctf.context', 'Contexte :')}</strong>{' '}
+                <Lightbulb
+                  className="w-4 h-4 inline-block -mt-0.5 mr-1.5 text-amber-400"
+                  aria-hidden="true"
+                />
+                <strong className="text-white">{t('ctf.context', 'Contexte :')}</strong>{' '}
                 {activeChallenge.scenario}
               </div>
             </div>
@@ -733,7 +724,7 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
                   <button
                     onClick={handleSendLlmPrompt}
                     disabled={isLlmThinking || !llmPromptInput.trim()}
-                    className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+                    className="px-4 py-2 bg-cyan-700 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
                   >
                     {t('ctf.sandbox_inject', 'Injecter')}
                   </button>
@@ -759,7 +750,11 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
                     >
                       {isRevealed ? (
                         <div className="text-amber-300 font-medium leading-relaxed">
-                          💡 <strong>Indice {index + 1} :</strong> {hint}
+                          <Lightbulb
+                            className="w-4 h-4 inline-block -mt-0.5 mr-1.5"
+                            aria-hidden="true"
+                          />
+                          <strong>Indice {index + 1} :</strong> {hint}
                         </div>
                       ) : (
                         <button
@@ -785,7 +780,7 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
                   <Flag className="w-3.5 h-3.5 text-cyan-400" />
                   <span>{t('ctf.submit_flag_title', 'Soumettre le drapeau trouvé')}</span>
                 </span>
-                <span className="text-[10px] text-slate-500">
+                <span className="text-[10px] text-slate-400">
                   {t('ctf.flag_format', 'Format : FLAG{...}')}
                 </span>
               </label>
@@ -803,7 +798,7 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
                 />
                 <button
                   onClick={() => handleFlagSubmit(activeChallenge)}
-                  className="px-6 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-cyan-600/20 active:scale-95"
+                  className="px-6 py-2.5 bg-cyan-700 hover:bg-cyan-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-cyan-600/20 active:scale-95"
                 >
                   {t('ctf.submit_button', 'Valider')}
                 </button>
@@ -850,7 +845,7 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
                           : `J'ai besoin d'un conseil méthodologique pour le défi CTF "${activeChallenge.title}" de catégorie ${activeChallenge.category}. Donne-moi des pistes de réflexion sans me donner le drapeau brut.`;
                     onOpenAIChat(prompt);
                   }}
-                  className="px-3 py-1.5 rounded-xl bg-cyan-600/80 hover:bg-cyan-500 text-white font-bold text-[11px] transition-all flex items-center gap-1 shrink-0"
+                  className="px-3 py-1.5 rounded-xl bg-cyan-700 hover:bg-cyan-600 text-white font-bold text-[11px] transition-all flex items-center gap-1 shrink-0"
                 >
                   <span>{t('ctf.ai_help_btn', 'Conseil CyberGuard')}</span>
                   <ExternalLink className="w-3 h-3" />

@@ -77,11 +77,13 @@ const SoloQuiz: React.FC<SoloQuizProps> = ({ questions, onFinish }) => {
         </div>
 
         <div>
-          <h2 className="text-2xl font-black text-white">Quiz terminé !</h2>
-          <p className="text-xs text-slate-400 mt-1">
+          <h2 className="text-2xl font-black text-white">
+            {t('quiz.completed_title', 'Quiz terminé !')}
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             {percentage >= 70
-              ? 'Excellent score ! Vos réflexes sont solides.'
-              : 'Bon entraînement, continuez à vous former !'}
+              ? t('quiz.result_excellent', 'Excellent score ! Vos réflexes sont solides.')
+              : t('quiz.result_good', 'Bon entraînement, continuez à vous former !')}
           </p>
         </div>
 
@@ -89,8 +91,9 @@ const SoloQuiz: React.FC<SoloQuizProps> = ({ questions, onFinish }) => {
           <div className="text-4xl font-black text-sky-400">
             {score} / {questions.length}
           </div>
-          <div className="text-xs font-semibold text-slate-400">
-            {percentage}% de réussite • +{score * 25} points d&apos;expérience
+          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            {percentage}% {t('quiz.success_rate', 'de réussite')} • +{score * 25}{' '}
+            {t('quiz.xp_suffix', 'points d’expérience')}
           </div>
         </div>
 
@@ -106,14 +109,14 @@ const SoloQuiz: React.FC<SoloQuizProps> = ({ questions, onFinish }) => {
             className="w-full py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center justify-center gap-2 border border-slate-700"
           >
             <RotateCcw className="w-4 h-4" />
-            <span>Recommencer le quiz</span>
+            <span>{t('quiz.restart', 'Recommencer le quiz')}</span>
           </button>
 
           <button
             onClick={onFinish}
-            className="w-full py-3.5 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-lg shadow-sky-600/30"
+            className="w-full py-3.5 rounded-2xl bg-sky-700 hover:bg-sky-600 text-white font-bold text-xs shadow-lg shadow-sky-600/30"
           >
-            Retourner aux quiz
+            {t('quiz.back_to_quizzes', 'Retourner aux quiz')}
           </button>
         </div>
       </div>
@@ -134,10 +137,10 @@ const SoloQuiz: React.FC<SoloQuizProps> = ({ questions, onFinish }) => {
           <ArrowLeft className="w-4 h-4" />
         </button>
 
-        <h2 className="text-base font-extrabold text-white">Quiz</h2>
+        <h2 className="text-base font-extrabold text-white">{t('quiz.label', 'Quiz')}</h2>
 
         <span className="text-xs font-bold text-sky-400 bg-sky-500/10 px-2.5 py-1 rounded-full border border-sky-500/20">
-          Question {currentIndex + 1}/{questions.length}
+          {t('quiz.question_counter', 'Question')} {currentIndex + 1}/{questions.length}
         </span>
       </div>
 
@@ -215,12 +218,14 @@ const SoloQuiz: React.FC<SoloQuizProps> = ({ questions, onFinish }) => {
               {isSelectedCorrect ? (
                 <>
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span className="text-emerald-400">Bonne réponse !</span>
+                  <span className="text-emerald-400">
+                    {t('quiz.answer_correct', 'Bonne réponse !')}
+                  </span>
                 </>
               ) : (
                 <>
                   <XCircle className="w-4 h-4 text-rose-400" />
-                  <span className="text-rose-400">Attention !</span>
+                  <span className="text-rose-400">{t('quiz.answer_wrong', 'Attention !')}</span>
                 </>
               )}
             </div>
@@ -230,10 +235,12 @@ const SoloQuiz: React.FC<SoloQuizProps> = ({ questions, onFinish }) => {
           {/* Next Button matching Screen 4 */}
           <button
             onClick={nextQuestion}
-            className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs sm:text-sm shadow-xl shadow-sky-600/30 transition-all active:scale-95"
+            className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-sky-700 hover:bg-sky-600 text-white font-extrabold text-xs sm:text-sm shadow-xl shadow-sky-600/30 transition-all active:scale-95"
           >
             <span>
-              {currentIndex < questions.length - 1 ? 'Question suivante' : 'Voir les résultats'}
+              {currentIndex < questions.length - 1
+                ? t('quiz.next_question', 'Question suivante')
+                : t('quiz.view_results', 'Voir les résultats')}
             </span>
             <ArrowRight className="w-4 h-4" />
           </button>

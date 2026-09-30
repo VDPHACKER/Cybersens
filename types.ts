@@ -100,6 +100,8 @@ export interface UserPreferences {
   language?: Language;
   onboarded?: boolean;
   isAuthenticated?: boolean;
+  isAdmin?: boolean;
+  communityPosts?: number;
   registeredAt?: string;
   certificates?: Certificate[];
 }
@@ -111,11 +113,21 @@ export enum AppTab {
   NEWS = 'news', // Actualités
   PROFILE = 'profile', // Mon profil & Inscription
   PRACTICES = 'practices', // Bonnes pratiques
+  DONATE = 'donate', // Faire un don
   AI_CHAT = 'ai_chat', // Assistant CyberGuard IA
   TOOLS = 'tools', // Boîte à outils & Scanner
   CTF = 'ctf', // Arène CTF
   GAMES = 'games', // Menaces IA
   ABOUT = 'about', // À propos / Onboarding
+  DEVOPS = 'devops', // DevOps & Operations Center
+  LEADERBOARD = 'leaderboard', // Classements
+  COMMUNITY = 'community', // Communauté
+}
+
+export interface PracticalExercise {
+  title: string;
+  instructions: string;
+  expectedOutcome: string;
 }
 
 export interface CourseLesson {
@@ -128,6 +140,7 @@ export interface CourseLesson {
   audioScript?: string;
   proTip?: string;
   securityAlert?: string;
+  practicalExercise?: PracticalExercise;
   diagramTitle?: string;
   diagramAscii?: string;
   codeSnippet?: {
@@ -187,7 +200,7 @@ export type InteractiveLab = NonNullable<CourseModule['interactiveLab']>;
 export interface NewsArticle {
   id: string;
   title: string;
-  category: 'Menaces' | 'Conseils' | 'Événements';
+  category: string;
   timeAgo: string;
   readTime: string;
   author: string;
@@ -196,6 +209,10 @@ export interface NewsArticle {
   summary: string;
   content: string[];
   keyPoints: string[];
+  /** Renseignés pour les articles issus de flux externes en temps réel. */
+  url?: string;
+  source?: string;
+  publishedAt?: string;
 }
 
 export interface BestPracticeItem {
@@ -231,7 +248,6 @@ export enum QuizMode {
   IDLE = 'idle',
   SOLO_CONFIG = 'solo_config',
   SOLO_PLAY = 'solo_play',
-  MULTI_LOBBY = 'multi_lobby',
-  MULTI_PLAY = 'multi_play',
+  ROOM = 'room',
   RESULT = 'result',
 }

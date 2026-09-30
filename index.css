@@ -4,17 +4,38 @@
 
 /* Styles globaux (anciennement inline dans index.html) */
 :root {
-  --accent: #0ea5e9;
-  --bg-dark: #020617;
+  --accent: #2563eb;
+  --bg-dark: #040a1c;
+}
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
   background-color: var(--bg-dark);
   color: #f8fafc;
   -webkit-tap-highlight-color: transparent;
   margin: 0;
   padding: 0;
 }
+
+.course-reader-content,
+.course-reader-content * {
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+
 .mono {
   font-family: 'JetBrains Mono', monospace;
 }
@@ -66,4 +87,30 @@ body {
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none; /* Chrome, Safari */
+}
+
+/* Panneau latéral de don : entrée par la droite et décompte des 15 secondes */
+@keyframes donate-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(1.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.donate-popup {
+  animation: donate-slide-in 0.35s ease-out both;
+}
+@keyframes donate-countdown {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0;
+  }
+}
+.donate-countdown {
+  animation: donate-countdown 15s linear forwards;
 }

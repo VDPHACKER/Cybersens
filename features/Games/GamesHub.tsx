@@ -1,194 +1,393 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { audioService } from '../../services/audioService';
 import AiThreatsGame from './AiThreatsGame';
-import { useI18n } from '../../services/i18n';
+import PhishingGame from './PhishingGame';
+import FirewallGame from './FirewallGame';
+import MemoryGame from './MemoryGame';
+import CipherGame from './CipherGame';
+import { useL } from '../../components/ui';
+import {
+  Zap,
+  LockKeyhole,
+  Syringe,
+  Skull,
+  Brain,
+  Bomb,
+  Fish,
+  BrickWall,
+  KeyRound,
+  Puzzle,
+  ArrowRight,
+  Clock,
+  Gamepad2,
+  Sparkles,
+  type LucideIcon,
+} from 'lucide-react';
 
-type GameID = 'ai_threats' | 'whack' | 'bruteforce' | 'sqli' | 'ddos';
+type GameID =
+  | 'ai_threats'
+  | 'whack'
+  | 'bruteforce'
+  | 'sqli'
+  | 'ddos'
+  | 'phishing'
+  | 'firewall'
+  | 'memory'
+  | 'cipher';
+type Tag = 'all' | 'reflexes' | 'attaque' | 'defense' | 'crypto' | 'ia';
 
 interface GamesHubProps {
   onBack: () => void;
 }
 
-const GamesHub: React.FC<GamesHubProps> = ({ onBack }) => {
-  const { t, language } = useI18n();
-  const [activeGame, setActiveGame] = useState<null | GameID>(null);
+interface GameMeta {
+  id: GameID;
+  tag: Exclude<Tag, 'all'>;
+  level: 1 | 2 | 3;
+  minutes: number;
+  icon: LucideIcon;
+  tone: string;
+  isNew?: boolean;
+}
 
-  if (activeGame === 'ai_threats') return <AiThreatsGame onExit={() => setActiveGame(null)} />;
-  if (activeGame === 'whack') return <WhackAHacker onExit={() => setActiveGame(null)} />;
-  if (activeGame === 'bruteforce') return <BruteForceGame onExit={() => setActiveGame(null)} />;
-  if (activeGame === 'sqli') return <SqlInjectionGame onExit={() => setActiveGame(null)} />;
-  if (activeGame === 'ddos') return <DdosDefenseGame onExit={() => setActiveGame(null)} />;
+const GAMES: GameMeta[] = [
+  {
+    id: 'phishing',
+    tag: 'defense',
+    level: 1,
+    minutes: 3,
+    icon: Fish,
+    tone: 'from-rose-500 to-red-700',
+    isNew: true,
+  },
+  {
+    id: 'firewall',
+    tag: 'defense',
+    level: 2,
+    minutes: 4,
+    icon: BrickWall,
+    tone: 'from-orange-500 to-red-700',
+    isNew: true,
+  },
+  {
+    id: 'memory',
+    tag: 'reflexes',
+    level: 1,
+    minutes: 3,
+    icon: Puzzle,
+    tone: 'from-violet-500 to-indigo-700',
+    isNew: true,
+  },
+  {
+    id: 'cipher',
+    tag: 'crypto',
+    level: 2,
+    minutes: 2,
+    icon: KeyRound,
+    tone: 'from-cyan-500 to-blue-700',
+    isNew: true,
+  },
+  { id: 'ddos', tag: 'defense', level: 2, minutes: 3, icon: Zap, tone: 'from-red-500 to-rose-800' },
+  {
+    id: 'bruteforce',
+    tag: 'crypto',
+    level: 2,
+    minutes: 3,
+    icon: LockKeyhole,
+    tone: 'from-blue-500 to-blue-800',
+  },
+  {
+    id: 'sqli',
+    tag: 'attaque',
+    level: 3,
+    minutes: 4,
+    icon: Syringe,
+    tone: 'from-emerald-500 to-teal-800',
+  },
+  {
+    id: 'whack',
+    tag: 'reflexes',
+    level: 1,
+    minutes: 2,
+    icon: Skull,
+    tone: 'from-amber-500 to-orange-700',
+  },
+];
+
+const GamesHub: React.FC<GamesHubProps> = ({ onBack }) => {
+  const L = useL();
+  const [activeGame, setActiveGame] = useState<null | GameID>(null);
+  const [filter, setFilter] = useState<Tag>('all');
+  const exit = () => setActiveGame(null);
+
+  if (activeGame === 'ai_threats') return <AiThreatsGame onExit={exit} />;
+  if (activeGame === 'whack') return <WhackAHacker onExit={exit} />;
+  if (activeGame === 'bruteforce') return <BruteForceGame onExit={exit} />;
+  if (activeGame === 'sqli') return <SqlInjectionGame onExit={exit} />;
+  if (activeGame === 'ddos') return <DdosDefenseGame onExit={exit} />;
+  if (activeGame === 'phishing') return <PhishingGame onExit={exit} />;
+  if (activeGame === 'firewall') return <FirewallGame onExit={exit} />;
+  if (activeGame === 'memory') return <MemoryGame onExit={exit} />;
+  if (activeGame === 'cipher') return <CipherGame onExit={exit} />;
+
+  const text: Record<Exclude<GameID, 'ai_threats'>, { title: string; desc: string }> = {
+    phishing: {
+      title: L('Phishing ou légitime ?', 'Phishing or legit?', '¿Phishing o legítimo?'),
+      desc: L(
+        'Repérez les liens et SMS piégés avant de cliquer.',
+        'Spot trapped links and SMS before you click.',
+        'Detecte enlaces y SMS trampa antes de hacer clic.',
+      ),
+    },
+    firewall: {
+      title: L('Pare-feu', 'Firewall', 'Cortafuegos'),
+      desc: L(
+        'Autorisez ou bloquez les paquets selon les règles.',
+        'Allow or block packets according to the rules.',
+        'Permita o bloquee paquetes según las reglas.',
+      ),
+    },
+    memory: {
+      title: L('Mémoire cyber', 'Cyber memory', 'Memoria cibernética'),
+      desc: L(
+        'Associez chaque menace à la bonne parade.',
+        'Match each threat with the right defence.',
+        'Empareje cada amenaza con su defensa.',
+      ),
+    },
+    cipher: {
+      title: L('Décodeur César', 'Caesar decoder', 'Decodificador César'),
+      desc: L(
+        'Déchiffrez un maximum de mots en 90 secondes.',
+        'Decrypt as many words as you can in 90 seconds.',
+        'Descifre tantas palabras como pueda en 90 segundos.',
+      ),
+    },
+    ddos: {
+      title: L('Défense DDoS', 'DDoS Defense', 'Defensa DDoS'),
+      desc: L(
+        'Gardez le serveur en ligne sous une pluie de requêtes.',
+        'Keep the server online under a flood of requests.',
+        'Mantenga el servidor en línea bajo una avalancha de peticiones.',
+      ),
+    },
+    bruteforce: {
+      title: L('Lab Brute Force', 'Brute Force Lab', 'Laboratorio Fuerza Bruta'),
+      desc: L(
+        'Devinez le mot de passe avant le verrouillage.',
+        'Guess the password before lockout.',
+        'Adivine la contraseña antes del bloqueo.',
+      ),
+    },
+    sqli: {
+      title: L('Lab Injection SQL', 'SQL Injection Lab', 'Laboratorio Inyección SQL'),
+      desc: L(
+        'Forcez l’accès à une base de données mal protégée.',
+        'Break into a poorly protected database.',
+        'Acceda a una base de datos mal protegida.',
+      ),
+    },
+    whack: {
+      title: L('Attaque Hacker', 'Hacker Attack', 'Ataque Hacker'),
+      desc: L(
+        'Réflexes purs : neutralisez les menaces avant le pare-feu.',
+        'Pure reflexes: neutralise threats before the firewall.',
+        'Reflejos puros: neutralice amenazas antes del cortafuegos.',
+      ),
+    },
+  };
+
+  const tags: { id: Tag; label: string }[] = [
+    { id: 'all', label: L('Tous', 'All', 'Todos') },
+    { id: 'defense', label: L('Défense', 'Defence', 'Defensa') },
+    { id: 'attaque', label: L('Attaque', 'Attack', 'Ataque') },
+    { id: 'crypto', label: L('Crypto', 'Crypto', 'Cripto') },
+    { id: 'reflexes', label: L('Réflexes', 'Reflexes', 'Reflejos') },
+    { id: 'ia', label: L('IA', 'AI', 'IA') },
+  ];
+  const tagLabel = (t: Tag) => tags.find((x) => x.id === t)?.label ?? '';
+  const levelLabel = (n: number) =>
+    [
+      L('Facile', 'Easy', 'Fácil'),
+      L('Moyen', 'Medium', 'Medio'),
+      L('Difficile', 'Hard', 'Difícil'),
+    ][n - 1];
+
+  const visible = GAMES.filter((g) => filter === 'all' || g.tag === filter);
+  const showFeatured = filter === 'all' || filter === 'ia';
+  const total = GAMES.length + 1;
+
+  const ring =
+    'focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-950';
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 text-slate-500 hover:text-cyan-500 transition-colors font-black text-[10px] uppercase tracking-[0.3em] w-fit px-2"
-      >
-        <span className="text-xl">←</span> {t('common.back_to_hub', 'Retour au Hub')}
-      </button>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-4">
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-rose-600 text-white shadow-lg">
+            <Gamepad2 className="h-7 w-7" aria-hidden="true" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
+              {L('Mini-jeux', 'Mini-games', 'Minijuegos')}
+            </h1>
+            <p className="text-sm text-slate-400">
+              {L(
+                `${total} jeux pour apprendre les réflexes de défense en s’amusant.`,
+                `${total} games to learn defence reflexes while having fun.`,
+                `${total} juegos para aprender reflejos de defensa jugando.`,
+              )}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={onBack}
+          className={`self-start rounded-xl px-3 py-2 text-xs font-bold text-slate-300 transition-colors hover:bg-white/5 hover:text-white sm:self-auto ${ring}`}
+        >
+          {L('Retour à l’accueil', 'Back to home', 'Volver al inicio')}
+        </button>
+      </div>
 
-      <div className="text-center">
-        <h2 className="text-4xl md:text-5xl font-black mb-2 text-white italic uppercase tracking-tighter">
-          {t('games.title', 'Cyber Academy Jeux 🕹️')}
-        </h2>
-        <p className="text-slate-400 font-medium text-base md:text-lg">
-          {t(
-            'games.subtitle',
-            'Apprenez les réflexes de défense face aux menaces classiques et aux cyberattaques assistées par IA.',
+      {/* Jeu vedette */}
+      {showFeatured && (
+        <button
+          onClick={() => setActiveGame('ai_threats')}
+          className={`group relative w-full overflow-hidden rounded-3xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/70 via-ink-900 to-indigo-950/60 p-6 text-left transition-colors hover:border-cyan-400 sm:p-8 ${ring}`}
+        >
+          <Brain
+            className="pointer-events-none absolute -right-6 -top-6 h-48 w-48 text-cyan-400/10 transition-opacity group-hover:text-cyan-400/20 sm:h-64 sm:w-64"
+            aria-hidden="true"
+          />
+          <div className="relative max-w-2xl space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500 px-3 py-1 text-[11px] font-black uppercase tracking-widest text-slate-950">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                {L('Défi à la une', 'Featured challenge', 'Reto destacado')}
+              </span>
+              <span className="text-xs font-bold text-cyan-300">
+                Prompt Injection • Deepfake • Agent Hijack
+              </span>
+            </div>
+            <h2 className="text-2xl font-black text-white sm:text-3xl">
+              {L(
+                'Chasse aux nouvelles menaces IA',
+                'Hunting new AI threats',
+                'Caza de nuevas amenazas IA',
+              )}
+            </h2>
+            <p className="text-sm leading-relaxed text-slate-300 sm:text-base">
+              {L(
+                'Incarnez un analyste de sécurité face à la nouvelle vague d’attaques : injections de prompts, clonage vocal de PDG, empoisonnement de données et détournement d’agents autonomes.',
+                'Play a security analyst facing the new wave of attacks: prompt injection, CEO voice cloning, data poisoning and autonomous agent hijacking.',
+                'Póngase en la piel de un analista de seguridad ante la nueva ola de ataques: inyección de prompts, clonación de voz de directivos, envenenamiento de datos y secuestro de agentes autónomos.',
+              )}
+            </p>
+            <span className="inline-flex items-center gap-2 rounded-xl bg-cyan-700 px-5 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-cyan-700/30 group-hover:bg-cyan-600">
+              {L('Lancer la mission', 'Launch the mission', 'Iniciar la misión')}
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </span>
+          </div>
+        </button>
+      )}
+
+      {/* Filtres */}
+      <div
+        className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"
+        role="tablist"
+        aria-label={L('Filtrer les jeux', 'Filter games', 'Filtrar juegos')}
+      >
+        {tags.map((t) => (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={filter === t.id}
+            onClick={() => setFilter(t.id)}
+            className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold transition-colors ${ring} ${
+              filter === t.id
+                ? 'bg-cyan-500 text-slate-950'
+                : 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Grille de jeux */}
+      {visible.length === 0 ? (
+        <p className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-sm text-slate-400">
+          {L(
+            'Aucun jeu dans cette catégorie pour le moment.',
+            'No games in this category yet.',
+            'Aún no hay juegos en esta categoría.',
           )}
         </p>
-      </div>
-
-      {/* Featured AI Threats Game Banner */}
-      <div
-        onClick={() => setActiveGame('ai_threats')}
-        className="relative bg-gradient-to-r from-cyan-950/60 via-slate-900 to-indigo-950/50 border-2 border-cyan-500/40 hover:border-cyan-400 p-6 md:p-8 rounded-3xl overflow-hidden cursor-pointer shadow-2xl group transition-all transform hover:-translate-y-0.5"
-      >
-        <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-all text-8xl md:text-9xl">
-          🧠
-        </div>
-        <div className="max-w-2xl relative z-10 space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="px-3 py-1 rounded-full text-xs font-black bg-cyan-500 text-slate-950 uppercase tracking-widest">
-              ★{' '}
-              {language === 'en'
-                ? 'NEW AI CHALLENGE'
-                : language === 'es'
-                  ? 'NUEVO RETO IA'
-                  : 'NOUVEAU DÉFI IA'}
-            </span>
-            <span className="text-xs font-bold text-cyan-400">
-              Prompt Injection • Deepfake • Agent Hijack
-            </span>
-          </div>
-          <h3 className="text-2xl md:text-3xl font-black text-white uppercase italic">
-            {language === 'en'
-              ? 'Hunting New AI Threats'
-              : language === 'es'
-                ? 'Caza de Nuevas Amenazas IA'
-                : 'Chasse aux Nouvelles Menaces IA'}
-          </h3>
-          <p className="text-slate-300 text-sm md:text-base leading-relaxed">
-            {language === 'en'
-              ? 'Play as a security analyst defending against the modern wave of attacks: direct/indirect prompt injection, CEO voice deepfakes, data poisoning, and autonomous agent tool hijacking.'
-              : language === 'es'
-                ? 'Ponte en la piel de un analista de seguridad contra la nueva ola de ataques: inyección de prompts, deepfakes de voz de directores, envenenamiento de datos y secuestro de agentes autónomos.'
-                : "Incarnez un analyste de sécurité face à la nouvelle vague d'attaques : prompt injections directes/indirectes, clonage vocal de PDG, empoisonnement de données et détournement d'agents autonomes."}
-          </p>
-          <div className="pt-2">
-            <button className="px-6 py-3 bg-cyan-600 group-hover:bg-cyan-500 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-cyan-600/30">
-              {language === 'en'
-                ? 'Launch AI Defense Mission →'
-                : language === 'es'
-                  ? 'Iniciar Misión de Defensa IA →'
-                  : 'Lancer la Mission de Défense IA →'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <GameCard
-          id="ddos"
-          title="DDoS Defense"
-          icon="⚡"
-          desc={
-            language === 'en'
-              ? 'Keep the server online under an influx of illegitimate traffic.'
-              : language === 'es'
-                ? 'Mantén el servidor en línea bajo una avalancha de tráfico malicioso.'
-                : 'Maintenez le serveur en ligne sous une pluie de requêtes illégitimes.'
-          }
-          color="bg-red-600"
-          btnText={language === 'en' ? 'DEPLOY' : language === 'es' ? 'DESPLEGAR' : 'DÉPLOYER'}
-          onClick={() => setActiveGame('ddos')}
-        />
-        <GameCard
-          id="bruteforce"
-          title={
-            language === 'en'
-              ? 'Brute Force Lab'
-              : language === 'es'
-                ? 'Laboratorio Fuerza Bruta'
-                : 'Lab Brute Force'
-          }
-          icon="🔐"
-          desc={
-            language === 'en'
-              ? 'Optimize a script to guess the password before lockout.'
-              : language === 'es'
-                ? 'Optimiza un script para descifrar contraseñas antes del bloqueo.'
-                : 'Optimisez un script pour deviner un mot de passe avant le verrouillage.'
-          }
-          color="bg-blue-600"
-          btnText={language === 'en' ? 'DEPLOY' : language === 'es' ? 'DESPLEGAR' : 'DÉPLOYER'}
-          onClick={() => setActiveGame('bruteforce')}
-        />
-        <GameCard
-          id="sqli"
-          title={
-            language === 'en'
-              ? 'SQL Injection Lab'
-              : language === 'es'
-                ? 'Laboratorio Inyección SQL'
-                : 'Lab Injection SQL'
-          }
-          icon="💉"
-          desc={
-            language === 'en'
-              ? 'Inject sanitized payloads to breach and inspect a database.'
-              : language === 'es'
-                ? 'Inyecta comandos para vulnerar una base de datos protegida.'
-                : "Injectez des commandes pour forcer l'accès à une base de données protégée."
-          }
-          color="bg-emerald-600"
-          btnText={language === 'en' ? 'DEPLOY' : language === 'es' ? 'DESPLEGAR' : 'DÉPLOYER'}
-          onClick={() => setActiveGame('sqli')}
-        />
-        <GameCard
-          id="whack"
-          title={
-            language === 'en'
-              ? 'Hacker Defense Attack'
-              : language === 'es'
-                ? 'Ataque Hacker Reflejos'
-                : 'Attaque Hacker'
-          }
-          icon="👺"
-          desc={
-            language === 'en'
-              ? 'Pure reflexes! Neutralize incoming threats before they breach the firewall.'
-              : language === 'es'
-                ? '¡Puros reflejos! Elimina amenazas antes de que penetren el firewall.'
-                : "Réflexes purs ! Éliminez les menaces avant qu'elles n'atteignent le pare-feu."
-          }
-          color="bg-orange-600"
-          btnText={language === 'en' ? 'DEPLOY' : language === 'es' ? 'DESPLEGAR' : 'DÉPLOYER'}
-          onClick={() => setActiveGame('whack')}
-        />
-      </div>
+      ) : (
+        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {visible.map((g) => {
+            const Icon = g.icon;
+            const info = text[g.id as Exclude<GameID, 'ai_threats'>];
+            return (
+              <li key={g.id}>
+                <button
+                  onClick={() => setActiveGame(g.id)}
+                  className={`group flex h-full w-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-ink-800/70 text-left transition-all hover:-translate-y-0.5 hover:border-cyan-400/50 hover:shadow-xl ${ring}`}
+                >
+                  <div
+                    className={`relative flex h-24 items-center justify-between bg-gradient-to-br ${g.tone} px-5`}
+                  >
+                    <Icon className="h-11 w-11 text-white drop-shadow" aria-hidden="true" />
+                    {g.isNew && (
+                      <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-900">
+                        {L('Nouveau', 'New', 'Nuevo')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-1 flex-col p-5">
+                    <h3 className="text-lg font-black text-white">{info.title}</h3>
+                    <p className="mt-1 flex-1 text-sm leading-relaxed text-slate-400">
+                      {info.desc}
+                    </p>
+                    <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[11px] font-bold text-slate-300">
+                      <span className="rounded-full bg-white/10 px-2.5 py-1">
+                        {tagLabel(g.tag)}
+                      </span>
+                      <span
+                        className="inline-flex items-center gap-1.5"
+                        aria-label={`${L('Niveau', 'Level', 'Nivel')} : ${levelLabel(g.level)}`}
+                      >
+                        <span className="flex gap-0.5" aria-hidden="true">
+                          {[1, 2, 3].map((n) => (
+                            <span
+                              key={n}
+                              className={`h-1.5 w-3 rounded-full ${n <= g.level ? 'bg-cyan-400' : 'bg-white/15'}`}
+                            />
+                          ))}
+                        </span>
+                        {levelLabel(g.level)}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-slate-400">
+                        <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                        {g.minutes} min
+                      </span>
+                    </div>
+                    <span className="mt-4 inline-flex items-center gap-2 text-sm font-black text-cyan-300 group-hover:text-cyan-200">
+                      {L('Jouer', 'Play', 'Jugar')}
+                      <ArrowRight
+                        className="h-4 w-4 transition-transform group-hover:translate-x-1"
+                        aria-hidden="true"
+                      />
+                    </span>
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 };
-
-const GameCard = ({ title, icon, desc, color, btnText = 'DÉPLOYER', onClick }: any) => (
-  <div
-    onClick={onClick}
-    className="group relative bg-slate-900 border-2 border-slate-800 p-8 rounded-[3rem] overflow-hidden hover:border-cyan-500/50 transition-all cursor-pointer shadow-xl"
-  >
-    <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-20 transition-all text-8xl">
-      {icon}
-    </div>
-    <h3 className="text-3xl font-black mb-4 text-white uppercase italic">{title}</h3>
-    <p className="text-slate-500 mb-8 text-base leading-relaxed">{desc}</p>
-    <button
-      className={`px-10 py-4 ${color} hover:opacity-90 rounded-2xl font-black transition-all shadow-lg text-white uppercase italic tracking-tighter text-lg`}
-    >
-      {btnText}
-    </button>
-  </div>
-);
 
 const BruteForceGame = ({ onExit }: any) => {
   const [target, setTarget] = useState('CYBER');
@@ -294,7 +493,7 @@ const BruteForceGame = ({ onExit }: any) => {
         <div className="bg-slate-900 border-2 border-slate-800 p-10 md:p-16 rounded-[4rem] text-center shadow-2xl space-y-8 relative overflow-hidden">
           <div className="absolute inset-0 opacity-5 pointer-events-none bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:20px_20px]"></div>
           <div className="relative z-10">
-            <div className="text-6xl mb-6">🔐</div>
+            <LockKeyhole className="w-16 h-16 mb-6 mx-auto text-cyan-400" aria-hidden="true" />
             <h3 className="text-4xl md:text-5xl font-black text-white italic uppercase tracking-tighter mb-4">
               Brute Force Lab
             </h3>
@@ -501,13 +700,13 @@ const DdosDefenseGame = ({ onExit }: any) => {
               onClick={() => setIsWafActive(!isWafActive)}
               className={`p-6 rounded-3xl font-black transition-all border-4 text-xl italic ${isWafActive ? 'bg-emerald-600 border-emerald-400 text-white' : 'border-slate-800 text-slate-600 hover:border-emerald-500'}`}
             >
-              WAF {isWafActive ? 'ACTIF ✅' : 'OFF'}
+              WAF {isWafActive ? 'ACTIF' : 'OFF'}
             </button>
             <button
               onClick={() => setIsRateLimitActive(!isRateLimitActive)}
               className={`p-6 rounded-3xl font-black transition-all border-4 text-xl italic ${isRateLimitActive ? 'bg-blue-600 border-blue-400 text-white' : 'border-slate-800 text-slate-600 hover:border-blue-500'}`}
             >
-              RATE LIMIT {isRateLimitActive ? 'ACTIF ✅' : 'OFF'}
+              RATE LIMIT {isRateLimitActive ? 'ACTIF' : 'OFF'}
             </button>
           </div>
         </div>
@@ -664,8 +863,12 @@ const WhackAHacker = ({ onExit }: { onExit: () => void }) => {
             onMouseDown={() => handleWhack(i)}
             className={`aspect-square bg-slate-900 rounded-[2.5rem] border-4 flex items-center justify-center cursor-crosshair transition-all duration-75 relative overflow-hidden ${activeMole === i ? 'border-orange-500 bg-slate-800 shadow-[0_0_30px_rgba(249,115,22,0.3)]' : 'border-slate-800 opacity-30'}`}
           >
-            {activeMole === i && <div className="text-6xl animate-bounce">👺</div>}
-            {hitMole === i && <div className="text-6xl animate-ping">💥</div>}
+            {activeMole === i && (
+              <Skull className="w-16 h-16 text-red-400 animate-bounce" aria-hidden="true" />
+            )}
+            {hitMole === i && (
+              <Bomb className="w-16 h-16 text-amber-400 animate-ping" aria-hidden="true" />
+            )}
           </div>
         ))}
       </div>

@@ -2,13 +2,15 @@
 
 const CSP = [
   "default-src 'self'",
-  "script-src 'self'",
-  "style-src 'self'",
+  // accounts.google.com/gsi : bouton « Se connecter avec Google » (Google Identity Services)
+  "script-src 'self' https://accounts.google.com/gsi/client",
+  "style-src 'self' https://accounts.google.com/gsi/style",
+  'frame-src https://accounts.google.com/gsi/',
   "font-src 'self'",
   "img-src 'self' data: blob: https://images.unsplash.com https://api.qrserver.com",
   "media-src 'self' data: blob:",
   // images.unsplash.com : requis pour que le service worker mette les illustrations en cache hors ligne
-  "connect-src 'self' https://images.unsplash.com",
+  "connect-src 'self' https://images.unsplash.com https://accounts.google.com/gsi/",
   "worker-src 'self'",
   "manifest-src 'self'",
   "object-src 'none'",
@@ -22,7 +24,8 @@ export const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'Cross-Origin-Opener-Policy': 'same-origin',
+  // allow-popups : la fenêtre de connexion Google doit pouvoir répondre à la page
+  'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
   'Cross-Origin-Resource-Policy': 'same-origin',
   // La caméra sert au scan de documents dans l'assistant IA ; tout le reste est désactivé
   'Permissions-Policy':

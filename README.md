@@ -1,6 +1,6 @@
 # CyberSens — Sensibiliser • Protéger • Agir
 
-Plateforme de sensibilisation à la cybersécurité : 9 modules de formation avec quiz et examens, certificats vérifiables, laboratoires interactifs, arène CTF et assistant IA.
+Plateforme de sensibilisation à la cybersécurité : 12 modules de formation (60 leçons) avec quiz et examens, certificats vérifiables, arène CTF (24 défis), 9 mini-jeux, outils d'analyse, assistant IA, actualités en direct, classements et communauté. Interface en français, anglais et espagnol.
 
 ## Architecture
 
@@ -41,20 +41,22 @@ npm run dev                  # http://localhost:3000 (API et base incluses)
 
 ## Scripts
 
-| Commande                                                              | Rôle                                                     |
-| --------------------------------------------------------------------- | -------------------------------------------------------- |
-| `npm run dev`                                                         | Serveur de développement (Vite + API + base)             |
-| `npm run typecheck`                                                   | Vérification TypeScript                                  |
-| `npm test`                                                            | Tests d'intégration de l'API (base temporaire)           |
-| `npm run check`                                                       | Typage + tests + build : à lancer avant chaque livraison |
-| `npm run build`                                                       | Build de production dans `dist/`                         |
-| `npm start`                                                           | Serveur de production (après `npm run build`)            |
-| `npm run db:backup`                                                   | Sauvegarde à chaud de la base dans `backups/`            |
-| `npm run docker:up` / `docker:down` / `docker:logs` / `docker:backup` | Exploitation Docker                                      |
+| Commande                                                              | Rôle                                                                                                         |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `npm run dev`                                                         | Serveur de développement (Vite + API + base)                                                                 |
+| `npm run typecheck`                                                   | Vérification TypeScript                                                                                      |
+| `npm test`                                                            | Tests d'intégration de l'API (base temporaire)                                                               |
+| `npm run check`                                                       | Lint + typage + tests + build : à lancer avant chaque livraison (la CI vérifie aussi `npm run format:check`) |
+| `npm run build`                                                       | Build de production dans `dist/`                                                                             |
+| `npm start`                                                           | Serveur de production (après `npm run build`)                                                                |
+| `npm run db:backup`                                                   | Sauvegarde à chaud de la base dans `backups/`                                                                |
+| `npm run docker:up` / `docker:down` / `docker:logs` / `docker:backup` | Exploitation Docker                                                                                          |
 
 ## Variables d'environnement
 
-Voir [`.env.example`](.env.example) : `GEMINI_API_KEY`, `CERT_SECRET`, `PORT`, `TRUST_PROXY`, `DB_PATH`, `ACCESS_LOG`.
+Voir [`.env.example`](.env.example) : `GEMINI_API_KEY`, `CERT_SECRET`, `TRUST_PROXY`, `ADMIN_EMAILS`, `PORT`, `DB_PATH`, `BACKUP_DIR`, `GEMINI_FALLBACK_MODELS`, `ACCESS_LOG`.
+
+**Mise en ligne : voir le guide [`docs/DEPLOIEMENT.md`](docs/DEPLOIEMENT.md)** (variables, Railway, Docker, tests de fumée, sauvegardes, points d'attention).
 
 ## Déploiement avec Docker
 
@@ -112,4 +114,4 @@ Dependabot propose chaque semaine les mises à jour npm, GitHub Actions et de l'
 
 ## Sécurité (résumé)
 
-Mots de passe hachés avec scrypt, session en cookie `HttpOnly` / `SameSite=Lax`, protection CSRF (origine vérifiée, JSON obligatoire), requêtes SQL préparées, limitation de débit, verrouillage après 5 échecs, message d'erreur identique que l'e-mail existe ou non, CSP stricte, `X-Frame-Options: DENY`, HSTS derrière HTTPS, clé IA uniquement côté serveur.
+Mots de passe hachés avec scrypt, session en cookie `HttpOnly` / `SameSite=Lax`, protection CSRF (origine vérifiée, JSON obligatoire), requêtes SQL préparées, limitation de débit, verrouillage après 5 échecs, message d'erreur identique que l'e-mail existe ou non, CSP stricte, `X-Frame-Options: DENY`, HSTS derrière HTTPS, clé IA uniquement côté serveur, routes d'administration réservées aux comptes de `ADMIN_EMAILS`, messages de la communauté affichés en texte brut (aucun HTML interprété), points déclarés par le navigateur plafonnés par jour côté serveur.

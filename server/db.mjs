@@ -85,6 +85,59 @@ const MIGRATIONS = [
     value TEXT NOT NULL
   );
   `,
+  // Communauté : messages, commentaires et « j'aime »
+  `
+  CREATE TABLE posts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    topic      TEXT NOT NULL DEFAULT 'general',
+    body       TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX idx_posts_topic ON posts(topic, id DESC);
+
+  CREATE TABLE post_comments (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id    INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body       TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX idx_comments_post ON post_comments(post_id, id);
+
+  CREATE TABLE post_likes (
+    post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (post_id, user_id)
+  );
+  `,
+  // Plafond quotidien des points déclarés par le navigateur (anti-triche pour le classement)
+  `
+  CREATE TABLE points_daily (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    day     TEXT NOT NULL,
+    total   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, day)
+  );
+  `,
+  // Signalements de messages de la communauté (un signalement par membre et par message)
+  `
+  CREATE TABLE post_reports (
+    post_id    INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (post_id, user_id)
+  );
+  `,
+  // Jetons de réinitialisation de mot de passe (stockés hachés, à usage unique, 30 min)
+  `
+  CREATE TABLE password_resets (
+    token_hash TEXT PRIMARY KEY,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  `,
 ];
 
 const open = () => {

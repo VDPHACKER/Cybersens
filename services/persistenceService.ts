@@ -1,5 +1,6 @@
 import { QuizHistoryEntry, UserPreferences, AuditLogEntry, Certificate, UserBadge } from '../types';
 import { apiInBackground, api, ServerSnapshot, SYNC_QUEUE_KEY } from './apiClient';
+import { COMPREHENSIVE_COURSE_MODULES } from './coursesData';
 
 /*
  * Le stockage local sert de cache synchrone pour l'interface.
@@ -300,96 +301,152 @@ export const saveCertificate = (cert: Certificate): void => {
 };
 
 /* --- Dynamic Progression Badges --- */
+const BADGE_UNLOCKS_KEY = 'cybersens_badge_unlocks';
+
+const readUnlocks = (): Record<string, string> => {
+  const data = readJson<Record<string, string>>(BADGE_UNLOCKS_KEY, {});
+  return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+};
+
+/**
+ * Date d'obtention d'un badge : issue des données quand elles existent (premier quiz, 5e quiz…),
+ * sinon le moment où le badge a été constaté pour la première fois. Mémorisée localement.
+ */
+const unlockDate = (id: string, unlocked: boolean, fromData?: string): string | undefined => {
+  if (!unlocked) return undefined;
+  const stored = readUnlocks();
+  let iso = stored[id];
+  if (!iso) {
+    iso =
+      fromData && !Number.isNaN(new Date(fromData).getTime())
+        ? new Date(fromData).toISOString()
+        : new Date().toISOString();
+    try {
+      localStorage.setItem(BADGE_UNLOCKS_KEY, JSON.stringify({ ...stored, [id]: iso }));
+    } catch {
+      /* stockage indisponible : la date sera recalculée */
+    }
+  }
+  const lang = getPreferences().language;
+  const locale = lang === 'en' ? 'en-GB' : lang === 'es' ? 'es-ES' : 'fr-FR';
+  return new Date(iso).toLocaleDateString(locale, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+};
+
 export const getDynamicBadges = (): UserBadge[] => {
   const prefs = getPreferences();
   const history = getQuizHistory();
   const certs = getCertificates();
   const pts = prefs.points ?? 0;
+  const anyLesson = Object.values(getAllCompletedLessons()).some(
+    (l) => Array.isArray(l) && l.length > 0,
+  );
+  const byDate = [...history].sort(
+    (x, y) => new Date(x.date).getTime() - new Date(y.date).getTime(),
+  );
+
+  // Module « Sécurité mobile » : progression réelle des leçons, ou certificat obtenu
+  const mobileModule = COMPREHENSIVE_COURSE_MODULES.find((m) => m.id === 'module-5');
+  const mobileDone = mobileModule
+    ? getCompletedLessons(mobileModule.id).filter((id) =>
+        mobileModule.lessons.some((l) => l.id === id),
+      ).length
+    : 0;
+  const mobileCertified = certs.some((c) => c.courseId === 'module-5');
+  const mobileProgress = mobileCertified
+    ? 100
+    : mobileModule && mobileModule.lessons.length
+      ? Math.round((mobileDone / mobileModule.lessons.length) * 100)
+      : 0;
+  const posted = (prefs.communityPosts ?? 0) > 0;
+
+  const firstStep = history.length > 0 || certs.length > 0 || anyLesson;
+  const quizWarrior = history.length >= 5;
 
   const allBadges: UserBadge[] = [
     {
       id: 'badge-1',
       title: 'Premier Pas Sécurisé',
-      icon: '🛡️',
+      icon: 'shield',
       description: 'Avoir complété une première leçon ou un premier quiz.',
       category: 'cours',
-      unlocked: history.length > 0 || certs.length > 0,
-      progressPercent: history.length > 0 || certs.length > 0 ? 100 : 50,
-      unlockedAt: '02 Septembre 2026',
+      unlocked: firstStep,
+      progressPercent: firstStep ? 100 : 0,
+      unlockedAt: unlockDate('badge-1', firstStep, byDate[0]?.date),
     },
     {
       id: 'badge-2',
       title: 'Chasseur de Phishing',
-      icon: '🎣',
-      description: 'Réussir avec brio le quiz ou la formation sur les arnaques.',
+      icon: 'phishing',
+      description: 'Cumuler 300 points d’expérience en vous entraînant contre les arnaques.',
       category: 'expert',
       unlocked: pts >= 300,
       progressPercent: Math.min(100, Math.round((pts / 300) * 100)),
-      unlockedAt: '08 Septembre 2026',
+      unlockedAt: unlockDate('badge-2', pts >= 300),
     },
     {
       id: 'badge-3',
       title: 'Maître des Mots de Passe',
-      icon: '🔑',
-      description: 'Maîtriser les règles de robustesse et la double authentification (2FA).',
+      icon: 'key',
+      description:
+        'Cumuler 400 points d’expérience : robustesse et double authentification (2FA) maîtrisées.',
       category: 'expert',
       unlocked: pts >= 400,
       progressPercent: Math.min(100, Math.round((pts / 400) * 100)),
-      unlockedAt: '12 Septembre 2026',
+      unlockedAt: unlockDate('badge-3', pts >= 400),
     },
     {
       id: 'badge-4',
       title: 'Certifié CyberSens',
-      icon: '🎓',
+      icon: 'graduation',
       description: 'Obtenir au moins un certificat officiel d’aptitude en cybersécurité.',
       category: 'cours',
       unlocked: certs.length > 0,
-      progressPercent: certs.length > 0 ? 100 : 25,
+      progressPercent: certs.length > 0 ? 100 : 0,
       unlockedAt: certs.length > 0 ? certs[0].issuedDate : undefined,
     },
     {
       id: 'badge-5',
       title: 'Guerrier des Quiz',
-      icon: '🏆',
-      description: 'Terminer 5 sessions de quiz interactifs sans faute.',
+      icon: 'trophy',
+      description: 'Terminer 5 sessions de quiz interactifs.',
       category: 'quiz',
-      unlocked: history.length >= 5,
+      unlocked: quizWarrior,
       progressPercent: Math.min(100, Math.round((history.length / 5) * 100)),
-      unlockedAt: history.length >= 5 ? '18 Septembre 2026' : undefined,
+      unlockedAt: unlockDate('badge-5', quizWarrior, byDate[4]?.date),
     },
     {
       id: 'badge-6',
       title: 'Sentinelle Mobile Money',
-      icon: '📱',
-      description: 'Valider le module de défense contre les arnaques financières mobiles.',
+      icon: 'mobile',
+      description: 'Valider le module de défense contre les arnaques et les risques mobiles.',
       category: 'expert',
-      unlocked: certs.some(
-        (c) =>
-          c.courseTitle.toLowerCase().includes('mobile') ||
-          c.courseTitle.toLowerCase().includes('arnaque'),
-      ),
-      progressPercent: 75,
-      unlockedAt: '20 Septembre 2026',
+      unlocked: mobileCertified,
+      progressPercent: mobileProgress,
+      unlockedAt: unlockDate('badge-6', mobileCertified),
     },
     {
       id: 'badge-7',
       title: 'Vétéran Cyber (1000 Pts)',
-      icon: '⭐',
+      icon: 'star',
       description: 'Cumuler 1000 points d’expérience pratique de sécurité.',
       category: 'points',
       unlocked: pts >= 1000,
       progressPercent: Math.min(100, Math.round((pts / 1000) * 100)),
-      unlockedAt: pts >= 1000 ? 'Récemment' : undefined,
+      unlockedAt: unlockDate('badge-7', pts >= 1000),
     },
     {
       id: 'badge-8',
       title: 'Défenseur Communautaire',
-      icon: '🤝',
-      description: 'Partager des conseils ou un certificat avec ses proches.',
+      icon: 'community',
+      description: 'Publier au moins un message dans la communauté pour aider les autres membres.',
       category: 'expert',
-      unlocked: true,
-      progressPercent: 100,
-      unlockedAt: '14 Septembre 2026',
+      unlocked: posted,
+      progressPercent: posted ? 100 : 0,
+      unlockedAt: unlockDate('badge-8', posted),
     },
   ];
 
@@ -489,6 +546,8 @@ export const applyServerSnapshot = (snap: ServerSnapshot): UserPreferences => {
     defaultQuizDifficulty: user.settings.defaultQuizDifficulty || current.defaultQuizDifficulty,
     onboarded: user.settings.onboarded ?? current.onboarded,
     isAuthenticated: true,
+    isAdmin: !!user.isAdmin,
+    communityPosts: user.communityPosts ?? 0,
   };
   lastSyncedProfile = JSON.stringify(profilePayload(updated));
   savePreferences(updated);

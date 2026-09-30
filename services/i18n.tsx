@@ -1,6 +1,28 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Language } from '../types';
 import { Globe, Check } from 'lucide-react';
+import { UI_TEXT_TRANSLATIONS } from './uiTextTranslations';
+
+let activeUiLanguage: Language = 'fr';
+
+const normalizeUiText = (text: string) => text.replace(/\s+/g, ' ').trim();
+
+export const setUiLanguage = (language: Language) => {
+  activeUiLanguage = language;
+};
+
+export const getUiLanguage = () => activeUiLanguage;
+
+export const localizeUiText = <T,>(value: T): T | string => {
+  if (Array.isArray(value)) return value.map((item) => localizeUiText(item)) as T;
+  if (typeof value !== 'string' || activeUiLanguage === 'fr') return value;
+  const translationsForText = UI_TEXT_TRANSLATIONS[normalizeUiText(value)];
+  const translated = translationsForText?.[activeUiLanguage];
+  if (!translated) return value;
+  const leading = value.match(/^\s*/)?.[0] || '';
+  const trailing = value.match(/\s*$/)?.[0] || '';
+  return `${leading}${translated}${trailing}`;
+};
 
 export interface I18nContextType {
   language: Language;
@@ -19,6 +41,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'nav.news': 'Actualités',
     'nav.practices': 'Pratiques',
     'nav.profile': 'Profil',
+    'nav.donate': 'Faire un don',
     'nav.ai_chat': 'CyberGuard IA',
     'nav.ctf': 'Arène CTF',
     'nav.tools': 'Outils Sécu',
@@ -54,6 +77,48 @@ export const translations: Record<Language, Record<string, string>> = {
     'home.btn_learn_more': 'En savoir plus',
     'home.btn_start_course': 'Commencer un cours',
     'home.btn_scan_scam': 'Scanner une arnaque',
+    'home.support_badge': 'Soutenez CyberSens',
+    'home.support_title':
+      'Chaque achat de ce livre aide CyberSens à former davantage de personnes, à développer des contenus de qualité et à rendre la cybersécurité plus accessible à tous.',
+    'home.support_cta': 'Acheter le livre',
+    'home.support_detail':
+      'Découvrez le livre La Guerre invisible : IA et Cybersécurité de VDPHACKER, un guide pratique qui explique comment les IA peuvent protéger ou attaquer les systèmes, et pourquoi la vigilance humaine reste le vrai atout de défense.',
+
+    // Donation page
+    'donate.eyebrow': 'Soutenez',
+    'donate.title': 'Acheter le livre',
+    'donate.back': 'Revenir',
+    'donate.description':
+      'Chaque achat de ce livre soutient CyberSens, finance de nouveaux contenus pédagogiques et aide à former plus de personnes à la cybersécurité avec des méthodes concrètes et accessibles.',
+    'donate.hook_label': 'L’outil qui change la vigilance',
+    'donate.hook':
+      'L’IA peut attaquer… mais elle peut aussi vous aider à vous protéger avant qu’il soit trop tard.',
+    'donate.book_title': 'La Guerre invisible : IA et cybersécurité',
+    'donate.book_value':
+      'Ce livre explique comment l’intelligence artificielle renforce les attaques, les arnaques et les fraudes, tout en montrant concrètement les moyens de se protéger, d’anticiper les menaces et d’agir avant qu’un incident ne devienne catastrophique.',
+    'donate.book_summary_title': 'Sommaire',
+    'donate.book_summary':
+      'Partie I — Comprendre les fondations | Partie II — L’IA comme arme | Partie III — L’IA comme bouclier | Partie IV — Se défendre concrètement | Partie V — Annexes pratiques et ressources',
+    'donate.why_title': 'Pourquoi ce livre est important',
+    'donate.why_text':
+      'Parce que la cybersécurité ne se joue plus seulement sur des logiciels : elle dépend aussi de la vigilance humaine, du bon réflexe et de la compréhension des outils que les attaquants utilisent aujourd’hui.',
+    'donate.card_training_title': 'Formations',
+    'donate.card_training_desc': 'Créer de nouveaux parcours',
+    'donate.card_simulations_title': 'Simulations',
+    'donate.card_simulations_desc': 'Développer des scénarios réalistes',
+    'donate.card_accessibility_title': 'Accessibilité',
+    'donate.card_accessibility_desc': 'Rendre la formation plus utile',
+    'donate.contribution': 'Support',
+    'donate.amount': '15 000 FCFA',
+    'donate.amount_hint': 'Le prix de la connaissance, à l’accessibilité de chacun',
+    'donate.cta': 'Acheter le livre',
+    'donate.learn_more': 'En savoir plus',
+    'donate.reassurance_short': 'Achat sécurisé · soutien direct à CyberSens',
+    'donate.popup_close': 'Fermer',
+    'donate.popup_mute': 'Ne plus afficher aujourd’hui',
+    'donate.note':
+      'Achetez le livre et soutenez directement CyberSens pour financer de nouveaux cours, ateliers, simulations et contenus pédagogiques.',
+    'donate.alert': 'Achat du livre et soutien direct à CyberSens.',
 
     // Home Cards
     'home.card_learn': 'Formations',
@@ -101,6 +166,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'learn.certified_badge': 'Certifié',
     'learn.lessons': 'leçons',
     'learn.no_results': 'Aucune formation trouvée',
+    'learn.try_another_search': 'Essayez un autre mot-clé ou niveau.',
 
     // Practices Screen
     'practices.title': 'Bonnes pratiques',
@@ -110,6 +176,39 @@ export const translations: Record<Language, Record<string, string>> = {
     'practices.badge_new': 'Nouveau',
     'practices.vital_count': '6 réflexes vitaux',
     'practices.actions_title': 'Actions recommandées (+10 XP par validation) :',
+
+    // App shell / quiz
+    'app.loading': 'Chargement de votre espace…',
+    'app.offline':
+      'Impossible de joindre le serveur CyberSens. Connectez-vous une première fois avec une connexion Internet : l’application fonctionnera ensuite aussi hors ligne sur cet appareil.',
+    'app.retry': 'Réessayer',
+    'quiz.title': 'Quiz CyberSens',
+    'quiz.subtitle': 'Teste tes connaissances et renforce tes réflexes de défense.',
+    'quiz.loading_title': 'Préparation du Quiz...',
+    'quiz.loading_subtitle': 'Génération des questions adaptées',
+    'quiz.interactive_title': 'Quiz interactif',
+    'quiz.interactive_subtitle': 'Évaluation personnalisée de sécurité',
+    'quiz.question_count': 'Nombre de questions',
+    'quiz.questions_short': 'questions',
+    'quiz.difficulty': 'Niveau de difficulté',
+    'quiz.easy': 'Facile',
+    'quiz.medium': 'Moyen',
+    'quiz.hard': 'Difficile',
+    'quiz.start': 'Lancer le quiz',
+    'quiz.history_count': 'Quiz réalisés',
+    'quiz.completed_title': 'Quiz terminé !',
+    'quiz.result_excellent': 'Excellent score ! Vos réflexes sont solides.',
+    'quiz.result_good': 'Bon entraînement, continuez à vous former !',
+    'quiz.success_rate': 'de réussite',
+    'quiz.xp_suffix': 'points d’expérience',
+    'quiz.restart': 'Recommencer le quiz',
+    'quiz.back_to_quizzes': 'Retourner aux quiz',
+    'quiz.label': 'Quiz',
+    'quiz.question_counter': 'Question',
+    'quiz.answer_correct': 'Bonne réponse !',
+    'quiz.answer_wrong': 'Attention !',
+    'quiz.next_question': 'Question suivante',
+    'quiz.view_results': 'Voir les résultats',
 
     // Deepfake Tester
     'deepfake.title': 'Testeur & Analyseur de Deepfakes IA',
@@ -136,6 +235,16 @@ export const translations: Record<Language, Record<string, string>> = {
     'news.vigilance_desc':
       "Menaces prédominantes aujourd'hui : Hameçonnage bancaire, faux livreurs & vol de sessions.",
     'news.scanner_btn': "Détecteur d'Arnaque IA",
+    'news.breaking_alert_title':
+      'Campagne active de faux SMS bancaires et Mobile Money détectée en Afrique de l’Ouest',
+    'news.breaking_alert_vector': 'SMS / Smishing',
+    'news.breaking_alert_action': 'Ne composez aucun code USSD et ne partagez aucun PIN.',
+    'news.breaking_alert_refresh_title':
+      'Alerte Urgence : Fausses invitations de réinitialisation WhatsApp en circulation',
+    'news.breaking_alert_refresh_summary':
+      'Des cybercriminels envoient des SMS demandant un code à 6 chiffres pour prétendument sécuriser votre compte WhatsApp.',
+    'news.refresh_minutes_ago': 'Il y a {{minutes}} min',
+    'news.just_now': 'À l’instant',
     'news.all': 'Toutes',
     'news.threats': 'Menaces',
     'news.tips': 'Conseils',
@@ -219,6 +328,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'nav.news': 'News',
     'nav.practices': 'Practices',
     'nav.profile': 'Profile',
+    'nav.donate': 'Donate',
     'nav.ai_chat': 'CyberGuard AI',
     'nav.ctf': 'CTF Arena',
     'nav.tools': 'Sec Tools',
@@ -254,6 +364,50 @@ export const translations: Record<Language, Record<string, string>> = {
     'home.btn_learn_more': 'Learn more',
     'home.btn_start_course': 'Start a course',
     'home.btn_scan_scam': 'Scan a scam',
+    'home.support_badge': 'Support CyberSens',
+    'home.support_title':
+      'Every purchase of this book helps CyberSens train more people, create better content and make cybersecurity more accessible to everyone.',
+    'home.support_cta': 'Buy the book',
+    'home.support_detail':
+      'Discover The Invisible War: AI and Cybersecurity by VDPHACKER, a practical guide that explains how AI can protect or attack systems and why human vigilance remains the strongest defense.',
+
+    // Donation page
+    'donate.eyebrow': 'Support',
+    'donate.title': 'Buy the book',
+    'donate.back': 'Back',
+    'donate.description':
+      'Every purchase of this book supports CyberSens, funds more educational content and helps train more people in cybersecurity through practical, accessible learning.',
+    'donate.book_title': 'The Invisible War: AI and Cybersecurity',
+    'donate.book_value':
+      'This book explains how artificial intelligence amplifies phishing, scams, identity fraud, and large-scale cyberattacks, while showing concrete ways to defend yourself, anticipate threats, and act before risk becomes a crisis.',
+    'donate.book_summary_title': 'Table of contents',
+    'donate.book_summary':
+      'Part I — Building the foundations | Part II — AI as a weapon | Part III — AI as a shield | Part IV — Defending ourselves today | Part V — Practical annexes and resources',
+    'donate.card_training_title': 'Courses',
+    'donate.card_training_desc': 'Create new learning paths',
+    'donate.card_simulations_title': 'Simulations',
+    'donate.card_simulations_desc': 'Develop realistic scenarios',
+    'donate.card_accessibility_title': 'Accessibility',
+    'donate.card_accessibility_desc': 'Make learning more useful',
+    'donate.contribution': 'Support',
+    'donate.amount': '$25 USD',
+    'donate.amount_hint': 'The price of knowledge, at a human scale',
+    'donate.cta': 'Buy the book',
+    'donate.learn_more': 'Learn more',
+    'donate.reassurance_short': 'Secure purchase · direct support for CyberSens',
+    'donate.popup_close': 'Close',
+    'donate.popup_mute': 'Don’t show again today',
+    'donate.reassurance':
+      'Simple payment, secure purchase, all authorized payment methods accepted, and direct support for CyberSens.',
+    'donate.note':
+      'Buy the book and support CyberSens directly to fund new training, workshops, simulations and educational content.',
+    'donate.alert': 'Book purchase and direct support for CyberSens.',
+    'donate.hook_label': 'The tool that changes vigilance',
+    'donate.hook':
+      'AI can attack… but it can also help you protect yourself before it is too late.',
+    'donate.why_title': 'Why this book matters',
+    'donate.why_text':
+      'Because cybersecurity is no longer only about software: it also depends on human vigilance, the right reflexes, and understanding the tools attackers use today.',
 
     // Home Cards
     'home.card_learn': 'Courses',
@@ -300,6 +454,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'learn.certified_badge': 'Certified',
     'learn.lessons': 'lessons',
     'learn.no_results': 'No courses found',
+    'learn.try_another_search': 'Try another keyword or level.',
 
     // Practices Screen
     'practices.title': 'Best Practices',
@@ -309,6 +464,39 @@ export const translations: Record<Language, Record<string, string>> = {
     'practices.badge_new': 'New',
     'practices.vital_count': '6 vital reflexes',
     'practices.actions_title': 'Recommended actions (+10 XP each):',
+
+    // App shell / quiz
+    'app.loading': 'Loading your space…',
+    'app.offline':
+      'Unable to reach the CyberSens server. Sign in once with an internet connection: the app will also work offline on this device.',
+    'app.retry': 'Retry',
+    'quiz.title': 'CyberSens Quiz',
+    'quiz.subtitle': 'Test your knowledge and strengthen your defense reflexes.',
+    'quiz.loading_title': 'Preparing the Quiz...',
+    'quiz.loading_subtitle': 'Generating tailored questions',
+    'quiz.interactive_title': 'Interactive Quiz',
+    'quiz.interactive_subtitle': 'Personalized security assessment',
+    'quiz.question_count': 'Number of questions',
+    'quiz.questions_short': 'questions',
+    'quiz.difficulty': 'Difficulty level',
+    'quiz.easy': 'Easy',
+    'quiz.medium': 'Medium',
+    'quiz.hard': 'Hard',
+    'quiz.start': 'Start quiz',
+    'quiz.history_count': 'Quizzes completed',
+    'quiz.completed_title': 'Quiz complete!',
+    'quiz.result_excellent': 'Excellent score! Your reflexes are solid.',
+    'quiz.result_good': 'Good practice, keep training!',
+    'quiz.success_rate': 'success rate',
+    'quiz.xp_suffix': 'experience points',
+    'quiz.restart': 'Restart quiz',
+    'quiz.back_to_quizzes': 'Back to quizzes',
+    'quiz.label': 'Quiz',
+    'quiz.question_counter': 'Question',
+    'quiz.answer_correct': 'Correct answer!',
+    'quiz.answer_wrong': 'Watch out!',
+    'quiz.next_question': 'Next question',
+    'quiz.view_results': 'View results',
 
     // Deepfake Tester
     'deepfake.title': 'AI Deepfake Tester & Analyzer',
@@ -334,6 +522,16 @@ export const translations: Record<Language, Record<string, string>> = {
     'news.vigilance_desc':
       'Dominant threats today: Banking phishing, fake delivery messages & session hijacking.',
     'news.scanner_btn': 'AI Scam Scanner',
+    'news.breaking_alert_title':
+      'Active campaign of fake banking and Mobile Money SMS detected in West Africa',
+    'news.breaking_alert_vector': 'SMS / Smishing',
+    'news.breaking_alert_action': 'Do not enter any USSD code and never share any PIN.',
+    'news.breaking_alert_refresh_title':
+      'Urgent Alert: Fake WhatsApp reset invitations circulating',
+    'news.breaking_alert_refresh_summary':
+      'Cybercriminals are sending SMS messages asking for a 6-digit code to supposedly secure your WhatsApp account.',
+    'news.refresh_minutes_ago': '{{minutes}} min ago',
+    'news.just_now': 'Just now',
     'news.all': 'All',
     'news.threats': 'Threats',
     'news.tips': 'Advice',
@@ -415,6 +613,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'nav.news': 'Noticias',
     'nav.practices': 'Prácticas',
     'nav.profile': 'Perfil',
+    'nav.donate': 'Hacer una donación',
     'nav.ai_chat': 'CyberGuard IA',
     'nav.ctf': 'Arena CTF',
     'nav.tools': 'Herramientas',
@@ -450,6 +649,50 @@ export const translations: Record<Language, Record<string, string>> = {
     'home.btn_learn_more': 'Saber más',
     'home.btn_start_course': 'Comenzar un curso',
     'home.btn_scan_scam': 'Escanear estafa',
+    'home.support_badge': 'Apoya a CyberSens',
+    'home.support_title':
+      'Cada compra de este libro ayuda a CyberSens a formar a más personas, crear contenidos de calidad y hacer que la ciberseguridad sea más accesible para todos.',
+    'home.support_cta': 'Comprar el libro',
+    'home.support_detail':
+      'Descubre La Guerra invisible: IA y Ciberseguridad de VDPHACKER, una guía práctica que explica cómo la IA puede proteger o atacar los sistemas y por qué la vigilancia humana sigue siendo la mejor defensa.',
+
+    // Donation page
+    'donate.eyebrow': 'Apoya',
+    'donate.title': 'Comprar el libro',
+    'donate.back': 'Volver',
+    'donate.description':
+      'Cada compra de este libro apoya a CyberSens, financia nuevos contenidos educativos y ayuda a formar a más personas en ciberseguridad con métodos prácticos y accesibles.',
+    'donate.hook_label': 'La herramienta que cambia la vigilancia',
+    'donate.hook':
+      'La IA puede atacar… pero también puede ayudarte a protegerte antes de que sea demasiado tarde.',
+    'donate.book_title': 'La Guerra invisible: IA y ciberseguridad',
+    'donate.book_value':
+      'Este libro explica cómo la inteligencia artificial refuerza el phishing, los fraudes, la clonación de identidad y los ataques a gran escala, mientras muestra soluciones concretas para protegerse, anticiparse a las amenazas y actuar antes de que el riesgo se convierta en crisis.',
+    'donate.book_summary_title': 'Sumario',
+    'donate.book_summary':
+      'Parte I — Entender los fundamentos | Parte II — La IA como arma | Parte III — La IA como escudo | Parte IV — Defenderse de forma práctica | Parte V — Anexos y recursos',
+    'donate.why_title': 'Por qué este libro es importante',
+    'donate.why_text':
+      'Porque la ciberseguridad ya no depende solo del software: también depende de la vigilancia humana, del buen instinto y de comprender las herramientas que usan los atacantes hoy en día.',
+    'donate.card_training_title': 'Formaciones',
+    'donate.card_training_desc': 'Crear nuevos recorridos',
+    'donate.card_simulations_title': 'Simulaciones',
+    'donate.card_simulations_desc': 'Desarrollar escenarios realistas',
+    'donate.card_accessibility_title': 'Accesibilidad',
+    'donate.card_accessibility_desc': 'Hacer la formación más útil',
+    'donate.contribution': 'Apoyo',
+    'donate.amount': '23 €',
+    'donate.amount_hint': 'El precio del conocimiento al alcance de todos',
+    'donate.cta': 'Comprar el libro',
+    'donate.learn_more': 'Saber más',
+    'donate.reassurance_short': 'Compra segura · apoyo directo a CyberSens',
+    'donate.popup_close': 'Cerrar',
+    'donate.popup_mute': 'No mostrar más hoy',
+    'donate.reassurance':
+      'Pago sencillo, compra segura, todas las formas de pago autorizadas y apoyo directo a CyberSens.',
+    'donate.note':
+      'Compra el libro y apoya directamente a CyberSens para financiar nuevos cursos, talleres, simulaciones y contenidos educativos.',
+    'donate.alert': 'Compra del libro y apoyo directo a CyberSens.',
 
     // Home Cards
     'home.card_learn': 'Cursos',
@@ -496,6 +739,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'learn.certified_badge': 'Certificado',
     'learn.lessons': 'lecciones',
     'learn.no_results': 'No se encontraron formaciones',
+    'learn.try_another_search': 'Prueba otra palabra clave o nivel.',
 
     // Practices Screen
     'practices.title': 'Buenas Prácticas',
@@ -505,6 +749,39 @@ export const translations: Record<Language, Record<string, string>> = {
     'practices.badge_new': 'Nuevo',
     'practices.vital_count': '6 reflejos vitales',
     'practices.actions_title': 'Acciones recomendadas (+10 XP cada una):',
+
+    // App shell / quiz
+    'app.loading': 'Cargando tu espacio…',
+    'app.offline':
+      'No se puede contactar con el servidor de CyberSens. Inicia sesión una vez con conexión a Internet: la aplicación también funcionará sin conexión en este dispositivo.',
+    'app.retry': 'Reintentar',
+    'quiz.title': 'Quiz CyberSens',
+    'quiz.subtitle': 'Pon a prueba tus conocimientos y refuerza tus reflejos defensivos.',
+    'quiz.loading_title': 'Preparando el Quiz...',
+    'quiz.loading_subtitle': 'Generando preguntas personalizadas',
+    'quiz.interactive_title': 'Quiz interactivo',
+    'quiz.interactive_subtitle': 'Evaluación personalizada de seguridad',
+    'quiz.question_count': 'Número de preguntas',
+    'quiz.questions_short': 'preguntas',
+    'quiz.difficulty': 'Nivel de dificultad',
+    'quiz.easy': 'Fácil',
+    'quiz.medium': 'Medio',
+    'quiz.hard': 'Difícil',
+    'quiz.start': 'Iniciar quiz',
+    'quiz.history_count': 'Quizzes realizados',
+    'quiz.completed_title': '¡Quiz terminado!',
+    'quiz.result_excellent': '¡Excelente resultado! Tus reflejos están muy bien.',
+    'quiz.result_good': '¡Buen entrenamiento, sigue formándote!',
+    'quiz.success_rate': 'de éxito',
+    'quiz.xp_suffix': 'puntos de experiencia',
+    'quiz.restart': 'Reiniciar quiz',
+    'quiz.back_to_quizzes': 'Volver a los quizzes',
+    'quiz.label': 'Quiz',
+    'quiz.question_counter': 'Pregunta',
+    'quiz.answer_correct': '¡Respuesta correcta!',
+    'quiz.answer_wrong': '¡Cuidado!',
+    'quiz.next_question': 'Siguiente pregunta',
+    'quiz.view_results': 'Ver resultados',
 
     // Deepfake Tester
     'deepfake.title': 'Probador y Analizador de Deepfakes IA',
@@ -530,6 +807,16 @@ export const translations: Record<Language, Record<string, string>> = {
     'news.vigilance_desc':
       'Amenazas principales hoy: Phishing bancario, falsos repartidores y robo de sesiones.',
     'news.scanner_btn': 'Detector de Estafas IA',
+    'news.breaking_alert_title':
+      'Campaña activa de SMS bancarios y Mobile Money falsos detectada en África occidental',
+    'news.breaking_alert_vector': 'SMS / Smishing',
+    'news.breaking_alert_action': 'No introduzcas ningún código USSD ni compartas ningún PIN.',
+    'news.breaking_alert_refresh_title':
+      'Alerta urgente: invitaciones falsas de restablecimiento de WhatsApp en circulación',
+    'news.breaking_alert_refresh_summary':
+      'Los ciberdelincuentes están enviando SMS pidiendo un código de 6 dígitos para “proteger” tu cuenta de WhatsApp.',
+    'news.refresh_minutes_ago': 'Hace {{minutes}} min',
+    'news.just_now': 'Ahora mismo',
     'news.all': 'Todas',
     'news.threats': 'Amenazas',
     'news.tips': 'Consejos',
@@ -616,22 +903,29 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const saved = localStorage.getItem(STORAGE_LANG_KEY);
       if (saved === 'fr' || saved === 'en' || saved === 'es') {
+        setUiLanguage(saved);
         return saved;
       }
       const prefsStr = localStorage.getItem('cybersens_user_preferences');
       if (prefsStr) {
         const parsed = JSON.parse(prefsStr);
         if (parsed.language === 'fr' || parsed.language === 'en' || parsed.language === 'es') {
+          setUiLanguage(parsed.language);
           return parsed.language;
         }
       }
       const navLang = navigator.language?.slice(0, 2);
-      if (navLang === 'en' || navLang === 'es') return navLang;
+      if (navLang === 'en' || navLang === 'es') {
+        setUiLanguage(navLang);
+        return navLang;
+      }
     } catch (e) {}
+    setUiLanguage('fr');
     return 'fr';
   });
 
   const setLanguage = (lang: Language) => {
+    setUiLanguage(lang);
     setLanguageState(lang);
     try {
       localStorage.setItem(STORAGE_LANG_KEY, lang);
@@ -663,7 +957,23 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    setUiLanguage(language);
     document.documentElement.lang = language;
+    document.title =
+      language === 'en'
+        ? 'CyberSens - Educate • Protect • Act'
+        : language === 'es'
+          ? 'CyberSens - Concienciar • Proteger • Actuar'
+          : 'CyberSens - Sensibiliser • Protéger • Agir';
+    const description = document.querySelector<HTMLMetaElement>('meta[name="description"]');
+    if (description) {
+      description.content =
+        language === 'en'
+          ? 'Cybersecurity awareness platform: courses, quizzes, certificates, labs and AI assistant.'
+          : language === 'es'
+            ? 'Plataforma de concienciación en ciberseguridad: cursos, cuestionarios, certificados, laboratorios y asistente IA.'
+            : 'Plateforme de sensibilisation à la cybersécurité : formations, quiz, certificats, laboratoires et assistant IA.';
+    }
   }, [language]);
 
   // Listen to external prefs change
@@ -672,6 +982,7 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const saved = localStorage.getItem(STORAGE_LANG_KEY);
         if (saved && saved !== language && (saved === 'fr' || saved === 'en' || saved === 'es')) {
+          setUiLanguage(saved);
           setLanguageState(saved);
         }
       } catch (e) {}

@@ -13,8 +13,13 @@ import SecurityTools from './features/Tools/SecurityTools';
 import GamesHub from './features/Games/GamesHub';
 import CTFArena from './features/CTF/CTFArena';
 import About from './features/About';
+import Donate from './features/Donate';
+import { DevOpsCenter } from './features/DevOps/DevOpsCenter';
+import { Leaderboard } from './features/Leaderboard';
+import { Community } from './features/Community';
+import { ArenaSurface } from './components/ui';
 import { getPreferences, savePreferences } from './services/persistenceService';
-import { I18nProvider } from './services/i18n';
+import { I18nProvider, useI18n } from './services/i18n';
 import { Auth } from './features/Auth';
 import { restoreSession } from './services/authService';
 import { clearUserCache } from './services/persistenceService';
@@ -23,14 +28,27 @@ import { PWAUpdatePrompt } from './components/PWAUpdatePrompt';
 
 // Onglet demandé via un raccourci de l'application installée (ex. /?tab=quiz)
 const initialTab = (): AppTab => {
-  const requested = new URLSearchParams(window.location.search).get('tab');
+  const params = new URLSearchParams(window.location.search);
+  // Lien d'invitation à une salle de quiz multijoueur : /?join=123456
+  const join = params.get('join');
+  if (join && /^\d{6}$/.test(join)) {
+    try {
+      sessionStorage.setItem('cybersens-join-room', join);
+    } catch {
+      /* stockage indisponible : le code se saisit à la main */
+    }
+    window.history.replaceState(null, '', window.location.pathname);
+    return AppTab.QUIZ;
+  }
+  const requested = params.get('tab');
   if (requested) window.history.replaceState(null, '', window.location.pathname);
   return (Object.values(AppTab) as string[]).includes(requested || '')
     ? (requested as AppTab)
     : AppTab.HOME;
 };
 
-const App: React.FC = () => {
+const AppShell: React.FC = () => {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<AppTab>(initialTab);
   const [prefs, setPrefs] = useState<UserPreferences>(getPreferences());
   const [chatInitialPrompt, setChatInitialPrompt] = useState<string | undefined>(undefined);
@@ -106,7 +124,7 @@ const App: React.FC = () => {
   }, []);
 
   const toggleTheme = () => {
-    const newTheme = prefs.theme === 'dark' ? 'light' : 'dark';
+    const newTheme = (prefs.theme === 'dark' ? 'light' : 'dark') as 'dark' | 'light';
     const updated = { ...prefs, theme: newTheme };
     setPrefs(updated);
     savePreferences(updated);
@@ -137,6 +155,12 @@ const App: React.FC = () => {
         return <Learn onBack={goHome} />;
       case AppTab.PRACTICES:
         return <BestPractices onBack={goHome} />;
+      case AppTab.DONATE:
+        return (
+          <ArenaSurface>
+            <Donate onBack={goHome} />
+          </ArenaSurface>
+        );
       case AppTab.QUIZ:
         return <QuizContainer onBack={goHome} />;
       case AppTab.NEWS:
@@ -152,44 +176,60 @@ const App: React.FC = () => {
       case AppTab.AI_CHAT:
         return <AIChat onBack={goHome} initialPrompt={chatInitialPrompt} />;
       case AppTab.CTF:
-        return <CTFArena onBack={goHome} onOpenAIChat={handleOpenAIChat} />;
+        return (
+          <ArenaSurface>
+            <CTFArena onBack={goHome} onOpenAIChat={handleOpenAIChat} />
+          </ArenaSurface>
+        );
       case AppTab.TOOLS:
         return <SecurityTools onBack={goHome} />;
       case AppTab.GAMES:
-        return <GamesHub onBack={goHome} />;
+        return (
+          <ArenaSurface>
+            <GamesHub onBack={goHome} />
+          </ArenaSurface>
+        );
+      case AppTab.LEADERBOARD:
+        return <Leaderboard onBack={goHome} />;
+      case AppTab.COMMUNITY:
+        return <Community onBack={goHome} />;
+      case AppTab.DEVOPS:
+        return <DevOpsCenter />;
       case AppTab.ABOUT:
-        return <About onBack={goHome} />;
+        return <About onBack={goHome} onNavigate={setActiveTab} />;
       default:
         return <Home onStart={setActiveTab} />;
     }
   };
 
   return (
-    <I18nProvider>
+    <>
       <PWAUpdatePrompt />
       {session === 'loading' ? (
         <div className="min-h-screen flex items-center justify-center text-sm text-slate-500 bg-slate-50 dark:bg-slate-950">
-          Chargement de votre espace…
+          {t('app.loading', 'Chargement de votre espace…')}
         </div>
       ) : session === 'offline' ? (
         <div className="min-h-screen flex flex-col items-center justify-center gap-3 px-4 text-center bg-slate-50 dark:bg-slate-950">
           <p className="text-sm text-slate-600 dark:text-slate-300 max-w-sm">
-            Impossible de joindre le serveur CyberSens. Connectez-vous une première fois avec une
-            connexion Internet : l’application fonctionnera ensuite aussi hors ligne sur cet
-            appareil.
+            {t(
+              'app.offline',
+              'Impossible de joindre le serveur CyberSens. Connectez-vous une première fois avec une connexion Internet : l’application fonctionnera ensuite aussi hors ligne sur cet appareil.',
+            )}
           </p>
           <button
             onClick={() => window.location.reload()}
             className="px-5 py-2.5 rounded-xl bg-sky-600 text-white text-xs font-bold"
           >
-            Réessayer
+            {t('app.retry', 'Réessayer')}
           </button>
         </div>
       ) : session === 'anonymous' ? (
         <Auth
           onAuthenticated={(updated) => {
             setPrefs(updated);
-            setActiveTab(AppTab.HOME);
+            // Invitation à une salle reçue avant la connexion : on y retourne au lieu de l'accueil
+            setActiveTab(sessionStorage.getItem('cybersens-join-room') ? AppTab.QUIZ : AppTab.HOME);
             setSession('authenticated');
           }}
         />
@@ -205,8 +245,14 @@ const App: React.FC = () => {
           <div className="animate-in fade-in duration-300">{renderContent()}</div>
         </Layout>
       )}
-    </I18nProvider>
+    </>
   );
 };
+
+const App: React.FC = () => (
+  <I18nProvider>
+    <AppShell />
+  </I18nProvider>
+);
 
 export default App;

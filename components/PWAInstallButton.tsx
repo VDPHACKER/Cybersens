@@ -67,15 +67,17 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ variant = 'h
       {variant === 'profile' && (
         <button
           onClick={handleInstallClick}
-          className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-300 text-xs font-semibold transition-all group"
+          className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-800 dark:text-sky-300 text-xs font-semibold transition-all group"
         >
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-lg bg-sky-500/20 flex items-center justify-center text-sky-400 group-hover:scale-110 transition-transform">
               <Download className="w-4 h-4" />
             </div>
             <div className="text-left">
-              <div className="font-bold text-white">Installer comme application (PWA)</div>
-              <div className="text-[11px] text-slate-400">
+              <div className="font-bold text-slate-900 dark:text-white">
+                Installer comme application (PWA)
+              </div>
+              <div className="text-[11px] text-slate-700 dark:text-slate-400">
                 Accès hors ligne, plein écran sans navigateur
               </div>
             </div>
@@ -152,7 +154,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ variant = 'h
 
             <button
               onClick={() => setShowIOSGuide(false)}
-              className="w-full py-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs shadow-lg shadow-sky-600/30 transition-all"
+              className="w-full py-3 rounded-xl bg-sky-700 hover:bg-sky-600 text-white font-semibold text-xs shadow-lg shadow-sky-600/30 transition-all"
             >
               Compris
             </button>

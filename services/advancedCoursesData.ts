@@ -1035,7 +1035,7 @@ def execute_agent_action(action, parameters):
       {
         id: 'm7-l8',
         sectionNumber: '7.8',
-        title: 'Synthèse du Chapitre & Aide-Mémoire NetAcad',
+        title: 'Synthèse du Chapitre & Aide-Mémoire CyberSens',
         duration: '8 min',
         content: [
           'Bilan des compétences du Module 7 : fonctionnement et détection des deepfakes, attaques et sécurisation des LLM et des agents, attaques adversariales contre les modèles, IA défensive en SOC et procédures anti-fraude en entreprise.',
@@ -1726,6 +1726,706 @@ vol -f memory_dump.raw windows.netscan      # Connexions réseau actives au mome
         correctAnswer: 1,
         explanation:
           'malfind recherche des régions mémoire exécutables non adossées à un fichier sur disque, typiques d’une injection.',
+      },
+    ],
+  },
+  {
+    id: 'module-10',
+    moduleCode: 'NETACAD-DEVOPS-1001',
+    curriculumTrack: 'DevOps & Sécurité des Pipelines',
+    title: 'CI/CD, Conteneurs & Pipelines Sécurisés',
+    lessonsCount: 4,
+    duration: '52 min',
+    level: 'Intermédiaire',
+    icon: 'Cpu',
+    color: 'bg-indigo-600',
+    description:
+      'Automatiser la livraison logicielle, sécuriser les pipelines CI/CD, maîtriser Docker et Kubernetes, et réduire les risques de contamination des images ou des dépendances.',
+    moduleObjectives: [
+      'Comprendre le cycle de livraison continue et les gardes-fou de qualité de code.',
+      'Sécuriser les build pipelines avec attestations, scans de dépendances et secrets gérés par le runtime.',
+      'Maîtriser le packaging des services via Docker, le contrôle des images et les principes de moindre privilège.',
+      'Évaluer les risques d’exécution dans les clusters Kubernetes et définir des bonnes pratiques de déploiement.',
+    ],
+    interactiveLab: {
+      id: 'lab-m10',
+      title: 'Lab 10.1 : Pipeline CI/CD & Analyse de Conteneur',
+      type: 'terminal',
+      instructions:
+        'Construisez une image Docker, exécutez les scans de sécurité, puis simulatez un pipeline GitHub Actions ou GitLab CI avec validation de build et test unitaire.',
+      hints: [
+        'Construisez avec "docker build -t cybersens:dev ."',
+        'Vérifiez les dépendances avec "trivy fs ."',
+      ],
+    },
+    lessons: [
+      {
+        id: 'm10-l1',
+        sectionNumber: '10.1',
+        title: 'CI/CD : Le Pipeline comme Système de Confiance',
+        duration: '12 min',
+        content: [
+          'Le pipeline CI/CD transforme le code en artefacts livrables de manière répétable. L’objectif est de passer d’un environnement où tout dépend du « ça marche sur ma machine » à un workflow défini, traçable et vérifiable.',
+          'Une chaîne CI moderne enchaîne : validation de la syntaxe, analyse statique, tests unitaires, builds, scans de vulnérabilités, création d’artefacts et déploiement contrôlé. Chaque étape doit être journalisée et associée à un commit et à une version.',
+          'Les erreurs de pipeline ne sont pas seulement techniques : un mauvais secret ou une dépendance non vérifiée peut injecter du code malveillant dans une image finale. La sécurité doit être intégrée à chaque étape, pas adhérée à la fin.',
+          'Le principe de la promesse d’intégrité stipule que le dépôt, le build, la signature et l’artefact déployé doivent être corrélés. Sans cette chaîne de traçabilité, on ne sait pas ce qui a réellement été livré.',
+          'Des outils de qualité (lint, tests, SAST/DAST) réduisent le bruit, tandis que les garde-fous de déploiement (approval, environment protection, rollout) limitent les erreurs de production.',
+          'En production, le pipeline est un mécanisme de gouvernance. Il contrôle les changements, atteste des règles, et accélère la standardisation sans supprimer la revue humaine.',
+        ],
+        proTip:
+          'Le plus petit pipeline utile est souvent le meilleur : un pipeline trop riche déclenche une fatigue de validation, tandis qu’un pipeline trop léger laisse passer les vulnérabilités critiques.',
+        checkYourUnderstanding: {
+          question:
+            'Pourquoi les pipelines CI/CD doivent-ils intégrer la sécurité dès la phase de build et non seulement à la fin ?',
+          options: [
+            'Parce que le code doit être accéléré avant le test',
+            'Parce que les secrets, dépendances et artefacts compromise peuvent se propager dès la construction et être déployés ensuite par lot',
+            'Parce que le pipeline n’est pas considéré comme un système de production',
+            'Parce que la sécurité ne concerne que les serveurs runtime',
+          ],
+          correct: 1,
+          explanation:
+            'Les vulnérabilités et secrets compromis passent souvent par le build ou le packaging. Les intégrer tôt réduit la blast radius et le coût de correction.',
+        },
+        keyTakeaways: [
+          'Les pipelines sont des systèmes critiques et doivent être surveillés comme des environnements de production.',
+          'La sécurité de la chaîne de livraison est un facteur de confiance de bout en bout.',
+        ],
+      },
+      {
+        id: 'm10-l2',
+        sectionNumber: '10.2',
+        title: 'Docker, Images Reproductibles & Moindre Privilège',
+        duration: '14 min',
+        content: [
+          'Docker standardise le packaging des services à travers des images reproductibles. Une image doit être construite à partir d’une base explicite, versionnée, avec un Dockerfile minimal et sans dépendances inutiles.',
+          'La vraie sécurité d’une image commence bien avant le conteneur : dépendances non mises à jour, packages vulnérables, identifiants intégrés dans le fichier de build, utilisateurs racine non justifiés.',
+          'Le principe du moindre privilège impose de lancer les processus de l’application avec un utilisateur non root, de limiter les capacités du conteneur et de désactiver le bon nombre d’options dangereuses (privileged, host network, mount de /proc ou /sys).',
+          'Les registres d’images doivent être vérifiés et signés. L’attaque supply chain via des images contaminées touche le packaging, pas seulement le runtime. Scanner les images, signer les digestes et verrouiller les versions évite la dérive de dépendances.',
+          'L’exécution avec un user non-root réduit l’impact d’une exploitation au sein du conteneur. Le namespace et les cgroups isolent le conteneur, mais ils ne remplacent pas un modèle de sécurité rigoureux.',
+          'La meilleure pratique est simple : reconstruire proprement l’image, signer le résultat, puis déployer une image immuable et traçable d’un digest SHA256 précis.',
+        ],
+        codeSnippet: {
+          language: 'dockerfile',
+          code: `FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine
+RUN addgroup -S app && adduser -S app -G app
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+USER app
+CMD ["node", "dist/server.js"]`,
+          caption: 'Exemple de conteneur sécurisé : image multi-stage + utilisateur non root',
+        },
+        checkYourUnderstanding: {
+          question:
+            'Quel choix est le plus important pour sécuriser un conteneur basé sur Docker ?',
+          options: [
+            'Laisser l’application tourner en root pour simplifier le déploiement',
+            'Utiliser une image minimale, signer les artefacts et exécuter le processus avec un utilisateur non-root et des droits réduits',
+            'Désactiver les journaux pour gagner en performance',
+            'Ne pas utiliser de scan de vulnérabilité pour aller plus vite',
+          ],
+          correct: 1,
+          explanation:
+            'Le conteneur n’est pas un island de sécurité : l’image, les dépendances et l’exécution sont autant de couches à protéger.',
+        },
+        keyTakeaways: [
+          'Limiter les privilèges du conteneur est un garde-fou essentiel face à la compromission interne.',
+          'Les images doivent être minimales, signées et traçables.',
+        ],
+      },
+      {
+        id: 'm10-l3',
+        sectionNumber: '10.3',
+        title: 'Kubernetes & Sécurité du Runtime',
+        duration: '15 min',
+        content: [
+          'Kubernetes orchestre des conteneurs sur des nœuds. Son modèle de sécurité repose sur la segmentation des workloads, les NetworkPolicies, les RBAC et les contrôles de ressources.',
+          'Un déploiement Kubernetes n’est sécurisé que si l’on contrôle les droits sur le cluster, les permissions des service accounts, et le niveau d’accès aux API Kubernetes. Un service account trop permissif est un vecteur habituel de post-compromise.',
+          'Les NetworkPolicies limitent les flux réseau entre les pods, les images de base sont scannées, les mécanismes de seccomp, AppArmor et SELinux appliquent des restrictions de système. Ce sont des barrages de sécurité en profondeur.',
+          'Les pods doivent être conçus pour ne pas avoir besoin de privilèges supérieurs au strict nécessaire. Les lanceurs de commandes et la surveillance du runtime doivent être alignés sur la politique de sécurité.',
+          'Kubernetes introduit aussi des points de gouvernance : admission controllers, policy engines, image signing et rules as code. Ils permettent d’exiger qu’une image provienne d’un registre approuvé et qu’aucun conteneur ne soit lancé en mode privilégié.',
+          'Les services cloud modernes, comme les clusters Kubernetes gérés, demandent une politique de rotation des credentials et une supervision continue des événements du cluster.',
+        ],
+        proTip:
+          'La meilleure posture Kubernetes combine admission policies, contrôle réseau et limites de ressources : plus d’un mécanisme protège contre la dérive de configuration.',
+        checkYourUnderstanding: {
+          question:
+            'Pourquoi les NetworkPolicies et les RBAC sont-ils indispensables dans un cluster Kubernetes ?',
+          options: [
+            'Parce qu’ils rendent le cluster plus rapide',
+            'Parce qu’ils limitent la propagation latérale, le privilège des comptes et le mouvement des flux entre pods',
+            'Parce qu’ils remplacent tous les outils de monitoring',
+            'Parce qu’ils sont nécessaires uniquement pour l’exploitation',
+          ],
+          correct: 1,
+          explanation:
+            'Le cluster est un environnement distribué. Sans segmentation et limitations de droits, un pod compromis peut atteindre des services voisins ou exploiter des comptes surdimensionnés.',
+        },
+        keyTakeaways: [
+          'Le cluster n’est sûr que si les permissions et les flux sont strictement réduits.',
+          'Le runtime Kubernetes doit être protégé comme un périmètre informatique entier.',
+        ],
+      },
+      {
+        id: 'm10-l4',
+        sectionNumber: '10.4',
+        title: 'Synthèse DevOps & Sécurité des Pipelines',
+        duration: '11 min',
+        content: [
+          'Le DevOps moderne ne consiste pas à livrer vite à n’importe quel prix; c’est une discipline d’automatisation avec intégrité, sécurité et observabilité.',
+          'Le pipeline sûr est visible, vérifiable et protégé : code, dépendances, images et secrets sont chacun contrôlés. Le déploiement continu n’existe que si la traçabilité et la validation sont assurées.',
+          'Le bon usage de Docker et Kubernetes repose sur la minimisation de privileges, la standardisation des images, la surveillance de runtime et l’application de politiques d’admission. La sécurité ne s’ajoute pas en fin de route; elle structure la livraison.',
+          'Plan d’action immédiat : formalisez les étapes de votre pipeline, vérifiez les images de base, limitez les droits dans les clusters et sécurisez vos dépôts et secrets.',
+        ],
+        checkYourUnderstanding: {
+          question:
+            'Une équipe veut livrer plus vite en supprimant les scans de dépendances et les validations de build. Quel risque majeur prend-elle ?',
+          options: [
+            'Aucun, car la vitesse prime toujours',
+            'Elle introduit une zone de vulnérabilité majeure dans le pipeline, avec images et dépendances potentiellement compromises ou non traçables',
+            'Elle simplifie la gestion de secrets',
+            'Elle améliore le support client',
+          ],
+          correct: 1,
+          explanation:
+            'Accélérer sans garde-fous revient à livrer des risques non détectés. Les coûts de correction en production sont bien plus élevés.',
+        },
+        keyTakeaways: [
+          'Le DevOps sûr transforme la vitesse en capacité de confiance.',
+          'La sécurité de l’intégration et du déploiement doit être une responsabilité partagée du produit et de l’infra.',
+        ],
+      },
+    ],
+    caseStudy: {
+      title: 'Attaque sur une image publique et un pipeline livré en intégration continue',
+      scenario:
+        'Une entreprise publie une image Docker d’un service de paiement sur un registre public. Un tierce dépendance a été infectée par une bibliothèque compromise, puis l’image est déployée dans un cluster sans scan ni signature.',
+      threatDetails:
+        'La contamination passe par une dépendance de build et se diffuse par l’image finale. Aucun contrôle de provenance ni de signature ne permet d’identifier la source réelle de l’artefact.',
+      goodReaction:
+        'Scanner les images à chaque build, signer les artefacts, verrouiller les versions, bloquer les déploiements non signés et corriger la dépendance dans un pipeline de validation.',
+      criticalMistake:
+        'Construire et déployer depuis des images non vérifiées, sans provenance ni limites de privilège, en supposant que le dépôt Git garantit la sécurité.',
+    },
+    examQuestions: [
+      {
+        id: 'm10-e1',
+        category: 'CI/CD',
+        difficulty: 'Facile',
+        text: 'Quel objectif principal d’un pipeline CI/CD moderne ?',
+        options: [
+          'Cacher le code source pour protéger les équipes',
+          'Automatiser et sécuriser la livraison d’artefacts vérifiables et traçables',
+          'Remplacer le système de production',
+          'Supprimer les tests de sécurité',
+        ],
+        correctAnswer: 1,
+        explanation:
+          'Un pipeline moderne ne vise pas seulement la vitesse : il garantit intégrité, qualité, traçabilité et contrôle de déploiement.',
+      },
+      {
+        id: 'm10-e2',
+        category: 'Docker',
+        difficulty: 'Moyen',
+        text: 'Pourquoi exécuter un conteneur en tant qu’utilisateur non root ?',
+        options: [
+          'Parce que c’est plus chic visuellement',
+          'Parce que cela limite l’impact d’une compromission au sein du conteneur',
+          'Parce que les conteneurs ne fonctionnent qu’avec un UID 0',
+          'Parce que le runtime ne supporte pas l’utilisateur root',
+        ],
+        correctAnswer: 1,
+        explanation:
+          'Le moindre privilège réduit les possibilités d’un attaquant après l’exploitation d’une vulnérabilité dans le conteneur.',
+      },
+      {
+        id: 'm10-e3',
+        category: 'Kubernetes',
+        difficulty: 'Moyen',
+        text: 'Que limite un NetworkPolicy ?',
+        options: [
+          'Le nombre de nœuds du cluster',
+          'Les flux réseau autorisés entre les pods et les services',
+          'La taille du cache Docker',
+          'Les versions de Kubernetes',
+        ],
+        correctAnswer: 1,
+        explanation:
+          'La segmentation réseau est essentielle pour empêcher la propagation latérale dans les clusters.',
+      },
+      {
+        id: 'm10-e4',
+        category: 'Sécu pipeline',
+        difficulty: 'Difficile',
+        text: 'Quel est l’intérêt de signer l’image finale et d’en verrouiller le digest ?',
+        options: [
+          'C’est uniquement esthétique',
+          'Cela garantit que le conteneur déployé correspond bien à une image validée, connue et immuable',
+          'Cela ne change rien au runtime',
+          'Cela supprime les tests de sécurité',
+        ],
+        correctAnswer: 1,
+        explanation:
+          'Le digest et la signature rendent la provenance vérifiable et évitent que des images non validées soient déployées.',
+      },
+    ],
+  },
+  {
+    id: 'module-11',
+    moduleCode: 'NETACAD-IAC-1101',
+    curriculumTrack: 'Infrastructure as Code & GitOps',
+    title: 'Infrastructure as Code, GitOps & Gouvernance Déclarative',
+    lessonsCount: 4,
+    duration: '49 min',
+    level: 'Intermédiaire',
+    icon: 'Terminal',
+    color: 'bg-cyan-600',
+    description:
+      'Automatiser les infrastructures, capturer l’état dans Git, gérer les secrets et les changements de configuration avec système de validation, prévention de dérive et déploiement réversible.',
+    moduleObjectives: [
+      'Déclarer l’infrastructure avec des outils comme Terraform, Helm et les manifests Kubernetes.',
+      'Comprendre GitOps comme mécanisme de convergence et de traçabilité des changements.',
+      'Sécuriser les secrets et les variables d’environnement avec des mécanismes de stockage et rotation.',
+      'Détecter la dérive d’infrastructure et appliquer la correction sans perte de contrôle.',
+    ],
+    interactiveLab: {
+      id: 'lab-m11',
+      title: 'Lab 11.1 : Terraform + GitOps Drift Check',
+      type: 'terminal',
+      instructions:
+        'Écrivez un plan Terraform minimal, simulez un drift de configuration, puis corrigez l’état via un dépôt Git et une validation de contrôle d’accès.',
+      hints: [
+        'Exécutez "terraform init && terraform plan"',
+        'Utilisez "terraform state pull" pour vérifier l’état réel',
+      ],
+    },
+    lessons: [
+      {
+        id: 'm11-l1',
+        sectionNumber: '11.1',
+        title: 'Terraform & Modélisation de l’Infrastructure',
+        duration: '12 min',
+        content: [
+          'L’Infrastructure as Code (IaC) permet de décrire les ressources d’une plateforme dans un fichier déclaratif, puis de les créer, modifier ou supprimer de manière reproductible.',
+          'Terraform est un bon exemple de cette approche. Il sépare l’état (state) et le plan : la configuration décrit l’objectif, l’état représente la réalité observée. Un plan est généré avant l’application, ce qui permet de vérifier l’impact avant l’action.',
+          'L’avantage principal n’est pas seulement la rapidité de provisionnement, mais la répétabilité, la documentation et la traçabilité. Une infra devient un artefact versionné, comme du code source.',
+          'Les erreurs classiques viennent du manque de modules, de variables, de constraints et de vérifications. Évitez de dupliquer des blocs ou d’utiliser des valeurs codées en dur pour des secrets ou des identifiants de production.',
+          'Les environnements doivent donc être modulaires : dev, staging, prod reprennent les mêmes modules mais des variables et des protections spécifiques.',
+          'La sécurité d’Infrastructure as Code repose sur les bonnes pratiques de validation : prévenir la création de ressources publiques inutiles, verrouiller l’accès aux comptes d’administration et utiliser le moindre privilège.',
+        ],
+        checkYourUnderstanding: {
+          question:
+            'Quel est le principal avantage de l’Infrastructure as Code par rapport aux procédures manuelles ?',
+          options: [
+            'Elle réduit la nécessité d’une documentation',
+            'Elle rend les changements reproductibles, traçables et vérifiables avant exécution',
+            'Elle remplace totalement la supervision humaine',
+            'Elle supprime les secrets de l’infrastructure',
+          ],
+          correct: 1,
+          explanation:
+            'IaC transforme la configuration en code de gestion : les changements sont testés, documentés, et peuvent être rejoints en cas de dérive.',
+        },
+        keyTakeaways: [
+          'L’état réel doit être aligné avec l’état déclaré.',
+          'Le plan Terraform est un mécanisme de contrôle et de revue avant action.',
+        ],
+      },
+      {
+        id: 'm11-l2',
+        sectionNumber: '11.2',
+        title: 'GitOps : L’État du Cluster dans Git',
+        duration: '13 min',
+        content: [
+          'GitOps applique le principe « Git est la source de vérité ». Les changements d’infrastructure et de configuration passent par le dépôt Git, puis un agent de synchronisation réconcilie l’environnement cible avec ce que le dépôt décrit.',
+          'L’intérêt de GitOps est double : 1) il rend les changements auditables et revues, 2) il convertit le cluster en un système convergent. Si l’environnement diverge, une erreur de configuration ou un changement manuel est détecté et restauré.',
+          'Le contrôleur GitOps (ArgoCD, Flux) compare l’état réel à l’état désiré et réapplique les manifestes lorsque nécessaire. Il permet une reprise rapide après incident ou une correction standardisée.',
+          'GitOps ne remplace pas la sécurité du code : un changement malformé dans Git peut déployer une configuration dangereuse dans le cluster. Les validations, pull requests, approvals et policy checks restent indispensables.',
+          'Les outils de sécurité appliqués sur les manifestes (policy-as-code, admission controllers, OPA/Rego) peuvent bloquer des déploiements qui contourneraient la qualité ou les exigences de sécurité.',
+          'En pratique, GitOps réduit la dérive, facilite le rollback et produit une auditabilité claire pour les équipes de plateforme et de sécurité.',
+        ],
+        proTip:
+          'Le dépôt Git doit être la source de vérité, mais cette vérité doit être protégée : règles de branche, review, et validation automatique des manifestes.',
+        checkYourUnderstanding: {
+          question: 'Pourquoi GitOps améliore-t-il la fiabilité d’un environnement de production ?',
+          options: [
+            'Parce qu’il supprime les audits',
+            'Parce qu’il applique l’état déclaré dans le dépôt et réconcilie rapidement les écarts en production',
+            'Parce qu’il remplace le monitoring',
+            'Parce qu’il transforme le cluster en système totalement statique',
+          ],
+          correct: 1,
+          explanation:
+            'GitOps impose une convergence explicite entre l’infra voulue et l’infra réelle, ce qui limite la dérive et accélère la correction des écarts.',
+        },
+        keyTakeaways: [
+          'GitOps fait de la plateforme un système réversible et auditables.',
+          'La souveraineté de l’état revient à l’équipe de plateforme, avec revue et validation.',
+        ],
+      },
+      {
+        id: 'm11-l3',
+        sectionNumber: '11.3',
+        title: 'Secrets, Variables & Rotation Automatique',
+        duration: '12 min',
+        content: [
+          'Les secrets de production ne doivent jamais être stockés en clair dans Git, dans l’interface de déploiement ou dans des variables de build non sécurisées.',
+          'Les solutions de secrets manager (Vault, AWS Secrets Manager, Azure Key Vault, GCP Secret Manager) permettent de stocker le secret dans un coffre dédié, le récupérer à l’exécution, et le faire tourner automatiquement.',
+          'La rotation automatique est essentielle : au moment où une clé est compromise ou qu’un compte service est exposé, la rotation réduit la durée d’exploitation d’une fuite.',
+          'Les variables d’environnement sont souvent mal gérées : beaucoup de projets injectent des jetons dans le YAML ou les fichiers de configuration au build. Cela ne doit pas devenir la norme. Le secret doit être lu au runtime depuis un mécanisme sécurisé.',
+          'En plus de la rotation, il faut contrôler l’usage des secrets par le moindre privilège et journaliser les accès. Les logs ou les traces ne doivent pas exposer les valeurs elles-mêmes.',
+          'Les outils de chiffrement, de déploiement chiffré et de rotation automatique sont des mécanismes de réduction de la surface d’attaque.',
+        ],
+        checkYourUnderstanding: {
+          question:
+            'Pourquoi un secret stocké en clair dans un dépôt Git est-il un risque majeur ?',
+          options: [
+            'Parce que Git ne conserve que les dernières lignes de code',
+            'Parce qu’il devient exposé dans l’historique, les forks et les logs de pipeline, et reste accessible à toute personne ayant un accès au dépôt',
+            'Parce que Git ne détecte plus les erreurs de syntaxe',
+            'Parce qu’il n’est pas utile à l’application',
+          ],
+          correct: 1,
+          explanation:
+            'Les secrets en clair sont permanents dans l’historique et peuvent rester exposés bien après qu’ils aient été supprimés de la branche active.',
+        },
+        keyTakeaways: [
+          'Le secret ne doit pas être dans le dépôt, ni dans le build, ni dans le code source.',
+          'La rotation et les accès limités sont des gardes-fous essentiels.',
+        ],
+      },
+      {
+        id: 'm11-l4',
+        sectionNumber: '11.4',
+        title: 'Synthèse GitOps & Gouvernance Déclarative',
+        duration: '12 min',
+        content: [
+          'IaC et GitOps apportent un cadre d’automatisation robuste qui transforme l’infrastructure en logiciel. La qualité vient de la traçabilité, du plan, de la revue et de la validation.',
+          'Le modèle de sécurité le plus solide consiste à combiner GitOps, policy-as-code et rotation des secrets. Il limite les changements non autorisés, rétablit l’état attendu et permet un rollback rapide et documenté.',
+          'Plan d’action immédiat : centralisez les fichiers d’infra dans un dépôt protégé, mettez en place des politiques d’admission, sécurisez les secrets, et surveillez la dérive d’environnement.',
+        ],
+        checkYourUnderstanding: {
+          question:
+            'Quelle mesure limite le mieux la dérive de configuration entre Git et le cluster ?',
+          options: [
+            'Ignorer la documentation technique',
+            'Un mécanisme GitOps avec correction automatique vers l’état désiré et politiques de validation',
+            'Éteindre les logs de production',
+            'Limiter les tests unitaires',
+          ],
+          correct: 1,
+          explanation:
+            'GitOps réconcilie les systèmes en continu; les politiques empêchent les configurations dangereuses de se déployer dans le premier lieu.',
+        },
+        keyTakeaways: [
+          'La plateforme n’est plus seulement un opérateur, mais une ressource gérée comme du code.',
+          'La gouvernance déclarative réduit les erreurs et les cycles de correction.',
+        ],
+      },
+    ],
+    caseStudy: {
+      title: 'Dérive de configuration dans un cluster multi-environnements',
+      scenario:
+        'Une équipe modifie un service Kubernetes directement dans le cluster pour corriger un incident, sans passer par le dépôt. Quelques jours plus tard, le cluster diverge et le trafic de production est redirigé vers une ancienne version de l’application.',
+      threatDetails:
+        'La configuration n’était plus alignée sur le dépôt Git, les changements n’étaient pas revus et la correction ne pouvait pas être reproduite ou rollbackée avec précision.',
+      goodReaction:
+        'Mettre en place GitOps, restreindre l’accès direct au cluster, valider toutes les modifications via les PR et imposer des policy checks avant déploiement.',
+      criticalMistake:
+        'Modifier le cluster directement en production sans traçabilité, sans revue et sans politique de convergence.',
+    },
+    examQuestions: [
+      {
+        id: 'm11-e1',
+        category: 'IaC',
+        difficulty: 'Facile',
+        text: 'Quel est l’objectif de Terraform ?',
+        options: [
+          'Supprimer complètement les dépôts Git',
+          'Décrire, provisionner et gérer des ressources selon un code déclaratif',
+          'Écrire directement les logs applicatifs',
+          'Remplacer le système de contrôle de version',
+        ],
+        correctAnswer: 1,
+        explanation:
+          'Terraform vise à rendre l’infrastructure reproductible et revue comme une ressource versionnée.',
+      },
+      {
+        id: 'm11-e2',
+        category: 'GitOps',
+        difficulty: 'Moyen',
+        text: 'Que signifie le modèle GitOps ?',
+        options: [
+          'Tout est stocké dans la base de données',
+          'Le dépôt Git représente la source de vérité et l’environnement converge vers cet état',
+          'Le cluster ne peut jamais être corrigé',
+          'Les tests ne sont plus nécessaires',
+        ],
+        correctAnswer: 1,
+        explanation:
+          'Git est la source de vérité; l’agent de synchronisation répare les écarts et maintient le système aligné.',
+      },
+      {
+        id: 'm11-e3',
+        category: 'Secrets',
+        difficulty: 'Moyen',
+        text: 'Pourquoi faut-il éviter les secrets en clair dans le code ou le YAML ?',
+        options: [
+          'Parce que le code devient plus lisible',
+          'Parce que les secrets peuvent être exposés dans l’historique, le build et les logs',
+          'Parce que les environnements ne les utilisent pas',
+          'Parce que tous les fichiers YAML sont automatiquement sécurisés',
+        ],
+        correctAnswer: 1,
+        explanation:
+          'Les secrets en clair sont un risque critique et durable de fuite, surtout dans les dépôts partagés et les logs de build.',
+      },
+      {
+        id: 'm11-e4',
+        category: 'Policy',
+        difficulty: 'Difficile',
+        text: 'À quoi servent les admission controllers ou les policy-as-code ?',
+        options: [
+          'À ralentir le cluster',
+          'À vérifier les manifestes avant déploiement et bloquer les changements non conformes ou dangereux',
+          'À créer automatiquement des secrets',
+          'À remplacer la revue de code',
+        ],
+        correctAnswer: 1,
+        explanation:
+          'Les politiques d’admission assurer la conformité et la réduction du risque avant que les ressources ne soient créées.',
+      },
+    ],
+  },
+  {
+    id: 'module-12',
+    moduleCode: 'NETACAD-SRE-1201',
+    curriculumTrack: 'SRE, Observabilité & Résilience Cloud',
+    title: 'SRE, Observabilité & Résilience des Services Cloud',
+    lessonsCount: 4,
+    duration: '54 min',
+    level: 'Avancé',
+    icon: 'Search',
+    color: 'bg-fuchsia-600',
+    description:
+      'Mesurer la qualité des services, sécuriser la production avec SLO, alerting et traçage, automatiser la réponse aux incidents et réduire les temps d’arrêt.',
+    moduleObjectives: [
+      'Définir des SLO/SLA et gérer les budgets d’erreurs pour piloter la fiabilité numérique.',
+      'Mettre en place observabilité avec métriques, logs, traces et tableaux de bord d’intégration.',
+      'Sécuriser les runbooks d’intervention et automatiser les réponses à incident.',
+      'Comprendre les principes de résilience, tolérance aux pannes et tests de chaos.',
+    ],
+    interactiveLab: {
+      id: 'lab-m12',
+      title: 'Lab 12.1 : Alerting SRE & Justice de l’Incident',
+      type: 'terminal',
+      instructions:
+        'Configurez un tableau de bord d’alertes, simulez une panne de latence sur un service, puis déclenchez un runbook de remédiation avec chronométrage et journalisation.',
+      hints: [
+        'Expliquez la différence entre SLI, SLO et SLA',
+        'Rédigez un runbook avec “detect, mitigate, validate”',
+      ],
+    },
+    lessons: [
+      {
+        id: 'm12-l1',
+        sectionNumber: '12.1',
+        title: 'SLI, SLO, SLA & Budget d’Erreur',
+        duration: '13 min',
+        content: [
+          'La fiabilité ne se mesure pas uniquement par « le service est en ligne »; elle se mesure par la qualité perçue par les utilisateurs. Les SLI (Service Level Indicators) décrivent ce que l’on mesure, comme la latence ou le taux de succès des requêtes.',
+          'Les SLO (Service Level Objectives) fixent un objectif de service, par exemple « 99,9 % de requêtes réussies ». Les SLA (Service Level Agreements) formalisent l’engagement commercial ou client vis-à-vis des performances et du niveau de service.',
+          'Le budget d’erreur représente la tolérance acceptable à l’erreur au sein d’un SLO : 99,9 % équivaut à 43,8 minutes d’indisponibilité par mois. Sans cette notion, les équipes ne savent pas où est la tolérance réelle au risque.',
+          'L’architecture de service doit intégrer le coût d’un incident. Une panne de 15 minutes peut paraître faible, mais si elle impacte un flux critique ou un canal de paiement, le coût économique est immédiat.',
+          'Pour piloter les services, il faut distinguer un incident d’une dégradation. Un service peut rester « up » mais présenter des erreurs trop fréquentes, des latences fortes, ou un taux de saturation élevé. C’est le SLI qui révèle la qualité réelle.',
+        ],
+        checkYourUnderstanding: {
+          question: 'Quelle est la différence essentielle entre un SLI et un SLO ?',
+          options: [
+            'Aucune, ce sont des synonymes',
+            'Le SLI mesure un indicateur de service ; le SLO fixe un objectif de qualité acceptable pour ce service',
+            'Le SLI ne concerne que la sécurité',
+            'Le SLO n’est utilisé que dans les clusters Kubernetes',
+          ],
+          correct: 1,
+          explanation:
+            'Une cible de service est utile seulement si l’on mesure précisément le signal qui la représente. Un SLI mesure le signal; un SLO dit ce qui est acceptable.',
+        },
+        keyTakeaways: [
+          'Les objectifs de service doivent être définis et mesurés précisément.',
+          'Le budget d’erreur transforme une promesse de service en capacité de pilotage réel.',
+        ],
+      },
+      {
+        id: 'm12-l2',
+        sectionNumber: '12.2',
+        title: 'Observabilité : Logs, Métriques, Traces & Alerting',
+        duration: '14 min',
+        content: [
+          'L’observabilité désigne la capacité d’un système à rendre compréhensible son comportement interne à partir de données de sortie : logs, métriques et traces.',
+          'Les métriques donnent la vue agrégée du système (CPU, latence, mémoire, taux d’erreur). Les logs documentent les événements discrétisés et souvent contextuels. Les traces relient une requête à travers plusieurs services ou composants.',
+          'Sans observabilité, un incident résulte de l’incertitude : on ne sait pas où se trouve le point de rupture. Les tableaux de bord et alertes doivent être construits sur des SLI et non sur des notions arbitraires de « tout semble aller bien ».',
+          'Les alertes doivent être classées : page, ticket, ou info. Une alerte trop aggressive dévore les équipes; une alerte trop faible laisse passer les incidents. Le bon niveau est celui qui a un impact métier et une action de réponse claire.',
+          'Un service distribué exige un bon niveau de traces (tracing) pour suivre une requête entre frontend, API, base de données, cache et services dépendants. C’est la différence entre diagnostiquer la cause racine et traiter les symptômes.',
+          'Les outils d’observabilité modernes automatisent le signal, mais un bon système de supervision ne se limite jamais à un tableau de bord : il correspond à des runbooks et une compréhension partagée de la production.',
+        ],
+        proTip:
+          'Les meilleurs tableaux de bord affichent les erreurs sur la même ligne que la latence et la charge : c’est le triptyque qui aide à distinguer une dégradation de service et une panne isolée.',
+        checkYourUnderstanding: {
+          question:
+            'Pourquoi les traces distribuées sont-elles cruciales dans une architecture microservices ?',
+          options: [
+            'Parce qu’elles remplacent les logs',
+            'Parce qu’elles relient une requête globale à chaque appel technique, permettant d’identifier la cause racine d’une latence ou d’une erreur',
+            'Parce qu’elles ne sont utiles que pour les services monolithiques',
+            'Parce qu’elles sont uniquement utiles pour la sécurité',
+          ],
+          correct: 1,
+          explanation:
+            'Les traces permettent d’assembler la chronologie de la requête et d’identifier le composant ou le service qui ralentit ou échoue.',
+        },
+        keyTakeaways: [
+          'Métriques, logs et traces sont les trois points de la super-vision d’un service.',
+          'Le bon alerting est un mécanisme de décision, pas un bruit de fond.',
+        ],
+      },
+      {
+        id: 'm12-l3',
+        sectionNumber: '12.3',
+        title: 'Runbooks, Chaos Engineering & Réponse à Incident',
+        duration: '15 min',
+        content: [
+          'Les runbooks décrivent les actions de réponse à une alerte avec les bons critères de décision. On y trouve le rôle des personnes, la séquence de validation de l’état, la procédure de mitigation et les points de communication.',
+          'Le chaos engineering consiste à injecter de manière contrôlée des défaillances dans un système pour vérifier qu’il résiste au stress et que les mécanismes de récupération fonctionnent. Cela va du redémarrage d’un pod à la dégradation de dépendances ou à la coupure d’un centre de données.',
+          'La préparation à l’incident commence avant la panne. Les équipes doivent savoir qui décide, qui valide la restauration, quelles sont les dépendances, quoi faire si le système est injecté de données invalides ou si une dépendance se bloque.',
+          'Un bon runbook doit être court, lisible, et directement exécutable. Il n’a de valeur que s’il est testé : le runbook est la preuve que la réponse a été pensée à l’avance.',
+          'La culture SRE met donc l’accent sur la résilience des processus et de l’équipe, pas seulement sur l’infrastructure.',
+        ],
+        checkYourUnderstanding: {
+          question:
+            'Pourquoi le chaos engineering est-il pertinent avant d’être confronté à une vraie panne ?',
+          options: [
+            'Parce qu’il remplace le monitoring',
+            'Parce qu’il permet de valider la résilience réelle des services et la qualité des runbooks',
+            'Parce qu’il rend les systèmes plus fragiles',
+            'Parce qu’il ne concerne que le développement',
+          ],
+          correct: 1,
+          explanation:
+            'Le chaos engineering révèle les faiblesses de l’architecture et des procédures avant qu’un incident réel ne les transforme en crise coûteuse.',
+        },
+        keyTakeaways: [
+          'Le runbook n’est pas un document de bureau : c’est une procédure de validation de production.',
+          'La résilience doit être testée, pas supposée.',
+        ],
+      },
+      {
+        id: 'm12-l4',
+        sectionNumber: '12.4',
+        title: 'Synthèse SRE, Résilience & Qualité de Service',
+        duration: '12 min',
+        content: [
+          'Les grandes équipes SRE ne cherchent pas à éliminer toutes les pannes ; elles cherchent à réduire leur impact et à augmenter la capacité d’adaptation. La fiabilité vient du pilotage, de l’architecture et des procédures.',
+          'Le SRE moderne associe sécurité, optimisation, observabilité et réponse aux incidents. Un système bien observé, bien documenté et bien testé est un système qui a un coût opérationnel maîtrisé.',
+          'Plan d’action immédiat : mesurer les SLI, fixer des SLO réalistes, visualiser les alertes, former les runbooks et tester un ou deux scénarios de chaos par trimestre.',
+        ],
+        checkYourUnderstanding: {
+          question:
+            'Qu’est-ce qui distingue la meilleure posture SRE d’une équipe qui répond au feu par feu ?',
+          options: [
+            'Le fait de supprimer les incidents',
+            'La préparation, la mesure, l’automatisation et la connaissance des limites du système',
+            'L’absence de documentation',
+            'Le fait de ralentir les livraisons',
+          ],
+          correct: 1,
+          explanation:
+            'La résilience vient d’une connaissance claire des métriques, des limites et des procédures, pas seulement de la rapidité de réaction.',
+        },
+        keyTakeaways: [
+          'L’observabilité, le runbook et la résilience constituent le cœur du fonctionnement stable des services.',
+          'SRE est à la fois pilotage de la fiabilité et gestion des risques opérationnels.',
+        ],
+      },
+    ],
+    caseStudy: {
+      title: 'Dégradation progressive d’un service de paiement sans signal clair',
+      scenario:
+        'Un site e-commerce connaît une hausse de latence et de 4xx, mais les alertes internes sont confuses et sporadiques. L’équipe ne sait pas si la cause vient de la base, du cache ou du réseau.',
+      threatDetails:
+        'Aucune vue claire des SLI, pas de traçage distribué, et trop peu de seuils explicitement liés au business impact. Les équipes fonctionnent en réaction, pas en anticipation.',
+      goodReaction:
+        'Créer des SLI/SLO, activer le tracing distribué, classifier les alertes, et publier des runbooks de mitigation avec déploiement de variables d’alerte maîtrisées.',
+      criticalMistake:
+        'Rester à la merci d’un signal trop global, sans taux d’erreur, sans trace, sans seuil de qualité et sans règle de communication.',
+    },
+    examQuestions: [
+      {
+        id: 'm12-e1',
+        category: 'SRE',
+        difficulty: 'Facile',
+        text: 'Qu’est-ce qu’un SLI ?',
+        options: [
+          'Un contrat commercial de support',
+          'Un indicateur mesurant l’état de service (latence, disponibilité, taux d’erreurs)',
+          'Une liste d’incidents historiques',
+          'Une règle de sécurité réseau',
+        ],
+        correctAnswer: 1,
+        explanation:
+          'Le SLI est le signal métier ou technique qui permet de mesurer la qualité servie à l’utilisateur.',
+      },
+      {
+        id: 'm12-e2',
+        category: 'Observabilité',
+        difficulty: 'Moyen',
+        text: 'Quelle information les traces distribuées apportent-elles ?',
+        options: [
+          'Le nom des développeurs',
+          'La chaîne complète d’une requête à travers les services impliqués',
+          'La version du navigateur uniquement',
+          'La configuration du disque dur',
+        ],
+        correctAnswer: 1,
+        explanation:
+          'Les traces permettent de reconstituer l’itinéraire d’une requête et d’identifier le composant qui cause le ralentissement ou l’erreur.',
+      },
+      {
+        id: 'm12-e3',
+        category: 'SRE',
+        difficulty: 'Moyen',
+        text: 'Pourquoi le chaos engineering est-il utile ?',
+        options: [
+          'Pour supprimer la nécessité de surveillance',
+          'Pour tester des défaillances contrôlées et identifier les limites du système avant une vraie panne',
+          'Pour augmenter la charge des incidents de support',
+          'Pour remplacer les runbooks',
+        ],
+        correctAnswer: 1,
+        explanation:
+          'Le chaos engineering aide à valider les mécanismes de résilience et la qualité de la procédure de réponse.',
+      },
+      {
+        id: 'm12-e4',
+        category: 'SLO',
+        difficulty: 'Difficile',
+        text: 'Que représente le budget d’erreur pour un SLO ?',
+        options: [
+          'Le temps que l’équipe passe à corriger les alertes',
+          'La tolérance acceptable d’indisponibilité ou d’erreurs dans le service',
+          'Le coût total de la base de données',
+          'Le nombre maximal d’utilisateurs simultanés',
+        ],
+        correctAnswer: 1,
+        explanation:
+          'Le budget d’erreur est la marge de faute opérationnelle ou de perforation du service que l’équipe accepte pour le service.',
       },
     ],
   },
