@@ -113,24 +113,6 @@ En local, toutes les étapes hors Docker ont été exécutées avec succès. Pou
 3. Les nouvelles migrations de base s'appliquent automatiquement au démarrage.
 4. Les utilisateurs de la PWA voient la bannière « Nouvelle version disponible ».
 
-## 10. Déploiement sur Firebase Hosting (lien `.web.app`)
+## 10. Pourquoi pas Firebase / Cloud Run ?
 
-Firebase Hosting est un hébergeur de fichiers statiques : il sert de façade (`https://<projet>.web.app`) et transmet toutes les requêtes à un service **Cloud Run** qui exécute le serveur CyberSens (`firebase.json`, réécriture `**` vers le service `cybersens`).
-
-**Prérequis (à faire une fois, par vous)** : un projet Firebase/Google Cloud avec la facturation activée (plan Blaze, Cloud Run l'exige), `gcloud` et `firebase-tools` installés, puis `gcloud auth login` et `firebase login` (connexion interactive dans le navigateur).
-
-```bash
-export GEMINI_API_KEY=...          # jamais dans le dépôt
-export ADMIN_EMAILS=vous@exemple.com
-scripts/deploy-firebase.sh <id-du-projet>
-```
-
-Le script stocke les secrets dans Secret Manager, déploie le service (une seule instance, `--min-instances 1 --max-instances 1`) puis publie la façade Hosting.
-
-Points propres à cette architecture :
-
-- **Cookie de session** : Firebase Hosting ne transmet à Cloud Run que le cookie nommé `__session`. Le script définit `SESSION_COOKIE_NAME=__session` ; sans cela, personne ne resterait connecté.
-- **Données non persistantes** : le disque d'une instance Cloud Run est **éphémère**. La base SQLite (comptes, progression, certificats, communauté) est **perdue à chaque nouveau déploiement ou redémarrage**. C'est acceptable pour une démonstration ou un test, **pas pour une production avec de vrais comptes**. Pour de la production, préférez un hébergeur avec disque persistant (Railway avec volume, VPS) ou migrez la base vers un service géré (Cloud SQL).
-- **Temps réel** : Hosting coupe les requêtes proxifiées au bout de 60 s. Le flux du quiz multijoueur est alors rouvert automatiquement par le navigateur (une brève interruption possible entre deux questions, sans perte de score).
-- **Coût** : une instance toujours active (`min-instances 1`) est facturée en continu ; consultez la grille tarifaire Cloud Run.
-- **Google et e-mail** : ajouter `https://<projet>.web.app` dans les « origines JavaScript autorisées » de l'ID client OAuth ; pour « mot de passe oublié », ajouter les variables Resend (`RESEND_API_KEY`, `MAIL_FROM`) au service.
+Un lien `.web.app` (Firebase Hosting) passe par Cloud Run, dont le disque est **éphémère** : la base SQLite (comptes, progression, certificats, communauté) y serait effacée à chaque redéploiement ou redémarrage. Avec de vrais utilisateurs, il faut un **disque persistant** : c'est le cas de Railway avec un volume monté sur `/app/data` (section 3) ou d'un VPS.
