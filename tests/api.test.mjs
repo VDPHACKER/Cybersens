@@ -1,5 +1,5 @@
 // Tests d'intégration de l'API : npm test
-// L'API est démarrée en mémoire sur une base SQLite temporaire (aucun build ni serveur externe requis).
+// L'API est démarrée en mémoire sur une base PostgreSQL embarquée (PGlite) temporaire (aucun build ni serveur externe requis).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -9,7 +9,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cybersens-test-'));
-process.env.DB_PATH = path.join(tmpDir, 'test.db');
+process.env.DB_PATH = path.join(tmpDir, 'pglite');
 
 const { handleApi, getSessionUser } = await import('../server/api.mjs');
 const { handleGeminiProxy } = await import('../server/geminiProxy.mjs');
@@ -23,7 +23,8 @@ let cookie = '';
 
 before(async () => {
   server = http.createServer(async (req, res) => {
-    if (await handleGeminiProxy(req, res, 'cle-de-test', (r) => !!getSessionUser(r))) return;
+    if (await handleGeminiProxy(req, res, 'cle-de-test', async (r) => !!(await getSessionUser(r))))
+      return;
     if (!(await handleApi(req, res))) {
       res.writeHead(404);
       res.end();
@@ -33,9 +34,9 @@ before(async () => {
   BASE = `http://127.0.0.1:${server.address().port}`;
 });
 
-after(() => {
+after(async () => {
   server.close();
-  closeDb();
+  await closeDb();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -333,13 +334,12 @@ test('inscription : les conditions d’utilisation doivent être acceptées', as
 
 test('administration DevOps : réservée aux administrateurs déclarés', async () => {
   delete process.env.ADMIN_EMAILS;
-  process.env.BACKUP_DIR = path.join(tmpDir, 'backups');
   await call('POST', '/api/auth/logout');
 
   // Non configurée : routes invisibles, même pour un visiteur anonyme
   for (const [method, url, body] of [
     ['GET', '/api/devops/status'],
-    ['POST', '/api/devops/backup', {}],
+    ['GET', '/api/devops/backup'],
     ['POST', '/api/devops/exec', { action: 'vacuum' }],
   ]) {
     assert.equal((await call(method, url, body, { jar: false })).status, 404, `${url} désactivée`);
@@ -363,7 +363,7 @@ test('administration DevOps : réservée aux administrateurs déclarés', async 
     403,
     'utilisateur ordinaire refusé',
   );
-  assert.equal((await call('POST', '/api/devops/backup', {})).status, 403);
+  assert.equal((await call('GET', '/api/devops/backup')).status, 403);
   assert.equal((await call('POST', '/api/devops/exec', { action: 'vacuum' })).status, 403);
 
   // Le même compte, une fois déclaré administrateur, est accepté
@@ -383,10 +383,14 @@ test('administration DevOps : réservée aux administrateurs déclarés', async 
   assert.equal((await call('GET', '/api/admin/users')).status, 403, 'membre ordinaire refusé');
   process.env.ADMIN_EMAILS = 'BOSS@test.bf';
 
-  const backup = await call('POST', '/api/devops/backup', {});
+  const backup = await call('GET', '/api/devops/backup');
   assert.equal(backup.status, 200);
-  assert.ok(fs.readdirSync(process.env.BACKUP_DIR).some((f) => f.endsWith('.db')));
-  assert.doesNotMatch(backup.data.message, /[/\\]/, 'aucun chemin serveur divulgué');
+  assert.ok(backup.data.exportedAt);
+  assert.ok(
+    backup.data.tables.users.some((u) => u.email === 'boss@test.bf'),
+    'la sauvegarde contient les membres',
+  );
+  assert.equal(backup.data.tables.sessions, undefined, 'sessions exclues de la sauvegarde');
 
   // Une requête inter-sites sans en-tête Origin est refusée (CSRF)
   assert.throws(

@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cybersens-accounts-'));
-process.env.DB_PATH = path.join(tmpDir, 'test.db');
+process.env.DB_PATH = path.join(tmpDir, 'pglite');
 
 const { handleApi } = await import('../server/api.mjs');
 const { closeDb, db } = await import('../server/db.mjs');
@@ -29,9 +29,9 @@ before(async () => {
   BASE = `http://127.0.0.1:${server.address().port}`;
 });
 
-after(() => {
+after(async () => {
   server.close();
-  closeDb();
+  await closeDb();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -193,9 +193,11 @@ test('réinitialisation par l’exploitant : mot de passe temporaire, sessions f
       .status,
     200,
   );
-  const logged = db
-    .prepare("SELECT COUNT(*) AS n FROM security_log WHERE event = 'password_reset_by_operator'")
-    .get().n;
+  const logged = (
+    await db
+      .prepare("SELECT COUNT(*) AS n FROM security_log WHERE event = 'password_reset_by_operator'")
+      .get()
+  ).n;
   assert.equal(logged, 1, 'l’opération est journalisée');
 });
 

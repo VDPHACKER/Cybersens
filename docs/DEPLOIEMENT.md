@@ -29,7 +29,7 @@ Copier `.env.example` vers `.env` (Docker) ou `.env.local` (`npm start`). **Ne j
 | `GOOGLE_CLIENT_ID`                          | Optionnel   | Active « Se connecter avec Google ». ID client OAuth (Google Cloud Console) ; ajouter l'URL du site dans les « origines JavaScript autorisées ». Vide = bouton masqué. |
 | `RESEND_API_KEY`, `MAIL_FROM`, `PUBLIC_URL` | Optionnel   | Active « Mot de passe oublié » par e-mail (service Resend). Les trois sont nécessaires. Sinon l'écran renvoie vers l'administrateur.                                   |
 | `PORT`, `HOST`                              | Non         | Adresse d'écoute (8080 par défaut).                                                                                                                                    |
-| `DB_PATH`                                   | Non         | Emplacement de la base SQLite (`/app/data/cybersens.db` dans l'image).                                                                                                 |
+| `DB_PATH`                                   | Non         | Dossier de la base PGlite (développement ou Docker sans `DATABASE_URL`).                                                                                               |
 | `BACKUP_DIR`                                | Non         | Dossier des sauvegardes (`backups/` par défaut).                                                                                                                       |
 | `GEMINI_FALLBACK_MODELS`                    | Non         | Modèles IA de secours si le principal est surchargé (par défaut `gemini-2.5-flash,gemini-2.5-flash-lite`).                                                             |
 | `ACCESS_LOG`                                | Non         | `0` pour couper le journal d'accès JSON.                                                                                                                               |
@@ -38,7 +38,7 @@ Copier `.env.example` vers `.env` (Docker) ou `.env.local` (`npm start`). **Ne j
 
 1. Créer un projet Railway relié au dépôt GitHub. Railway utilise `railway.toml` (build via le `Dockerfile`, contrôle de santé `/api/health`).
 2. Créer deux environnements : `staging` (branche `staging`) et `production` (branche `main`).
-3. **Pour chaque environnement**, ajouter un **volume** monté sur `/app/data` : c'est là que vit la base SQLite. Sans volume, les comptes sont perdus à chaque redéploiement.
+3. **Pour chaque environnement**, fournir `DATABASE_URL` (PostgreSQL managé) **ou** ajouter un **volume** monté sur `/app/data` (base PGlite). Sans l'un des deux, les comptes sont perdus à chaque redéploiement.
 4. Renseigner les variables du § 2, avec un `CERT_SECRET` **différent** par environnement, et `TRUST_PROXY=1`.
 5. Déployer d'abord `staging`, dérouler les tests de fumée du § 5, puis fusionner `staging` dans `main`.
 6. Associer un domaine personnalisé (le certificat HTTPS est fourni par Railway).
@@ -90,7 +90,7 @@ Le conteneur tourne sans privilèges (utilisateur non root, système de fichiers
 
 Ces limites ne bloquent pas la mise en ligne, mais elles doivent être connues :
 
-- **Une seule instance** : SQLite et les limites de débit en mémoire imposent un seul conteneur. Ne pas faire de mise à l'échelle horizontale. Les limites de débit repartent de zéro à chaque redémarrage.
+- **Une seule instance** : Les limites de débit en mémoire imposent un seul conteneur. Ne pas faire de mise à l'échelle horizontale. Les limites de débit repartent de zéro à chaque redémarrage.
 - **Cours en espagnol** : les 12 modules sont traduits (`services/courseTranslationsEs/`), avec des tests d'alignement avec la version anglaise.
 - **Modération** : chaque message peut être signalé ; les administrateurs (`ADMIN_EMAILS`) voient les signalements et peuvent tout supprimer.
 - **Quiz multijoueur (salles)** : l'état des salles est en mémoire (perdu au redémarrage, ce qui interrompt les parties en cours) et le temps réel passe par Server-Sent Events. Derrière un reverse-proxy, ne pas mettre `/api/rooms/stream` en cache ni le compresser (en-tête `X-Accel-Buffering: no` déjà envoyé). Limites : 12 joueurs par salle, 200 salles ouvertes. Les points de ces parties ne sont pas crédités au classement (anti-triche).
@@ -115,4 +115,4 @@ En local, toutes les étapes hors Docker ont été exécutées avec succès. Pou
 
 ## 10. Pourquoi pas Firebase / Cloud Run ?
 
-Un lien `.web.app` (Firebase Hosting) passe par Cloud Run, dont le disque est **éphémère** : la base SQLite (comptes, progression, certificats, communauté) y serait effacée à chaque redéploiement ou redémarrage. Avec de vrais utilisateurs, il faut un **disque persistant** : c'est le cas de Railway avec un volume monté sur `/app/data` (section 3) ou d'un VPS.
+Un lien `.web.app` (Firebase Hosting) passe par Cloud Run, dont le disque est **éphémère** : la base embarquée (comptes, progression, certificats, communauté) y serait effacée à chaque redéploiement ou redémarrage. Avec de vrais utilisateurs, il faut un **disque persistant** : c'est le cas de Railway avec un volume monté sur `/app/data` (section 3) ou d'un VPS.

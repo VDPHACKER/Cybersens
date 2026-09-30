@@ -17,17 +17,15 @@ export const resetUserPassword = async (emailInput) => {
   const email = String(emailInput || '')
     .trim()
     .toLowerCase();
-  const user = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  const user = await db.prepare('SELECT id FROM users WHERE lower(email) = ?').get(email);
   if (!user) return null;
   const temporary = generateTemporaryPassword();
   const hash = await hashPassword(temporary);
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, user.id);
-  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
-  db.prepare('DELETE FROM login_attempts WHERE key = ?').run(`login:${email}`);
-  db.prepare('INSERT INTO security_log (user_id, event, ip) VALUES (?, ?, ?)').run(
-    user.id,
-    'password_reset_by_operator',
-    'cli',
-  );
+  await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, user.id);
+  await db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
+  await db.prepare('DELETE FROM login_attempts WHERE key = ?').run(`login:${email}`);
+  await db
+    .prepare('INSERT INTO security_log (user_id, event, ip) VALUES (?, ?, ?)')
+    .run(user.id, 'password_reset_by_operator', 'cli');
   return temporary;
 };

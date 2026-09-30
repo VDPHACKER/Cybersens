@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cybersens-rooms-'));
-process.env.DB_PATH = path.join(tmpDir, 'test.db');
+process.env.DB_PATH = path.join(tmpDir, 'pglite');
 
 const { handleApi } = await import('../server/api.mjs');
 const { closeDb } = await import('../server/db.mjs');
@@ -29,11 +29,11 @@ before(async () => {
   BASE = `http://127.0.0.1:${server.address().port}`;
 });
 
-after(() => {
+after(async () => {
   resetRooms();
   server.closeAllConnections?.();
   server.close();
-  closeDb();
+  await closeDb();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 

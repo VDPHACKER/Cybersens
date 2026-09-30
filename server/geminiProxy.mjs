@@ -71,7 +71,7 @@ const readBody = (req) =>
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
  * @param {string | undefined} apiKey
- * @param {(req: import('node:http').IncomingMessage) => unknown} [isAuthorized] renvoie une valeur fausse si non connecté, ou l'utilisateur (objet avec id) pour un quota par compte
+ * @param {(req: import('node:http').IncomingMessage) => unknown | Promise<unknown>} [isAuthorized] renvoie une valeur fausse si non connecté, ou l'utilisateur (objet avec id) pour un quota par compte
  */
 export const handleGeminiProxy = async (
   req,
@@ -103,7 +103,7 @@ export const handleGeminiProxy = async (
 
   // L'assistant IA est réservé aux utilisateurs connectés (évite un relais ouvert à tous)
   // isAuthorized peut renvoyer l'utilisateur (objet avec id) : le quota est alors par compte
-  const auth = isAuthorized(req);
+  const auth = await isAuthorized(req);
   if (!auth) return (sendJson(res, 401, 'Connectez-vous pour utiliser l’assistant IA'), true);
 
   const match = ALLOWED_PATH.exec(url.pathname.slice(PROXY_PREFIX.length));

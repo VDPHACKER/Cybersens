@@ -8,7 +8,7 @@ Plateforme de sensibilisation à la cybersécurité : 12 modules de formation (6
 | --------------- | ----------------------------------------------------------------------------------------- |
 | Interface       | React 19 + Vite 6 + Tailwind CSS 3 (compilé), PWA hors-ligne                              |
 | Serveur         | Node.js ≥ 22.18, sans framework (`node:http`)                                             |
-| Base de données | SQLite natif (`node:sqlite`), fichier `data/cybersens.db`                                 |
+| Base de données | PostgreSQL (Neon en production via `DATABASE_URL`, PGlite embarqué en développement)      |
 | IA              | Gemini, via un relais serveur (`/api/gemini`) : la clé n'est jamais envoyée au navigateur |
 
 ```
@@ -54,7 +54,7 @@ npm run dev                  # http://localhost:3000 (API et base incluses)
 
 ## Variables d'environnement
 
-Voir [`.env.example`](.env.example) : `GEMINI_API_KEY`, `CERT_SECRET`, `TRUST_PROXY`, `ADMIN_EMAILS`, `PORT`, `DB_PATH`, `BACKUP_DIR`, `GEMINI_FALLBACK_MODELS`, `ACCESS_LOG`.
+Voir [`.env.example`](.env.example) : `GEMINI_API_KEY`, `CERT_SECRET`, `TRUST_PROXY`, `ADMIN_EMAILS`, `PORT`, `DATABASE_URL`, `DB_PATH`, `BACKUP_DIR`, `GEMINI_FALLBACK_MODELS`, `ACCESS_LOG`.
 
 **Mise en ligne : voir le guide [`docs/DEPLOIEMENT.md`](docs/DEPLOIEMENT.md)** (variables, Railway, Docker, tests de fumée, sauvegardes, points d'attention).
 

@@ -1,9 +1,7 @@
 // API JSON de CyberSens : comptes, sessions, progression, certificats, quiz.
 // Monté sous /api par server/index.mjs (production) et par vite.config.ts (développement).
 import crypto from 'node:crypto';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { db, transaction, getServerSecret, backupTo } from './db.mjs';
+import { db, transaction, getServerSecret, exportAll } from './db.mjs';
 import { getCourse, isValidLesson, gradeExam } from './courses.mjs';
 import { HttpError } from './httpError.mjs';
 import { checkOrigin } from './csrf.mjs';
@@ -233,14 +231,12 @@ const getDummyHash = async () =>
 // ---------- Sessions ----------
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
-const createSession = (res, req, userId, trustProxy) => {
+const createSession = async (res, req, userId, trustProxy) => {
   const token = crypto.randomBytes(32).toString('base64url');
   const expires = new Date(Date.now() + SESSION_DAYS * 86_400_000);
-  db.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)').run(
-    sha256(token),
-    userId,
-    expires.toISOString(),
-  );
+  await db
+    .prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)')
+    .run(sha256(token), userId, expires.toISOString());
   const secure = isHttps(req, trustProxy) ? '; Secure' : '';
   res.setHeader(
     'Set-Cookie',
@@ -252,10 +248,10 @@ const clearSessionCookie = (res) =>
   res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
 
 /** Utilisateur connecté (ou null) à partir du cookie de session. */
-export const getSessionUser = (req) => {
+export const getSessionUser = async (req) => {
   const token = parseCookies(req.headers.cookie)[SESSION_COOKIE];
   if (!token || token.length > 100) return null;
-  const row = db
+  const row = await db
     .prepare(
       `
     SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
@@ -265,8 +261,8 @@ export const getSessionUser = (req) => {
   return row || null;
 };
 
-const requireUser = (req) => {
-  const user = getSessionUser(req);
+const requireUser = async (req) => {
+  const user = await getSessionUser(req);
   if (!user) throw new HttpError(401, 'Session expirée, veuillez vous reconnecter');
   return user;
 };
@@ -279,19 +275,15 @@ const adminEmails = () =>
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 const isAdmin = (user) => adminEmails().includes(user.email.toLowerCase());
-const requireAdmin = (req) => {
+const requireAdmin = async (req) => {
   if (adminEmails().length === 0) throw new HttpError(404, 'Route inconnue');
-  const user = requireUser(req);
+  const user = await requireUser(req);
   if (!isAdmin(user)) throw new HttpError(403, 'Accès réservé aux administrateurs');
   return user;
 };
 
-// Format SQLite « YYYY-MM-DD HH:MM:SS » (UTC), identique à datetime('now')
+// Format texte « YYYY-MM-DD HH:MM:SS » (UTC), identique au défaut des colonnes de date de la base
 const nowSql = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
-
-const backupDir = () =>
-  process.env.BACKUP_DIR ||
-  path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'backups');
 
 const logSecurity = (event, req, trustProxy, userId = null) =>
   db
@@ -300,8 +292,8 @@ const logSecurity = (event, req, trustProxy, userId = null) =>
 
 // ---------- Verrouillage après échecs de connexion ----------
 const lockKey = (mail) => `login:${mail}`;
-const checkLock = (mail) => {
-  const row = db
+const checkLock = async (mail) => {
+  const row = await db
     .prepare('SELECT locked_until FROM login_attempts WHERE key = ?')
     .get(lockKey(mail));
   const remaining = row ? Math.ceil((row.locked_until - Date.now()) / 1000) : 0;
@@ -311,14 +303,18 @@ const checkLock = (mail) => {
       `Trop de tentatives. Réessayez dans ${Math.ceil(remaining / 60)} min.`,
     );
 };
-const recordFailure = (mail) => {
-  const row = db.prepare('SELECT failures FROM login_attempts WHERE key = ?').get(lockKey(mail));
+const recordFailure = async (mail) => {
+  const row = await db
+    .prepare('SELECT failures FROM login_attempts WHERE key = ?')
+    .get(lockKey(mail));
   const failures = (row?.failures || 0) + 1;
   const locked = failures >= LOGIN_MAX_FAILURES;
-  db.prepare(
-    `INSERT INTO login_attempts (key, failures, locked_until) VALUES (?, ?, ?)
+  await db
+    .prepare(
+      `INSERT INTO login_attempts (key, failures, locked_until) VALUES (?, ?, ?)
               ON CONFLICT(key) DO UPDATE SET failures = excluded.failures, locked_until = excluded.locked_until`,
-  ).run(lockKey(mail), locked ? 0 : failures, locked ? Date.now() + LOGIN_LOCK_MS : 0);
+    )
+    .run(lockKey(mail), locked ? 0 : failures, locked ? Date.now() + LOGIN_LOCK_MS : 0);
 };
 const clearFailures = (mail) =>
   db.prepare('DELETE FROM login_attempts WHERE key = ?').run(lockKey(mail));
@@ -345,15 +341,34 @@ const certificateDto = (c, user) => ({
     : 'CyberSens Academy • Formateur en Cybersécurité & IA : VDPHACKER',
 });
 
-const snapshot = (user) => {
+const snapshot = async (user) => {
   const progress = {};
-  for (const r of db
+  for (const r of await db
     .prepare(
       'SELECT course_id, lesson_id FROM lesson_progress WHERE user_id = ? ORDER BY completed_at',
     )
     .all(user.id)) {
     (progress[r.course_id] ||= []).push(r.lesson_id);
   }
+  const communityPosts = (
+    await db.prepare('SELECT COUNT(*) AS n FROM posts WHERE user_id = ?').get(user.id)
+  ).n;
+  const certificates = (
+    await db
+      .prepare('SELECT * FROM certificates WHERE user_id = ? ORDER BY issued_at DESC')
+      .all(user.id)
+  ).map((c) => certificateDto(c, user));
+  const quizHistory = (
+    await db
+      .prepare('SELECT * FROM quiz_results WHERE user_id = ? ORDER BY played_at DESC LIMIT 50')
+      .all(user.id)
+  ).map((q) => ({
+    date: new Date(q.played_at + 'Z').toISOString(),
+    score: q.score,
+    total: q.total,
+    mode: q.mode,
+    difficulty: q.difficulty || undefined,
+  }));
   return {
     user: {
       id: user.id,
@@ -367,51 +382,42 @@ const snapshot = (user) => {
       createdAt: user.created_at.slice(0, 10),
       migrated: !!user.migrated_at,
       isAdmin: isAdmin(user),
-      communityPosts: db.prepare('SELECT COUNT(*) AS n FROM posts WHERE user_id = ?').get(user.id)
-        .n,
+      communityPosts,
       settings: JSON.parse(user.settings || '{}'),
     },
     progress,
-    certificates: db
-      .prepare('SELECT * FROM certificates WHERE user_id = ? ORDER BY issued_at DESC')
-      .all(user.id)
-      .map((c) => certificateDto(c, user)),
-    quizHistory: db
-      .prepare('SELECT * FROM quiz_results WHERE user_id = ? ORDER BY played_at DESC LIMIT 50')
-      .all(user.id)
-      .map((q) => ({
-        date: new Date(q.played_at + 'Z').toISOString(),
-        score: q.score,
-        total: q.total,
-        mode: q.mode,
-        difficulty: q.difficulty || undefined,
-      })),
+    certificates,
+    quizHistory,
   };
 };
 
-const addPoints = (userId, delta) => {
-  db.prepare('UPDATE users SET points = MAX(0, points + ?) WHERE id = ?').run(delta, userId);
-  return db.prepare('SELECT points FROM users WHERE id = ?').get(userId).points;
+const addPoints = async (userId, delta) => {
+  await db
+    .prepare('UPDATE users SET points = GREATEST(0, points + ?) WHERE id = ?')
+    .run(delta, userId);
+  return (await db.prepare('SELECT points FROM users WHERE id = ?').get(userId)).points;
 };
 
-const signCertificate = (number, userId, courseId, score, issuedAt) =>
+const signCertificate = async (number, userId, courseId, score, issuedAt) =>
   crypto
-    .createHmac('sha256', getServerSecret())
+    .createHmac('sha256', await getServerSecret())
     .update(`${number}|${userId}|${courseId}|${score}|${issuedAt}`)
     .digest('hex');
 
-const issueCertificate = (user, course, score, imported = false) => {
-  const issuedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
+const issueCertificate = async (user, course, score, imported = false) => {
+  const issuedAt = nowSql();
   const number = `CS-${new Date().getFullYear()}-${course.id.toUpperCase()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
-  const hash = signCertificate(number, user.id, course.id, score, issuedAt);
-  db.prepare(
-    `INSERT INTO certificates (user_id, course_id, course_title, score, certificate_number, verification_hash, imported, issued_at)
+  const hash = await signCertificate(number, user.id, course.id, score, issuedAt);
+  await db
+    .prepare(
+      `INSERT INTO certificates (user_id, course_id, course_title, score, certificate_number, verification_hash, imported, issued_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT(user_id, course_id) DO UPDATE SET
                 score = excluded.score, certificate_number = excluded.certificate_number,
                 verification_hash = excluded.verification_hash, imported = excluded.imported,
                 issued_at = excluded.issued_at, course_title = excluded.course_title`,
-  ).run(user.id, course.id, course.title, score, number, hash, imported ? 1 : 0, issuedAt);
+    )
+    .run(user.id, course.id, course.title, score, number, hash, imported ? 1 : 0, issuedAt);
   return db
     .prepare('SELECT * FROM certificates WHERE user_id = ? AND course_id = ?')
     .get(user.id, course.id);
@@ -425,7 +431,7 @@ const routes = {
   'GET /api/health': async ({ res }) => {
     let database = 'ok';
     try {
-      db.prepare('SELECT 1').get();
+      await db.prepare('SELECT 1').get();
     } catch {
       database = 'error';
     }
@@ -451,32 +457,30 @@ const routes = {
       );
 
     const hash = await hashPassword(plain);
-    let userId;
+    let created;
     try {
-      userId = Number(
-        db
-          .prepare(
-            `INSERT INTO users (email, name, role, title, password_hash, terms_accepted_at, terms_version)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          )
-          .run(
-            mail,
-            name,
-            role,
-            `${role} certifié`,
-            hash,
-            legacy ? null : nowSql(),
-            legacy ? null : TERMS_VERSION,
-          ).lastInsertRowid,
-      );
+      created = await db
+        .prepare(
+          `INSERT INTO users (email, name, role, title, password_hash, terms_accepted_at, terms_version)
+           VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+        )
+        .get(
+          mail,
+          name,
+          role,
+          `${role} certifié`,
+          hash,
+          legacy ? null : nowSql(),
+          legacy ? null : TERMS_VERSION,
+        );
     } catch (err) {
-      if (String(err.message).includes('UNIQUE'))
+      if (err.code === '23505')
         throw new HttpError(409, 'Un compte existe déjà avec cet e-mail. Connectez-vous.');
       throw err;
     }
-    logSecurity('register', req, trustProxy, userId);
-    createSession(res, req, userId, trustProxy);
-    send(res, 201, snapshot(db.prepare('SELECT * FROM users WHERE id = ?').get(userId)));
+    await logSecurity('register', req, trustProxy, created.id);
+    await createSession(res, req, created.id, trustProxy);
+    send(res, 201, await snapshot(created));
   },
 
   'POST /api/auth/login': async ({ req, res, body, ip, trustProxy }) => {
@@ -484,22 +488,22 @@ const routes = {
     const mail = email(body.email);
     if (typeof body.password !== 'string' || body.password.length > 128)
       throw new HttpError(400, 'Mot de passe invalide');
-    checkLock(mail);
+    await checkLock(mail);
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(mail);
+    const user = await db.prepare('SELECT * FROM users WHERE lower(email) = ?').get(mail);
     const ok = await verifyPassword(
       body.password,
       user ? user.password_hash : await getDummyHash(),
     );
     if (!user || !ok) {
-      recordFailure(mail);
-      logSecurity(`login_failed:${mail}`, req, trustProxy, user?.id ?? null);
+      await recordFailure(mail);
+      await logSecurity(`login_failed:${mail}`, req, trustProxy, user?.id ?? null);
       throw new HttpError(401, 'E-mail ou mot de passe incorrect.');
     }
-    clearFailures(mail);
-    logSecurity('login', req, trustProxy, user.id);
-    createSession(res, req, user.id, trustProxy);
-    send(res, 200, snapshot(user));
+    await clearFailures(mail);
+    await logSecurity('login', req, trustProxy, user.id);
+    await createSession(res, req, user.id, trustProxy);
+    send(res, 200, await snapshot(user));
   },
 
   // Fonctions d'authentification disponibles (le navigateur masque ce qui n'est pas configuré)
@@ -518,7 +522,8 @@ const routes = {
     if (!clientId) throw new HttpError(501, 'La connexion Google n’est pas activée sur ce site.');
     const identity = await verifyGoogleIdToken(body.credential, { clientId });
 
-    let user = db.prepare('SELECT * FROM users WHERE email = ?').get(identity.email);
+    const googleMail = identity.email.toLowerCase();
+    let user = await db.prepare('SELECT * FROM users WHERE lower(email) = ?').get(googleMail);
     let created = false;
     if (!user) {
       if (body.acceptTerms !== true)
@@ -530,21 +535,17 @@ const routes = {
       const name = (identity.name || identity.email.split('@')[0]).slice(0, 60).padEnd(2, ' ');
       // Mot de passe aléatoire : le compte reste protégé, l'utilisateur pourra en définir un via « mot de passe oublié »
       const hash = await hashPassword(crypto.randomBytes(32).toString('base64url'));
-      const id = Number(
-        db
-          .prepare(
-            `INSERT INTO users (email, name, role, title, password_hash, terms_accepted_at, terms_version)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          )
-          .run(identity.email, name.trim(), role, `${role} certifié`, hash, nowSql(), TERMS_VERSION)
-          .lastInsertRowid,
-      );
-      user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+      user = await db
+        .prepare(
+          `INSERT INTO users (email, name, role, title, password_hash, terms_accepted_at, terms_version)
+           VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+        )
+        .get(googleMail, name.trim(), role, `${role} certifié`, hash, nowSql(), TERMS_VERSION);
       created = true;
     }
-    logSecurity(created ? 'register_google' : 'login_google', req, trustProxy, user.id);
-    createSession(res, req, user.id, trustProxy);
-    send(res, created ? 201 : 200, snapshot(user));
+    await logSecurity(created ? 'register_google' : 'login_google', req, trustProxy, user.id);
+    await createSession(res, req, user.id, trustProxy);
+    send(res, created ? 201 : 200, await snapshot(user));
   },
 
   // Mot de passe oublié : envoie un lien à usage unique (30 min). Réponse identique que l'e-mail existe ou non.
@@ -557,20 +558,20 @@ const routes = {
     rateLimit(`forgot:${ip}`, 10, 60 * 60_000);
     const mail = email(body.email);
     rateLimit(`forgot-mail:${mail}`, 3, 60 * 60_000);
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(mail);
+    const user = await db.prepare('SELECT * FROM users WHERE lower(email) = ?').get(mail);
     if (user) {
       const token = crypto.randomBytes(32).toString('base64url');
-      transaction(() => {
-        db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(user.id);
-        db.prepare(
-          'INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES (?, ?, ?)',
-        ).run(sha256(token), user.id, new Date(Date.now() + RESET_TTL_MS).toISOString());
+      await transaction(async () => {
+        await db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(user.id);
+        await db
+          .prepare('INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES (?, ?, ?)')
+          .run(sha256(token), user.id, new Date(Date.now() + RESET_TTL_MS).toISOString());
       });
       const lang = ['fr', 'en', 'es'].includes(body.lang) ? body.lang : 'fr';
       const link = `${publicUrl()}/?reset=${token}`;
       try {
         await sendMail({ to: user.email, ...resetMessage(lang, link) });
-        logSecurity('password_reset_requested', req, trustProxy, user.id);
+        await logSecurity('password_reset_requested', req, trustProxy, user.id);
       } catch (err) {
         console.error('[api] Envoi de l’e-mail de réinitialisation impossible :', err.message);
       }
@@ -582,7 +583,7 @@ const routes = {
     rateLimit(`reset:${ip}`, 10, 60 * 60_000);
     if (typeof body.token !== 'string' || body.token.length > 100)
       throw new HttpError(400, 'Lien invalide ou expiré.');
-    const row = db
+    const row = await db
       .prepare(
         `SELECT r.token_hash, u.* FROM password_resets r JOIN users u ON u.id = r.user_id
          WHERE r.token_hash = ? AND r.expires_at > ?`,
@@ -591,19 +592,19 @@ const routes = {
     if (!row) throw new HttpError(400, 'Lien invalide ou expiré. Refaites une demande.');
     const next = password(body.password, { name: row.name, mail: row.email });
     const hash = await hashPassword(next);
-    transaction(() => {
-      db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, row.id);
-      db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(row.id);
-      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.id);
+    await transaction(async () => {
+      await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, row.id);
+      await db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(row.id);
+      await db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.id);
     });
-    clearFailures(row.email);
-    logSecurity('password_reset_done', req, trustProxy, row.id);
+    await clearFailures(row.email.toLowerCase());
+    await logSecurity('password_reset_done', req, trustProxy, row.id);
     send(res, 200, { ok: true });
   },
 
   // ---------- Quiz multijoueur (salles) ----------
   'POST /api/rooms': async ({ res, req, body }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     rateLimit(`room-create:${user.id}`, 10, 10 * 60_000);
     const room = createRoom(
       { id: user.id, displayName: publicName(user.name) },
@@ -613,48 +614,48 @@ const routes = {
   },
 
   'POST /api/rooms/join': async ({ res, req, body }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     rateLimit(`room-join:${user.id}`, 30, 60_000);
     send(res, 200, joinRoom({ id: user.id, displayName: publicName(user.name) }, body.code));
   },
 
   'POST /api/rooms/start': async ({ res, req, body }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     rateLimit(`room-start:${user.id}`, 20, 60_000);
     startRoom(user, body.code);
     send(res, 200, { ok: true });
   },
 
   'POST /api/rooms/answer': async ({ res, req, body }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     rateLimit(`room-answer:${user.id}`, 120, 60_000);
     answerRoom(user, body.code, body.choice);
     send(res, 200, { ok: true });
   },
 
   'POST /api/rooms/leave': async ({ res, req }) => {
-    leaveRoom(requireUser(req).id);
+    leaveRoom((await requireUser(req)).id);
     send(res, 200, { ok: true });
   },
 
   // Flux temps réel (Server-Sent Events) : état de la salle poussé à chaque changement
   'GET /api/rooms/stream': async ({ req, res, url }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     rateLimit(`room-stream:${user.id}`, 60, 60_000);
     openStream(req, res, user, url.searchParams.get('code'));
   },
 
   'POST /api/auth/logout': async ({ req, res }) => {
     const token = parseCookies(req.headers.cookie)[SESSION_COOKIE];
-    if (token) db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha256(token));
+    if (token) await db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha256(token));
     clearSessionCookie(res);
     send(res, 200, { ok: true });
   },
 
-  'GET /api/me': async ({ req, res }) => send(res, 200, snapshot(requireUser(req))),
+  'GET /api/me': async ({ req, res }) => send(res, 200, await snapshot(await requireUser(req))),
 
   'PATCH /api/me': async ({ req, res, body }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     const name = 'name' in body ? str(body.name, { min: 2, max: 60, field: 'Nom' }) : user.name;
     const title = 'title' in body ? str(body.title, { max: 80, field: 'Titre' }) : user.title;
     const pic = 'avatar' in body ? avatar(body.avatar) : user.avatar;
@@ -662,24 +663,20 @@ const routes = {
       'settings' in body
         ? { ...JSON.parse(user.settings || '{}'), ...settings(body.settings) }
         : JSON.parse(user.settings || '{}');
-    db.prepare('UPDATE users SET name = ?, title = ?, avatar = ?, settings = ? WHERE id = ?').run(
-      name,
-      title,
-      pic,
-      JSON.stringify(merged),
-      user.id,
-    );
+    await db
+      .prepare('UPDATE users SET name = ?, title = ?, avatar = ?, settings = ? WHERE id = ?')
+      .run(name, title, pic, JSON.stringify(merged), user.id);
     send(res, 200, { ok: true });
   },
 
   // Changement de mot de passe : exige l'ancien, ferme les autres sessions (appareils perdus ou volés)
   'POST /api/me/password': async ({ req, res, body, trustProxy }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     rateLimit(`pwchange:${user.id}`, 5, 15 * 60_000);
     if (typeof body.current !== 'string' || body.current.length > 128)
       throw new HttpError(400, 'Mot de passe actuel invalide');
     if (!(await verifyPassword(body.current, user.password_hash))) {
-      logSecurity('password_change_failed', req, trustProxy, user.id);
+      await logSecurity('password_change_failed', req, trustProxy, user.id);
       throw new HttpError(403, 'Le mot de passe actuel est incorrect.');
     }
     const next = password(body.next, { name: user.name, mail: user.email });
@@ -687,72 +684,78 @@ const routes = {
       throw new HttpError(400, 'Le nouveau mot de passe doit être différent de l’ancien.');
     const hash = await hashPassword(next);
     const current = parseCookies(req.headers.cookie)[SESSION_COOKIE];
-    transaction(() => {
-      db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, user.id);
-      db.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?').run(
-        user.id,
-        sha256(current || ''),
-      );
+    await transaction(async () => {
+      await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, user.id);
+      await db
+        .prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?')
+        .run(user.id, sha256(current || ''));
     });
-    clearFailures(user.email);
-    logSecurity('password_changed', req, trustProxy, user.id);
+    await clearFailures(user.email.toLowerCase());
+    await logSecurity('password_changed', req, trustProxy, user.id);
     send(res, 200, { ok: true });
   },
 
   'POST /api/me/points': async ({ req, res, body }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     rateLimit(`points:${user.id}`, 120, 60_000);
     const delta = int(body.delta, 1, 200, 'Points');
     // Le navigateur déclare ses points : le serveur en plafonne le total quotidien pour que le classement reste fiable
     const day = new Date().toISOString().slice(0, 10);
     const used =
-      db.prepare('SELECT total FROM points_daily WHERE user_id = ? AND day = ?').get(user.id, day)
-        ?.total ?? 0;
+      (
+        await db
+          .prepare('SELECT total FROM points_daily WHERE user_id = ? AND day = ?')
+          .get(user.id, day)
+      )?.total ?? 0;
     const granted = Math.max(0, Math.min(delta, DAILY_POINTS_CAP - used));
     if (granted > 0)
-      db.prepare(
-        `INSERT INTO points_daily (user_id, day, total) VALUES (?, ?, ?)
-         ON CONFLICT(user_id, day) DO UPDATE SET total = total + excluded.total`,
-      ).run(user.id, day, granted);
-    send(res, 200, { points: addPoints(user.id, granted), granted });
+      await db
+        .prepare(
+          `INSERT INTO points_daily (user_id, day, total) VALUES (?, ?, ?)
+           ON CONFLICT(user_id, day) DO UPDATE SET total = points_daily.total + excluded.total`,
+        )
+        .run(user.id, day, granted);
+    send(res, 200, { points: await addPoints(user.id, granted), granted });
   },
 
   'POST /api/progress': async ({ req, res, body }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     const courseId = str(body.courseId, { max: 40, field: 'Cours' });
     const lessonId = str(body.lessonId, { max: 40, field: 'Leçon' });
     if (!isValidLesson(courseId, lessonId)) throw new HttpError(404, 'Leçon inconnue');
-    const r = db
+    const r = await db
       .prepare(
-        'INSERT OR IGNORE INTO lesson_progress (user_id, course_id, lesson_id) VALUES (?, ?, ?)',
+        'INSERT INTO lesson_progress (user_id, course_id, lesson_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
       )
       .run(user.id, courseId, lessonId);
     send(res, 200, { newlyCompleted: r.changes > 0 });
   },
 
   'POST /api/quiz-results': async ({ req, res, body }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     rateLimit(`quiz:${user.id}`, 30, 60_000);
     const total = int(body.total, 1, 100, 'Total');
     const score = int(body.score, 0, total, 'Score');
     const mode = QUIZ_MODES.has(body.mode) ? body.mode : 'Solo';
     const difficulty =
       body.difficulty == null ? null : str(body.difficulty, { max: 20, field: 'Difficulté' });
-    db.prepare(
-      'INSERT INTO quiz_results (user_id, score, total, mode, difficulty) VALUES (?, ?, ?, ?, ?)',
-    ).run(user.id, score, total, mode, difficulty);
+    await db
+      .prepare(
+        'INSERT INTO quiz_results (user_id, score, total, mode, difficulty) VALUES (?, ?, ?, ?, ?)',
+      )
+      .run(user.id, score, total, mode, difficulty);
     send(res, 201, { ok: true });
   },
 
   'DELETE /api/quiz-results': async ({ req, res }) => {
-    const user = requireUser(req);
-    db.prepare('DELETE FROM quiz_results WHERE user_id = ?').run(user.id);
+    const user = await requireUser(req);
+    await db.prepare('DELETE FROM quiz_results WHERE user_id = ?').run(user.id);
     send(res, 200, { ok: true });
   },
 
   // Correction de l'examen côté serveur : seul le serveur délivre (et signe) les certificats
   'POST /api/exams': async ({ req, res, body }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     rateLimit(`exam:${user.id}`, 20, 60 * 60_000);
     const course = getCourse(typeof body.courseId === 'string' ? body.courseId : '');
     if (!course) throw new HttpError(404, 'Module inconnu');
@@ -764,12 +767,12 @@ const routes = {
     let certificate = null;
     let points = user.points;
     if (result.passed) {
-      const firstTime = !db
+      const firstTime = !(await db
         .prepare('SELECT 1 FROM certificates WHERE user_id = ? AND course_id = ? AND imported = 0')
-        .get(user.id, course.id);
-      transaction(() => {
-        certificate = certificateDto(issueCertificate(user, course, result.score), user);
-        if (firstTime) points = addPoints(user.id, 150);
+        .get(user.id, course.id));
+      await transaction(async () => {
+        certificate = certificateDto(await issueCertificate(user, course, result.score), user);
+        if (firstTime) points = await addPoints(user.id, 150);
       });
     }
     send(res, 200, { ...result, certificate, points });
@@ -777,19 +780,19 @@ const routes = {
 
   // Import unique des données locales (navigateur) lors de la première connexion
   'POST /api/migrate': async ({ req, res, body }) => {
-    const user = requireUser(req);
-    if (user.migrated_at) return send(res, 200, snapshot(user));
+    const user = await requireUser(req);
+    if (user.migrated_at) return send(res, 200, await snapshot(user));
 
-    transaction(() => {
+    await transaction(async () => {
       const progress = body.progress && typeof body.progress === 'object' ? body.progress : {};
       const insertLesson = db.prepare(
-        'INSERT OR IGNORE INTO lesson_progress (user_id, course_id, lesson_id) VALUES (?, ?, ?)',
+        'INSERT INTO lesson_progress (user_id, course_id, lesson_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
       );
       for (const [courseId, lessons] of Object.entries(progress)) {
         if (!Array.isArray(lessons)) continue;
         for (const lessonId of lessons.slice(0, 100)) {
           if (typeof lessonId === 'string' && isValidLesson(courseId, lessonId))
-            insertLesson.run(user.id, courseId, lessonId);
+            await insertLesson.run(user.id, courseId, lessonId);
         }
       }
 
@@ -807,7 +810,7 @@ const routes = {
         )
           continue;
         const date = new Date(q.date);
-        insertQuiz.run(
+        await insertQuiz.run(
           user.id,
           q.score,
           q.total,
@@ -825,32 +828,38 @@ const routes = {
           Number.isInteger(c.score) &&
           c.score >= 0 &&
           c.score <= 100 &&
-          !db
+          !(await db
             .prepare('SELECT 1 FROM certificates WHERE user_id = ? AND course_id = ?')
-            .get(user.id, course.id)
+            .get(user.id, course.id))
         ) {
-          issueCertificate(user, course, c.score, true);
+          await issueCertificate(user, course, c.score, true);
         }
       }
 
       const points = Number.isInteger(body.points) ? Math.min(Math.max(body.points, 0), 5000) : 0;
-      if (points > 0) addPoints(user.id, points);
+      if (points > 0) await addPoints(user.id, points);
       if (body.settings) {
-        db.prepare('UPDATE users SET settings = ? WHERE id = ?').run(
-          JSON.stringify({ ...JSON.parse(user.settings || '{}'), ...settings(body.settings) }),
-          user.id,
-        );
+        await db
+          .prepare('UPDATE users SET settings = ? WHERE id = ?')
+          .run(
+            JSON.stringify({ ...JSON.parse(user.settings || '{}'), ...settings(body.settings) }),
+            user.id,
+          );
       }
-      db.prepare("UPDATE users SET migrated_at = datetime('now') WHERE id = ?").run(user.id);
+      await db.prepare('UPDATE users SET migrated_at = ? WHERE id = ?').run(nowSql(), user.id);
     });
-    send(res, 200, snapshot(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)));
+    send(
+      res,
+      200,
+      await snapshot(await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)),
+    );
   },
 
   // Vérification publique d'un certificat (données minimales)
   'GET /api/certificates/verify': async ({ res, url, ip }) => {
     rateLimit(`verify:${ip}`, 60, 60_000);
     const number = String(url.searchParams.get('number') || '').slice(0, 80);
-    const c = db
+    const c = await db
       .prepare(
         `SELECT c.*, u.name FROM certificates c JOIN users u ON u.id = c.user_id WHERE c.certificate_number = ?`,
       )
@@ -858,7 +867,7 @@ const routes = {
     if (!c) return send(res, 404, { valid: false });
     const valid = crypto.timingSafeEqual(
       Buffer.from(
-        signCertificate(c.certificate_number, c.user_id, c.course_id, c.score, c.issued_at),
+        await signCertificate(c.certificate_number, c.user_id, c.course_id, c.score, c.issued_at),
         'hex',
       ),
       Buffer.from(c.verification_hash, 'hex'),
@@ -881,10 +890,10 @@ const routes = {
 
   // Classement général : membres visibles (option désactivable dans les réglages), triés par points
   'GET /api/leaderboard': async ({ req, res }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     rateLimit(`leaderboard:${user.id}`, 60, 60_000);
-    const visible = "COALESCE(json_extract(u.settings, '$.showInLeaderboard'), 1) != 0";
-    const rows = db
+    const visible = "COALESCE((u.settings::jsonb) ->> 'showInLeaderboard', 'true') <> 'false'";
+    const rows = await db
       .prepare(
         `SELECT u.id, u.name, u.title, u.points,
                 (SELECT COUNT(*) FROM certificates c WHERE c.user_id = u.id) AS certificates
@@ -893,12 +902,15 @@ const routes = {
       )
       .all();
     const myVisible =
-      db.prepare(`SELECT 1 FROM users u WHERE u.id = ? AND ${visible}`).get(user.id) !== undefined;
+      (await db.prepare(`SELECT 1 FROM users u WHERE u.id = ? AND ${visible}`).get(user.id)) !==
+      undefined;
     const myRank =
       myVisible && user.points > 0
-        ? db
-            .prepare(`SELECT COUNT(*) + 1 AS rank FROM users u WHERE u.points > ? AND ${visible}`)
-            .get(user.points).rank
+        ? (
+            await db
+              .prepare(`SELECT COUNT(*) + 1 AS rank FROM users u WHERE u.points > ? AND ${visible}`)
+              .get(user.points)
+          ).rank
         : null;
     send(res, 200, {
       entries: rows.map((r, i) => ({
@@ -916,12 +928,12 @@ const routes = {
 
   // Communauté : fil de messages (texte brut), commentaires et « j'aime »
   'GET /api/community/posts': async ({ req, res, url }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     rateLimit(`community-read:${user.id}`, 120, 60_000);
     const topic = url.searchParams.get('topic');
     const before = Number(url.searchParams.get('before')) || Number.MAX_SAFE_INTEGER;
     if (topic && !TOPICS.has(topic)) throw new HttpError(400, 'Sujet invalide');
-    const posts = db
+    const posts = await db
       .prepare(
         `SELECT p.id, p.user_id, p.topic, p.body, p.created_at, u.name, u.title, u.points,
                 (SELECT COUNT(*) FROM post_likes l WHERE l.post_id = p.id) AS likes,
@@ -929,13 +941,13 @@ const routes = {
                 EXISTS(SELECT 1 FROM post_reports r WHERE r.post_id = p.id AND r.user_id = ?) AS reported,
                 (SELECT COUNT(*) FROM post_reports r WHERE r.post_id = p.id) AS reports
          FROM posts p JOIN users u ON u.id = p.user_id
-         WHERE p.id < ? AND (? IS NULL OR p.topic = ?)
+         WHERE p.id < ? AND (?::text IS NULL OR p.topic = ?::text)
          ORDER BY p.id DESC LIMIT 20`,
       )
       .all(user.id, user.id, before, topic, topic);
     const ids = posts.map((p) => p.id);
     const comments = ids.length
-      ? db
+      ? await db
           .prepare(
             `SELECT c.id, c.post_id, c.user_id, c.body, c.created_at, u.name
              FROM post_comments c JOIN users u ON u.id = c.user_id
@@ -973,93 +985,93 @@ const routes = {
   },
 
   'POST /api/community/posts': async ({ req, res, body }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     rateLimit(`community-post:${user.id}`, 5, 10 * 60_000);
     const topic = TOPICS.has(body.topic) ? body.topic : 'general';
     const text = longText(body.body, { min: 3, max: 1000 });
-    const id = Number(
-      db
-        .prepare('INSERT INTO posts (user_id, topic, body) VALUES (?, ?, ?)')
-        .run(user.id, topic, text).lastInsertRowid,
-    );
+    const { id } = await db
+      .prepare('INSERT INTO posts (user_id, topic, body) VALUES (?, ?, ?) RETURNING id')
+      .get(user.id, topic, text);
     send(res, 201, { id });
   },
 
   'POST /api/community/comments': async ({ req, res, body }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     rateLimit(`community-comment:${user.id}`, 20, 10 * 60_000);
     const postId = int(body.postId, 1, Number.MAX_SAFE_INTEGER, 'Message');
-    if (!db.prepare('SELECT 1 FROM posts WHERE id = ?').get(postId))
+    if (!(await db.prepare('SELECT 1 FROM posts WHERE id = ?').get(postId)))
       throw new HttpError(404, 'Message introuvable');
     const text = longText(body.body, { min: 1, max: 500, field: 'Commentaire' });
-    const id = Number(
-      db
-        .prepare('INSERT INTO post_comments (post_id, user_id, body) VALUES (?, ?, ?)')
-        .run(postId, user.id, text).lastInsertRowid,
-    );
+    const { id } = await db
+      .prepare('INSERT INTO post_comments (post_id, user_id, body) VALUES (?, ?, ?) RETURNING id')
+      .get(postId, user.id, text);
     send(res, 201, { id });
   },
 
   'POST /api/community/like': async ({ req, res, body }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     rateLimit(`community-like:${user.id}`, 60, 60_000);
     const postId = int(body.postId, 1, Number.MAX_SAFE_INTEGER, 'Message');
-    if (!db.prepare('SELECT 1 FROM posts WHERE id = ?').get(postId))
+    if (!(await db.prepare('SELECT 1 FROM posts WHERE id = ?').get(postId)))
       throw new HttpError(404, 'Message introuvable');
-    const removed = db
-      .prepare('DELETE FROM post_likes WHERE post_id = ? AND user_id = ?')
-      .run(postId, user.id).changes;
+    const removed = (
+      await db
+        .prepare('DELETE FROM post_likes WHERE post_id = ? AND user_id = ?')
+        .run(postId, user.id)
+    ).changes;
     if (!removed)
-      db.prepare('INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)').run(postId, user.id);
-    const likes = db
-      .prepare('SELECT COUNT(*) AS n FROM post_likes WHERE post_id = ?')
-      .get(postId).n;
+      await db
+        .prepare('INSERT INTO post_likes (post_id, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING')
+        .run(postId, user.id);
+    const likes = (
+      await db.prepare('SELECT COUNT(*) AS n FROM post_likes WHERE post_id = ?').get(postId)
+    ).n;
     send(res, 200, { liked: !removed, likes });
   },
 
   // Signalement d'un message (modération) : un par membre et par message, pas sur ses propres messages
   'POST /api/community/report': async ({ req, res, body }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     rateLimit(`community-report:${user.id}`, 10, 10 * 60_000);
     const postId = int(body.postId, 1, Number.MAX_SAFE_INTEGER, 'Message');
-    const post = db.prepare('SELECT user_id FROM posts WHERE id = ?').get(postId);
+    const post = await db.prepare('SELECT user_id FROM posts WHERE id = ?').get(postId);
     if (!post) throw new HttpError(404, 'Message introuvable');
     if (post.user_id === user.id)
       throw new HttpError(400, 'Vous ne pouvez pas signaler votre propre message.');
-    db.prepare('INSERT OR IGNORE INTO post_reports (post_id, user_id) VALUES (?, ?)').run(
-      postId,
-      user.id,
-    );
+    await db
+      .prepare('INSERT INTO post_reports (post_id, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING')
+      .run(postId, user.id);
     send(res, 200, { reported: true });
   },
 
   // Suppression : auteur du message ou administrateur
   'DELETE /api/community/posts': async ({ req, res, url }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     const id = int(Number(url.searchParams.get('id')), 1, Number.MAX_SAFE_INTEGER, 'Message');
-    const post = db.prepare('SELECT user_id FROM posts WHERE id = ?').get(id);
+    const post = await db.prepare('SELECT user_id FROM posts WHERE id = ?').get(id);
     if (!post) throw new HttpError(404, 'Message introuvable');
     if (post.user_id !== user.id && !isAdmin(user))
       throw new HttpError(403, 'Action non autorisée');
-    db.prepare('DELETE FROM posts WHERE id = ?').run(id);
+    await db.prepare('DELETE FROM posts WHERE id = ?').run(id);
     send(res, 200, { ok: true });
   },
 
   'DELETE /api/community/comments': async ({ req, res, url }) => {
-    const user = requireUser(req);
+    const user = await requireUser(req);
     const id = int(Number(url.searchParams.get('id')), 1, Number.MAX_SAFE_INTEGER, 'Commentaire');
-    const c = db.prepare('SELECT user_id FROM post_comments WHERE id = ?').get(id);
+    const c = await db.prepare('SELECT user_id FROM post_comments WHERE id = ?').get(id);
     if (!c) throw new HttpError(404, 'Commentaire introuvable');
     if (c.user_id !== user.id && !isAdmin(user)) throw new HttpError(403, 'Action non autorisée');
-    db.prepare('DELETE FROM post_comments WHERE id = ?').run(id);
+    await db.prepare('DELETE FROM post_comments WHERE id = ?').run(id);
     send(res, 200, { ok: true });
   },
 
   // Administration (DevOps) : réservée aux comptes listés dans ADMIN_EMAILS
   'GET /api/devops/status': async ({ req, res }) => {
-    requireAdmin(req);
+    await requireAdmin(req);
     const mem = process.memoryUsage();
-    const count = (table) => db.prepare(`SELECT COUNT(*) as cnt FROM ${table}`).get().cnt;
+    const count = async (table) =>
+      (await db.prepare(`SELECT COUNT(*) as cnt FROM ${table}`).get()).cnt;
     send(res, 200, {
       status: 'healthy',
       uptime: Math.round(process.uptime()),
@@ -1070,9 +1082,9 @@ const routes = {
         heapUsed: Math.round(mem.heapUsed / 1024 / 1024) + ' MB',
       },
       stats: {
-        users: count('users'),
-        certificates: count('certificates'),
-        activeSessions: count('sessions'),
+        users: await count('users'),
+        certificates: await count('certificates'),
+        activeSessions: await count('sessions'),
       },
       timestamp: new Date().toISOString(),
     });
@@ -1080,8 +1092,8 @@ const routes = {
 
   // Liste des membres (administrateurs uniquement) : jamais de hash de mot de passe ni de jeton
   'GET /api/admin/users': async ({ req, res }) => {
-    requireAdmin(req);
-    const users = db
+    await requireAdmin(req);
+    const rows = await db
       .prepare(
         `SELECT u.id, u.email, u.name, u.role, u.points, u.created_at, u.terms_accepted_at, u.terms_version,
                 (SELECT MAX(created_at) FROM security_log s WHERE s.user_id = u.id AND s.event LIKE 'login%') AS last_login_at,
@@ -1090,39 +1102,38 @@ const routes = {
                 (SELECT COUNT(*) FROM posts p WHERE p.user_id = u.id) AS posts
            FROM users u ORDER BY u.id DESC LIMIT 5000`,
       )
-      .all()
-      .map((u) => ({
-        id: u.id,
-        email: u.email,
-        name: u.name,
-        role: u.role,
-        points: u.points,
-        level: levelFor(u.points),
-        lessons: u.lessons,
-        certificates: u.certificates,
-        posts: u.posts,
-        createdAt: u.created_at,
-        lastLoginAt: u.last_login_at,
-        termsAcceptedAt: u.terms_accepted_at,
-        termsVersion: u.terms_version,
-      }));
+      .all();
+    const users = rows.map((u) => ({
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      role: u.role,
+      points: u.points,
+      level: levelFor(u.points),
+      lessons: u.lessons,
+      certificates: u.certificates,
+      posts: u.posts,
+      createdAt: u.created_at,
+      lastLoginAt: u.last_login_at,
+      termsAcceptedAt: u.terms_accepted_at,
+      termsVersion: u.terms_version,
+    }));
     send(res, 200, { total: users.length, users });
   },
 
-  'POST /api/devops/backup': async ({ req, res }) => {
-    const admin = requireAdmin(req);
+  // Sauvegarde téléchargeable (JSON). Contient les empreintes de mots de passe : à conserver comme un secret.
+  'GET /api/devops/backup': async ({ req, res }) => {
+    const admin = await requireAdmin(req);
     rateLimit(`backup:${admin.id}`, 5, 10 * 60_000);
-    const name = `cybersens-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.db`;
-    backupTo(path.join(backupDir(), name));
-    send(res, 200, { success: true, message: `Sauvegarde ${name} créée sur le serveur.` });
+    send(res, 200, await exportAll());
   },
 
   'POST /api/devops/exec': async ({ req, res, body }) => {
-    const admin = requireAdmin(req);
+    const admin = await requireAdmin(req);
     rateLimit(`devops-exec:${admin.id}`, 10, 10 * 60_000);
     const action = body.action;
     if (action === 'clear_sessions') {
-      const info = db
+      const info = await db
         .prepare('DELETE FROM sessions WHERE expires_at < ?')
         .run(new Date().toISOString());
       return send(res, 200, {
@@ -1131,10 +1142,10 @@ const routes = {
       });
     }
     if (action === 'vacuum') {
-      db.prepare('VACUUM').run();
+      await db.exec('VACUUM ANALYZE');
       return send(res, 200, {
         success: true,
-        message: 'Base de données optimisée (VACUUM exécuté).',
+        message: 'Base de données optimisée (VACUUM ANALYZE exécuté).',
       });
     }
     send(res, 400, { error: 'Action DevOps inconnue' });
@@ -1176,6 +1187,10 @@ export const handleApi = async (req, res, { trustProxy = false } = {}) => {
 
 // Nettoyage périodique des sessions expirées
 setInterval(
-  () => db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(new Date().toISOString()),
+  () =>
+    db
+      .prepare('DELETE FROM sessions WHERE expires_at < ?')
+      .run(new Date().toISOString())
+      .catch((err) => console.error('[api] Purge des sessions impossible :', err.message)),
   3_600_000,
 ).unref();

@@ -144,16 +144,17 @@ export const DevOpsCenter: React.FC = () => {
     setLoading(true);
     setMessage(null);
     try {
-      const res = await api<{ success: boolean; message: string }>(
-        'POST',
-        '/api/devops/backup',
-        {},
-      );
+      const data = await api<unknown>('GET', '/api/devops/backup');
+      const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `cybersens-sauvegarde-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
       setMessage({
-        text: res.message || 'Sauvegarde SQLite réalisée avec succès.',
+        text: 'Sauvegarde téléchargée. Elle contient des données personnelles : gardez-la en lieu sûr.',
         type: 'success',
       });
-      fetchStatus();
     } catch (err: any) {
       setMessage({ text: err.message || 'Erreur lors de la sauvegarde.', type: 'error' });
     } finally {
@@ -307,10 +308,10 @@ export const DevOpsCenter: React.FC = () => {
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 flex flex-col justify-between space-y-3">
             <div>
               <h3 className="text-xs font-bold text-slate-900 dark:text-white">
-                Sauvegarde Base SQLite
+                Sauvegarde de la base
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                Génère instantanément un snapshot horodaté de la base de données.
+                Télécharge un export JSON complet des données (membres, progression, messages).
               </p>
             </div>
             <button
@@ -318,7 +319,7 @@ export const DevOpsCenter: React.FC = () => {
               disabled={loading}
               className="w-full py-2 px-3 rounded-xl bg-sky-700 hover:bg-sky-600 text-white text-xs font-black shadow-sm transition-all"
             >
-              Créer un Backup
+              Télécharger une sauvegarde
             </button>
           </div>
 
@@ -343,10 +344,10 @@ export const DevOpsCenter: React.FC = () => {
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 flex flex-col justify-between space-y-3">
             <div>
               <h3 className="text-xs font-bold text-slate-900 dark:text-white">
-                Optimisation SQLite (VACUUM)
+                Optimisation (VACUUM)
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                Défragmente le fichier de base de données et réduit son empreinte disque.
+                Nettoie et met à jour les statistiques de la base de données.
               </p>
             </div>
             <button

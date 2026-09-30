@@ -10,7 +10,7 @@ if (!email) {
 }
 
 const temporary = await resetUserPassword(email);
-closeDb();
+await closeDb();
 if (!temporary) {
   console.error(`Aucun compte pour « ${email} ».`);
   process.exit(1);

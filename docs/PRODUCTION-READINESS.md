@@ -6,7 +6,7 @@
 - [ ] Définir `CERT_SECRET` avec une valeur unique et stable par environnement.
 - [ ] Mettre `TRUST_PROXY=1` derrière un reverse proxy HTTPS.
 - [ ] Vérifier `PORT` et `HOST` pour l’environnement cible.
-- [ ] Vérifier `DB_PATH` si la base est déplacée hors du chemin par défaut.
+- [ ] Définir `DATABASE_URL` (PostgreSQL managé) ou vérifier `DB_PATH` (PGlite sur volume persistant).
 - [ ] Vérifier qu’aucune clé réelle n’est présente dans le dépôt ou dans les artefacts buildés.
 
 ## 2. HTTPS et domaine
@@ -29,7 +29,7 @@
 ## 4. Base de données et sauvegarde
 
 - [ ] Déployer avec un volume persistant pour `/app/data`.
-- [ ] Vérifier que la base SQLite est bien sauvée entre redémarrages.
+- [ ] Vérifier que la base est bien sauvée entre redémarrages.
 - [ ] Tester la sauvegarde : `npm run db:backup` ou `docker compose exec app node server/backup.mjs`.
 - [ ] Tester une restauration sur un environnement de test.
 - [ ] Vérifier le quota disque et le maintien de la base au fil du temps.

@@ -10,7 +10,7 @@ const ROOT_DIR = process.cwd();
 
 // La clé Gemini reste côté serveur : elle n'est plus injectée dans le code envoyé au navigateur.
 // Le navigateur appelle /api/..., servi ici (dev / preview) ou par server/index.mjs (production).
-// L'API (et donc la base SQLite) n'est chargée qu'au démarrage du serveur, jamais pendant le build.
+// L'API (et donc la base de données) n'est chargée qu'au démarrage du serveur, jamais pendant le build.
 const apiPlugin = (apiKey: string | undefined): Plugin => {
   let api: Promise<typeof import('./server/api.mjs')> | undefined;
   const middleware = (req: any, res: any, next: () => void) => {
