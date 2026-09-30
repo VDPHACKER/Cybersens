@@ -138,6 +138,11 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   `,
+  // Preuve d'acceptation des conditions d'utilisation (date et version acceptées, NULL pour les comptes antérieurs)
+  `
+  ALTER TABLE users ADD COLUMN terms_accepted_at TEXT;
+  ALTER TABLE users ADD COLUMN terms_version TEXT;
+  `,
 ];
 
 const open = () => {

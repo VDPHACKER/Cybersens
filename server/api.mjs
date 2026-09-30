@@ -26,6 +26,8 @@ const RESET_TTL_MS = 30 * 60_000;
 const LOGIN_MAX_FAILURES = 5;
 const LOGIN_LOCK_MS = 15 * 60_000;
 const ROLES = new Set(['Particulier', 'Étudiant', 'Professionnel', 'Entreprise']);
+// Version des conditions d'utilisation : à changer (avec la date de features/Legal/termsContent.ts) à chaque révision du texte.
+export const TERMS_VERSION = '2026-09-30';
 const QUIZ_MODES = new Set(['Solo', 'Multi']);
 const TOPICS = new Set(['general', 'question', 'astuce', 'alerte']);
 // Points qu'un membre peut déclarer par jour via l'API (quiz, jeux, leçons). Les examens créditent leurs points côté serveur.
@@ -284,6 +286,9 @@ const requireAdmin = (req) => {
   return user;
 };
 
+// Format SQLite « YYYY-MM-DD HH:MM:SS » (UTC), identique à datetime('now')
+const nowSql = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
+
 const backupDir = () =>
   process.env.BACKUP_DIR ||
   path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'backups');
@@ -437,6 +442,13 @@ const routes = {
     const mail = email(body.email);
     const plain = password(body.password, { name, mail });
     const role = ROLES.has(body.role) ? body.role : 'Étudiant';
+    // Consentement explicite obligatoire, sauf recréation d'un ancien compte local (aucune acceptation enregistrée)
+    const legacy = body.legacyMigration === true;
+    if (!legacy && body.acceptTerms !== true)
+      throw new HttpError(
+        400,
+        'Vous devez accepter les conditions d’utilisation pour vous inscrire.',
+      );
 
     const hash = await hashPassword(plain);
     let userId;
@@ -444,9 +456,18 @@ const routes = {
       userId = Number(
         db
           .prepare(
-            'INSERT INTO users (email, name, role, title, password_hash) VALUES (?, ?, ?, ?, ?)',
+            `INSERT INTO users (email, name, role, title, password_hash, terms_accepted_at, terms_version)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
           )
-          .run(mail, name, role, `${role} certifié`, hash).lastInsertRowid,
+          .run(
+            mail,
+            name,
+            role,
+            `${role} certifié`,
+            hash,
+            legacy ? null : nowSql(),
+            legacy ? null : TERMS_VERSION,
+          ).lastInsertRowid,
       );
     } catch (err) {
       if (String(err.message).includes('UNIQUE'))
@@ -486,6 +507,8 @@ const routes = {
     send(res, 200, {
       googleClientId: process.env.GOOGLE_CLIENT_ID || null,
       passwordReset: mailConfigured(),
+      termsVersion: TERMS_VERSION,
+      contactEmail: process.env.CONTACT_EMAIL || null,
     }),
 
   // « Se connecter avec Google » : le jeton est vérifié côté serveur (signature, audience, e-mail validé)
@@ -498,6 +521,11 @@ const routes = {
     let user = db.prepare('SELECT * FROM users WHERE email = ?').get(identity.email);
     let created = false;
     if (!user) {
+      if (body.acceptTerms !== true)
+        throw new HttpError(
+          400,
+          'Nouveau compte : ouvrez l’onglet « Créer un compte », acceptez les conditions d’utilisation, puis utilisez le bouton Google.',
+        );
       const role = ROLES.has(body.role) ? body.role : 'Étudiant';
       const name = (identity.name || identity.email.split('@')[0]).slice(0, 60).padEnd(2, ' ');
       // Mot de passe aléatoire : le compte reste protégé, l'utilisateur pourra en définir un via « mot de passe oublié »
@@ -505,9 +533,11 @@ const routes = {
       const id = Number(
         db
           .prepare(
-            'INSERT INTO users (email, name, role, title, password_hash) VALUES (?, ?, ?, ?, ?)',
+            `INSERT INTO users (email, name, role, title, password_hash, terms_accepted_at, terms_version)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
           )
-          .run(identity.email, name.trim(), role, `${role} certifié`, hash).lastInsertRowid,
+          .run(identity.email, name.trim(), role, `${role} certifié`, hash, nowSql(), TERMS_VERSION)
+          .lastInsertRowid,
       );
       user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
       created = true;
@@ -1046,6 +1076,37 @@ const routes = {
       },
       timestamp: new Date().toISOString(),
     });
+  },
+
+  // Liste des membres (administrateurs uniquement) : jamais de hash de mot de passe ni de jeton
+  'GET /api/admin/users': async ({ req, res }) => {
+    requireAdmin(req);
+    const users = db
+      .prepare(
+        `SELECT u.id, u.email, u.name, u.role, u.points, u.created_at, u.terms_accepted_at, u.terms_version,
+                (SELECT MAX(created_at) FROM security_log s WHERE s.user_id = u.id AND s.event LIKE 'login%') AS last_login_at,
+                (SELECT COUNT(*) FROM lesson_progress l WHERE l.user_id = u.id) AS lessons,
+                (SELECT COUNT(*) FROM certificates c WHERE c.user_id = u.id) AS certificates,
+                (SELECT COUNT(*) FROM posts p WHERE p.user_id = u.id) AS posts
+           FROM users u ORDER BY u.id DESC LIMIT 5000`,
+      )
+      .all()
+      .map((u) => ({
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role: u.role,
+        points: u.points,
+        level: levelFor(u.points),
+        lessons: u.lessons,
+        certificates: u.certificates,
+        posts: u.posts,
+        createdAt: u.created_at,
+        lastLoginAt: u.last_login_at,
+        termsAcceptedAt: u.terms_accepted_at,
+        termsVersion: u.terms_version,
+      }));
+    send(res, 200, { total: users.length, users });
   },
 
   'POST /api/devops/backup': async ({ req, res }) => {

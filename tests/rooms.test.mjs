@@ -43,7 +43,7 @@ const newPlayer = async (name, email) => {
   const res = await fetch(BASE + '/api/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, email, password: PASSWORD, role: 'Étudiant' }),
+    body: JSON.stringify({ acceptTerms: true, name, email, password: PASSWORD, role: 'Étudiant' }),
   });
   assert.equal(res.status, 201);
   const cookie = res.headers.get('set-cookie').split(';')[0];

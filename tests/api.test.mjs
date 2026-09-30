@@ -80,6 +80,7 @@ test('inscription : validation et création de session', async () => {
   assert.equal(
     (
       await call('POST', '/api/auth/register', {
+        acceptTerms: true,
         name: 'Awa Traoré',
         email: 'awa@test.bf',
         password: 'court',
@@ -91,6 +92,7 @@ test('inscription : validation et création de session', async () => {
   assert.equal(
     (
       await call('POST', '/api/auth/register', {
+        acceptTerms: true,
         name: 'Awa Traoré',
         email: 'awa@test.bf',
         password: 'awa-mot-de-passe-long',
@@ -101,6 +103,7 @@ test('inscription : validation et création de session', async () => {
   );
 
   const reg = await call('POST', '/api/auth/register', {
+    acceptTerms: true,
     name: 'Awa Traoré',
     email: 'Awa@Test.bf',
     password: PASSWORD,
@@ -115,7 +118,13 @@ test('inscription : validation et création de session', async () => {
   const dup = await call(
     'POST',
     '/api/auth/register',
-    { name: 'Autre', email: 'awa@test.bf', password: 'lune-cactus-orage-12', role: 'Étudiant' },
+    {
+      acceptTerms: true,
+      name: 'Autre',
+      email: 'awa@test.bf',
+      password: 'lune-cactus-orage-12',
+      role: 'Étudiant',
+    },
     { jar: false },
   );
   assert.equal(dup.status, 409);
@@ -306,6 +315,22 @@ test('déconnexion, connexion, anti-énumération et verrouillage', async () => 
   );
 });
 
+test('inscription : les conditions d’utilisation doivent être acceptées', async () => {
+  const body = {
+    name: 'Sans Cgu',
+    email: 'sans-cgu@test.bf',
+    password: PASSWORD,
+    role: 'Étudiant',
+  };
+  for (const acceptTerms of [undefined, false, 'true']) {
+    const res = await call('POST', '/api/auth/register', { ...body, acceptTerms }, { jar: false });
+    assert.equal(res.status, 400, `acceptTerms=${String(acceptTerms)} refusé`);
+  }
+  const ok = await call('POST', '/api/auth/register', { ...body, acceptTerms: true });
+  assert.equal(ok.status, 201);
+  await call('POST', '/api/auth/logout');
+});
+
 test('administration DevOps : réservée aux administrateurs déclarés', async () => {
   delete process.env.ADMIN_EMAILS;
   process.env.BACKUP_DIR = path.join(tmpDir, 'backups');
@@ -325,6 +350,7 @@ test('administration DevOps : réservée aux administrateurs déclarés', async 
 
   // Un compte ordinaire (absent de ADMIN_EMAILS) est refusé
   const reg = await call('POST', '/api/auth/register', {
+    acceptTerms: true,
     name: 'Administrateur Test',
     email: 'boss@test.bf',
     password: PASSWORD,
@@ -345,6 +371,18 @@ test('administration DevOps : réservée aux administrateurs déclarés', async 
   const status = await call('GET', '/api/devops/status');
   assert.equal(status.status, 200);
   assert.ok(status.data.stats.users >= 2);
+
+  // Liste des membres : visible de l'admin, sans secret, avec la preuve d'acceptation des CGU
+  const list = await call('GET', '/api/admin/users');
+  assert.equal(list.status, 200);
+  assert.equal(list.data.total, list.data.users.length);
+  const boss = list.data.users.find((u) => u.email === 'boss@test.bf');
+  assert.ok(boss.termsAcceptedAt && boss.termsVersion, 'acceptation des CGU enregistrée');
+  assert.ok(!JSON.stringify(list.data).match(/password|hash|token/i), 'aucun secret exposé');
+  process.env.ADMIN_EMAILS = 'autre-admin@test.bf';
+  assert.equal((await call('GET', '/api/admin/users')).status, 403, 'membre ordinaire refusé');
+  process.env.ADMIN_EMAILS = 'BOSS@test.bf';
+
   const backup = await call('POST', '/api/devops/backup', {});
   assert.equal(backup.status, 200);
   assert.ok(fs.readdirSync(process.env.BACKUP_DIR).some((f) => f.endsWith('.db')));
@@ -465,6 +503,7 @@ test('classement et communauté : confidentialité, droits et limites', async ()
   // Membre B : ne peut supprimer ni le message ni le commentaire d'un autre
   await call('POST', '/api/auth/logout');
   const other = await call('POST', '/api/auth/register', {
+    acceptTerms: true,
     name: 'Membre Deux',
     email: 'membre@test.bf',
     password: PASSWORD,

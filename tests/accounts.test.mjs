@@ -58,7 +58,13 @@ const call = async (method, url, body) => {
 const OLD = 'soleil-riviere-mangue-7';
 const NEW = 'nuage-ardoise-citron-58';
 const register = (name, email) =>
-  call('POST', '/api/auth/register', { name, email, password: OLD, role: 'Professionnel' });
+  call('POST', '/api/auth/register', {
+    acceptTerms: true,
+    name,
+    email,
+    password: OLD,
+    role: 'Professionnel',
+  });
 
 test('changement de mot de passe : ancien requis, autres sessions fermées', async () => {
   assert.equal((await register('Chef Test', 'chef@test.bf')).status, 201);
@@ -204,6 +210,7 @@ test('mot de passe oublié : désactivé sans e-mail, puis lien à usage unique'
   try {
     assert.equal((await call('GET', '/api/auth/config')).data.passwordReset, true);
     await call('POST', '/api/auth/register', {
+      acceptTerms: true,
       name: 'Oubli Test',
       email: 'oubli@test.bf',
       password: OLD,

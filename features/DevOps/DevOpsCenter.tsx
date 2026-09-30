@@ -9,6 +9,8 @@ import {
   ShieldCheck,
   Terminal,
   Zap,
+  Users,
+  Download,
 } from 'lucide-react';
 import { api, ApiError } from '../../services/apiClient';
 import { useI18n } from '../../services/i18n';
@@ -30,8 +32,33 @@ interface SystemStatus {
   timestamp: string;
 }
 
+interface AdminUser {
+  id: number;
+  email: string;
+  name: string;
+  role: string;
+  points: number;
+  level: number;
+  lessons: number;
+  certificates: number;
+  posts: number;
+  createdAt: string;
+  lastLoginAt: string | null;
+  termsAcceptedAt: string | null;
+  termsVersion: string | null;
+}
+
+// Neutralise l'injection de formules dans Excel/Sheets (=, +, -, @ en début de cellule)
+const csvCell = (value: string | number | null) => {
+  const s = String(value ?? '');
+  const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+  return `"${safe.replace(/"/g, '""')}"`;
+};
+
 export const DevOpsCenter: React.FC = () => {
   const { t, language } = useI18n();
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [userFilter, setUserFilter] = useState('');
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [denied, setDenied] = useState(false);
@@ -48,8 +75,67 @@ export const DevOpsCenter: React.FC = () => {
     }
   };
 
+  const fetchUsers = async () => {
+    try {
+      const data = await api<{ users: AdminUser[] }>('GET', '/api/admin/users');
+      setUsers(data.users);
+    } catch {
+      setUsers([]);
+    }
+  };
+
+  const exportUsersCsv = () => {
+    const header = [
+      'id',
+      'nom',
+      'email',
+      'profil',
+      'points',
+      'niveau',
+      'lecons',
+      'certificats',
+      'messages',
+      'inscription',
+      'derniere_connexion',
+      'cgu_acceptees_le',
+      'cgu_version',
+    ];
+    const rows = users.map((u) =>
+      [
+        u.id,
+        u.name,
+        u.email,
+        u.role,
+        u.points,
+        u.level,
+        u.lessons,
+        u.certificates,
+        u.posts,
+        u.createdAt,
+        u.lastLoginAt,
+        u.termsAcceptedAt,
+        u.termsVersion,
+      ]
+        .map(csvCell)
+        .join(','),
+    );
+    const blob = new Blob(['﻿' + [header.join(','), ...rows].join('\r\n')], {
+      type: 'text/csv;charset=utf-8',
+    });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `cybersens-membres-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  const filteredUsers = users.filter((u) =>
+    `${u.name} ${u.email} ${u.role}`.toLowerCase().includes(userFilter.trim().toLowerCase()),
+  );
+
   useEffect(() => {
     fetchStatus();
+    fetchUsers();
     const interval = setInterval(fetchStatus, 15000);
     return () => clearInterval(interval);
   }, []);
@@ -272,6 +358,87 @@ export const DevOpsCenter: React.FC = () => {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Membres inscrits */}
+      <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+            <Users className="w-5 h-5 text-sky-600" />
+            <span>Membres inscrits ({users.length})</span>
+          </h2>
+          <div className="flex gap-2">
+            <input
+              type="search"
+              value={userFilter}
+              onChange={(e) => setUserFilter(e.target.value)}
+              placeholder="Rechercher un nom, e-mail…"
+              aria-label="Rechercher un membre"
+              className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+            />
+            <button
+              onClick={exportUsersCsv}
+              disabled={users.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 dark:bg-sky-500 text-white dark:text-slate-950 text-xs font-black disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              CSV
+            </button>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="text-slate-500 dark:text-slate-400">
+              <tr>
+                {[
+                  'Nom',
+                  'E-mail',
+                  'Profil',
+                  'Pts',
+                  'Leçons',
+                  'Certifs',
+                  'Inscrit le',
+                  'Dernière connexion',
+                  'CGU',
+                ].map((h) => (
+                  <th key={h} className="py-2 pr-3 font-bold whitespace-nowrap">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="text-slate-800 dark:text-slate-200">
+              {filteredUsers.map((u) => (
+                <tr key={u.id} className="border-t border-slate-100 dark:border-slate-800">
+                  <td className="py-2 pr-3 font-semibold whitespace-nowrap">{u.name}</td>
+                  <td className="py-2 pr-3">{u.email}</td>
+                  <td className="py-2 pr-3 whitespace-nowrap">{u.role}</td>
+                  <td className="py-2 pr-3">{u.points}</td>
+                  <td className="py-2 pr-3">{u.lessons}</td>
+                  <td className="py-2 pr-3">{u.certificates}</td>
+                  <td className="py-2 pr-3 whitespace-nowrap">{u.createdAt.slice(0, 10)}</td>
+                  <td className="py-2 pr-3 whitespace-nowrap">
+                    {u.lastLoginAt ? u.lastLoginAt.slice(0, 16) : '—'}
+                  </td>
+                  <td className="py-2 pr-3 whitespace-nowrap">
+                    {u.termsAcceptedAt ? u.termsAcceptedAt.slice(0, 10) : '—'}
+                  </td>
+                </tr>
+              ))}
+              {filteredUsers.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="py-4 text-center text-slate-500">
+                    Aucun membre.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+          Données personnelles : à consulter uniquement pour administrer le service. Les mots de
+          passe ne sont jamais accessibles (hachés).
+        </p>
       </div>
 
       {/* Deployment & Environment Info */}

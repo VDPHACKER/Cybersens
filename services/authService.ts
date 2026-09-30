@@ -121,6 +121,7 @@ export const registerAccount = async (input: {
   email: string;
   password: string;
   role: AccountRole;
+  acceptTerms: boolean;
 }) => finishLogin(await api<ServerSnapshot>('POST', '/api/auth/register', input));
 
 export const loginAccount = async (email: string, password: string) => {
@@ -143,6 +144,7 @@ export const loginAccount = async (email: string, password: string) => {
           email: legacy.email,
           password,
           role: legacy.role,
+          legacyMigration: true,
         }),
       );
     }
@@ -183,6 +185,8 @@ export const restoreSession = async (): Promise<{
 export interface AuthConfig {
   googleClientId: string | null;
   passwordReset: boolean;
+  termsVersion?: string;
+  contactEmail?: string | null;
 }
 
 export const getAuthConfig = async (): Promise<AuthConfig> => {
@@ -193,8 +197,10 @@ export const getAuthConfig = async (): Promise<AuthConfig> => {
   }
 };
 
-export const loginWithGoogle = async (credential: string, role: AccountRole) =>
-  finishLogin(await api<ServerSnapshot>('POST', '/api/auth/google', { credential, role }));
+export const loginWithGoogle = async (credential: string, role: AccountRole, acceptTerms = false) =>
+  finishLogin(
+    await api<ServerSnapshot>('POST', '/api/auth/google', { credential, role, acceptTerms }),
+  );
 
 export const requestPasswordReset = (email: string, lang: string) =>
   api('POST', '/api/auth/forgot', { email, lang });

@@ -14,6 +14,7 @@ import {
 import { UserPreferences } from '../types';
 import { LanguageSelector, useI18n } from '../services/i18n';
 import { useL } from '../components/ui';
+import { TermsDialog } from './Legal/TermsDialog';
 import {
   AccountRole,
   AuthConfig,
@@ -84,6 +85,8 @@ export const Auth: React.FC<AuthProps> = ({ onAuthenticated }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
 
   const isRegister = mode === 'register';
   const passwordIssue = isRegister && password ? validatePassword(password, { name, email }) : null;
@@ -94,6 +97,8 @@ export const Auth: React.FC<AuthProps> = ({ onAuthenticated }) => {
 
   const roleRef = useRef(role);
   roleRef.current = role;
+  const termsRef = useRef(acceptTerms);
+  termsRef.current = acceptTerms;
   const onAuthRef = useRef(onAuthenticated);
   onAuthRef.current = onAuthenticated;
 
@@ -111,7 +116,9 @@ export const Auth: React.FC<AuthProps> = ({ onAuthenticated }) => {
             setError('');
             setLoading(true);
             try {
-              onAuthRef.current(await loginWithGoogle(credential, roleRef.current));
+              onAuthRef.current(
+                await loginWithGoogle(credential, roleRef.current, termsRef.current),
+              );
             } catch (err) {
               setError(err instanceof Error ? err.message : 'Connexion Google impossible.');
             } finally {
@@ -150,6 +157,17 @@ export const Auth: React.FC<AuthProps> = ({ onAuthenticated }) => {
 
     if (isRegister && password !== confirm) {
       setError('Les deux mots de passe ne correspondent pas.');
+      return;
+    }
+
+    if (isRegister && !acceptTerms) {
+      setError(
+        L(
+          'Vous devez accepter les conditions d’utilisation pour créer un compte.',
+          'You must accept the terms of use to create an account.',
+          'Debe aceptar las condiciones de uso para crear una cuenta.',
+        ),
+      );
       return;
     }
 
@@ -207,7 +225,7 @@ export const Auth: React.FC<AuthProps> = ({ onAuthenticated }) => {
     setLoading(true);
     try {
       const prefs = isRegister
-        ? await registerAccount({ name, email, password, role })
+        ? await registerAccount({ name, email, password, role, acceptTerms })
         : await loginAccount(email, password);
       onAuthenticated(prefs);
     } catch (err) {
@@ -220,6 +238,12 @@ export const Auth: React.FC<AuthProps> = ({ onAuthenticated }) => {
   return (
     <div className="relative min-h-screen flex items-center justify-center px-4 py-10 bg-gradient-to-br from-slate-50 via-sky-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <LanguageSelector className="absolute top-4 right-4 z-10" />
+      {showTerms && (
+        <TermsDialog
+          contactEmail={config.contactEmail ?? null}
+          onClose={() => setShowTerms(false)}
+        />
+      )}
       <div className="w-full max-w-md">
         {/* Marque */}
         <div className="flex flex-col items-center text-center mb-6">
@@ -420,6 +444,36 @@ export const Auth: React.FC<AuthProps> = ({ onAuthenticated }) => {
                   </div>
                 )}
               </>
+            )}
+
+            {isRegister && (
+              <label className="flex items-start gap-2.5 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={acceptTerms}
+                  onChange={(e) => setAcceptTerms(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                />
+                <span>
+                  {L(
+                    'J’ai lu et j’accepte les',
+                    'I have read and accept the',
+                    'He leído y acepto las',
+                  )}{' '}
+                  <button
+                    type="button"
+                    onClick={() => setShowTerms(true)}
+                    className="font-bold text-sky-600 dark:text-sky-400 underline"
+                  >
+                    {L(
+                      'conditions d’utilisation et la politique de confidentialité',
+                      'terms of use and privacy policy',
+                      'condiciones de uso y la política de privacidad',
+                    )}
+                  </button>
+                  .
+                </span>
+              </label>
             )}
 
             {info && (

@@ -1,0 +1,62 @@
+# Déploiement sur une VM Oracle Cloud Always Free (ou tout VPS) : CyberSens + Caddy (HTTPS automatique).
+# Lancé depuis la racine du dépôt : docker compose -f deploy/oracle/docker-compose.yml --env-file .env up -d --build
+# Variables (fichier .env à la racine) : voir .env.example ; DOMAIN est obligatoire (ex. 141-144-1-2.sslip.io).
+services:
+  app:
+    build:
+      context: ../..
+    image: cybersens:latest
+    container_name: cybersens
+    restart: unless-stopped
+    # Pas de port publié : seul Caddy est exposé sur Internet
+    expose:
+      - '8080'
+    env_file:
+      - ../../.env
+    environment:
+      TRUST_PROXY: '1'
+    volumes:
+      - cybersens-data:/app/data
+      - ../../backups:/app/backups
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '5'
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: cybersens-caddy
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      DOMAIN: '${DOMAIN:?DOMAIN est obligatoire dans .env}'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+volumes:
+  cybersens-data:
+  caddy-data:
+  caddy-config:
