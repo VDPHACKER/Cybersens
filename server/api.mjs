@@ -283,15 +283,22 @@ const isAdmin = (user) => adminEmails().includes(user.email.toLowerCase());
 // Sans empreinte valide, toutes les routes d'administration sont désactivées (404).
 const ADMIN_UNLOCK_MS = 30 * 60_000;
 const ADMIN_HASH_FORMAT = /^scrypt\$\d+\$\d+\$\d+\$[0-9a-f]+\$[0-9a-f]+$/;
-const adminConfigured = () =>
-  adminEmails().length > 0 && ADMIN_HASH_FORMAT.test(process.env.ADMIN_PASSWORD_HASH || '');
+// Tolère les espaces, retours à la ligne et guillemets ajoutés par erreur autour de la valeur
+const adminHash = () =>
+  (process.env.ADMIN_PASSWORD_HASH || '').trim().replace(/^["']+|["']+$/g, '');
 const sessionToken = (req) => parseCookies(req.headers.cookie)[SESSION_COOKIE] || '';
 
 /** Administrateur connecté (compte listé dans ADMIN_EMAILS) : accès à l'écran de déverrouillage uniquement. */
 const requireAdminAccount = async (req) => {
-  if (!adminConfigured()) throw new HttpError(404, 'Route inconnue');
+  if (adminEmails().length === 0) throw new HttpError(404, 'Route inconnue');
   const user = await requireUser(req);
   if (!isAdmin(user)) throw new HttpError(403, 'Accès réservé aux administrateurs');
+  // Message précis, réservé à l'administrateur déjà identifié : la configuration du serveur est à corriger
+  if (!ADMIN_HASH_FORMAT.test(adminHash()))
+    throw new HttpError(
+      503,
+      'Le mot de passe administrateur n’est pas configuré : la variable ADMIN_PASSWORD_HASH est absente ou invalide sur le serveur.',
+    );
   return user;
 };
 
@@ -1138,7 +1145,7 @@ const routes = {
     }
     // Le mot de passe est toujours vérifié (même durée que l'e-mail soit bon ou non), puis l'e-mail doit
     // correspondre au compte connecté : un seul message d'erreur dans les deux cas
-    const passwordOk = await verifyPassword(body.password, process.env.ADMIN_PASSWORD_HASH);
+    const passwordOk = await verifyPassword(body.password, adminHash());
     const emailOk = body.email.trim().toLowerCase() === user.email.toLowerCase();
     if (!passwordOk || !emailOk) {
       await recordFailure(key);

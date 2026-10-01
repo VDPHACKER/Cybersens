@@ -511,10 +511,17 @@ test('mot de passe administrateur : verrou par session, configuration obligatoir
 
   // Sans mot de passe administrateur configuré (ou trop court), tout est désactivé, même pour un administrateur
   process.env.ADMIN_PASSWORD_HASH = 'pas-une-empreinte-valide';
-  assert.equal((await call('GET', '/api/admin/users')).status, 404);
-  assert.equal((await unlock('x')).status, 404, 'une empreinte invalide désactive l’espace admin');
+  assert.equal((await call('GET', '/api/admin/users')).status, 503);
+  const invalid = await unlock('x');
+  assert.equal(invalid.status, 503, 'une empreinte invalide désactive l’espace admin');
+  assert.match(invalid.data.error, /ADMIN_PASSWORD_HASH/, 'message précis pour l’administrateur');
   delete process.env.ADMIN_PASSWORD_HASH;
-  assert.equal((await call('GET', '/api/devops/status')).status, 404);
+  assert.equal((await call('GET', '/api/devops/status')).status, 503);
+
+  // Espaces, retour à la ligne et guillemets autour de l'empreinte (erreur de copier-coller) sont tolérés
+  process.env.ADMIN_PASSWORD_HASH = ` "${ADMIN_HASH}" \n`;
+  assert.equal((await unlock(ADMIN_PASSWORD)).status, 200);
+  assert.equal((await call('POST', '/api/admin/lock', {})).status, 200);
   process.env.ADMIN_PASSWORD_HASH = ADMIN_HASH;
 
   // Verrouillage manuel

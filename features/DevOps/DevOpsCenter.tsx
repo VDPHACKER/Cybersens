@@ -69,6 +69,7 @@ export const DevOpsCenter: React.FC = () => {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [denied, setDenied] = useState(false);
+  const [deniedReason, setDeniedReason] = useState('');
   // null : vérification en cours ; false : mot de passe administrateur requis ; true : espace déverrouillé
   const [unlocked, setUnlocked] = useState<boolean | null>(null);
   const [adminEmail, setAdminEmail] = useState('');
@@ -179,8 +180,11 @@ export const DevOpsCenter: React.FC = () => {
     api<{ unlocked: boolean }>('GET', '/api/admin/status')
       .then((res) => setUnlocked(res.unlocked))
       .catch((err) => {
-        if (err instanceof ApiError && [401, 403, 404].includes(err.status)) setDenied(true);
-        else setUnlocked(false);
+        if (err instanceof ApiError && [401, 403, 404, 503].includes(err.status)) {
+          // 503 : configuration du serveur incomplète, message précis réservé à l'administrateur
+          if (err.status === 503) setDeniedReason(err.message);
+          setDenied(true);
+        } else setUnlocked(false);
       });
   }, []);
 
@@ -275,6 +279,9 @@ export const DevOpsCenter: React.FC = () => {
           ADMIN_EMAILS du serveur, lorsque l'empreinte du mot de passe administrateur
           (ADMIN_PASSWORD_HASH) est configurée.
         </p>
+        {deniedReason && (
+          <p className="text-sm font-bold text-rose-600 dark:text-rose-400">{deniedReason}</p>
+        )}
       </div>
     );
   }
