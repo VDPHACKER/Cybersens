@@ -71,6 +71,7 @@ export const DevOpsCenter: React.FC = () => {
   const [denied, setDenied] = useState(false);
   // null : vérification en cours ; false : mot de passe administrateur requis ; true : espace déverrouillé
   const [unlocked, setUnlocked] = useState<boolean | null>(null);
+  const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [unlockError, setUnlockError] = useState('');
   const [unlocking, setUnlocking] = useState(false);
@@ -196,8 +197,9 @@ export const DevOpsCenter: React.FC = () => {
     setUnlocking(true);
     setUnlockError('');
     try {
-      await api('POST', '/api/admin/unlock', { password: adminPassword });
+      await api('POST', '/api/admin/unlock', { email: adminEmail, password: adminPassword });
       setAdminPassword('');
+      setAdminEmail('');
       setUnlocked(true);
     } catch (err: any) {
       setUnlockError(err.message || 'Déverrouillage impossible.');
@@ -270,8 +272,8 @@ export const DevOpsCenter: React.FC = () => {
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
           Le Centre DevOps n'est disponible que pour les comptes déclarés dans la variable
-          ADMIN_EMAILS du serveur, lorsque le mot de passe administrateur (ADMIN_PASSWORD) est
-          configuré.
+          ADMIN_EMAILS du serveur, lorsque l'empreinte du mot de passe administrateur
+          (ADMIN_PASSWORD_HASH) est configurée.
         </p>
       </div>
     );
@@ -291,14 +293,25 @@ export const DevOpsCenter: React.FC = () => {
         <div className="text-center space-y-2">
           <Lock className="w-12 h-12 mx-auto text-slate-400" aria-hidden="true" />
           <h1 className="text-xl font-black text-slate-900 dark:text-white">
-            Espace administrateur
+            Authentification administrateur
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Saisissez le mot de passe administrateur pour afficher les membres inscrits et les
-            outils d'exploitation.
+            Saisissez vos identifiants administrateur pour afficher les membres inscrits et les
+            outils d'exploitation. Cet espace est réservé à l'administrateur du site.
           </p>
         </div>
         <form onSubmit={handleUnlock} className="space-y-3" noValidate>
+          <input
+            type="email"
+            autoComplete="off"
+            placeholder="E-mail administrateur"
+            value={adminEmail}
+            onChange={(e) => setAdminEmail(e.target.value)}
+            maxLength={254}
+            required
+            autoFocus
+            className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500"
+          />
           <input
             type="password"
             autoComplete="off"
@@ -307,7 +320,6 @@ export const DevOpsCenter: React.FC = () => {
             onChange={(e) => setAdminPassword(e.target.value)}
             maxLength={200}
             required
-            autoFocus
             className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500"
           />
           {unlockError && (
@@ -320,7 +332,7 @@ export const DevOpsCenter: React.FC = () => {
           )}
           <button
             type="submit"
-            disabled={unlocking || !adminPassword}
+            disabled={unlocking || !adminPassword || !adminEmail}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-sky-700 hover:bg-sky-600 disabled:opacity-60 text-white text-sm font-black"
           >
             {unlocking ? (

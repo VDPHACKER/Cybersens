@@ -278,17 +278,13 @@ const adminEmails = () =>
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 const isAdmin = (user) => adminEmails().includes(user.email.toLowerCase());
-// Mot de passe administrateur (variable ADMIN_PASSWORD, 12 caractères minimum) : second verrou, distinct du compte.
-// Sans lui, toutes les routes d'administration sont désactivées (404).
-const MIN_ADMIN_PASSWORD = 12;
+// Identifiants administrateur : l'e-mail de ADMIN_EMAILS et le mot de passe dont l'empreinte scrypt est dans
+// ADMIN_PASSWORD_HASH (voir npm run admin:hash-password). Le mot de passe n'est jamais stocké en clair.
+// Sans empreinte valide, toutes les routes d'administration sont désactivées (404).
 const ADMIN_UNLOCK_MS = 30 * 60_000;
+const ADMIN_HASH_FORMAT = /^scrypt\$\d+\$\d+\$\d+\$[0-9a-f]+\$[0-9a-f]+$/;
 const adminConfigured = () =>
-  adminEmails().length > 0 && (process.env.ADMIN_PASSWORD || '').length >= MIN_ADMIN_PASSWORD;
-const sameSecret = (a, b) =>
-  crypto.timingSafeEqual(
-    crypto.createHash('sha256').update(String(a)).digest(),
-    crypto.createHash('sha256').update(String(b)).digest(),
-  );
+  adminEmails().length > 0 && ADMIN_HASH_FORMAT.test(process.env.ADMIN_PASSWORD_HASH || '');
 const sessionToken = (req) => parseCookies(req.headers.cookie)[SESSION_COOKIE] || '';
 
 /** Administrateur connecté (compte listé dans ADMIN_EMAILS) : accès à l'écran de déverrouillage uniquement. */
@@ -1132,13 +1128,22 @@ const routes = {
     rateLimit(`admin-unlock-ip:${ip}`, 20, 60 * 60_000);
     const key = `admin:${user.id}`; // même mécanisme de blocage que la connexion (5 échecs = 15 min)
     await checkLock(key);
-    if (typeof body.password !== 'string' || body.password.length > 200) {
-      throw new HttpError(400, 'Mot de passe administrateur invalide.');
+    if (
+      typeof body.email !== 'string' ||
+      body.email.length > 254 ||
+      typeof body.password !== 'string' ||
+      body.password.length > 200
+    ) {
+      throw new HttpError(400, 'Identifiants administrateur invalides.');
     }
-    if (!sameSecret(body.password, process.env.ADMIN_PASSWORD)) {
+    // Le mot de passe est toujours vérifié (même durée que l'e-mail soit bon ou non), puis l'e-mail doit
+    // correspondre au compte connecté : un seul message d'erreur dans les deux cas
+    const passwordOk = await verifyPassword(body.password, process.env.ADMIN_PASSWORD_HASH);
+    const emailOk = body.email.trim().toLowerCase() === user.email.toLowerCase();
+    if (!passwordOk || !emailOk) {
       await recordFailure(key);
       await logSecurity('admin_unlock_failed', req, trustProxy, user.id);
-      throw new HttpError(403, 'Mot de passe administrateur incorrect.');
+      throw new HttpError(403, 'Identifiants administrateur incorrects.');
     }
     await clearFailures(key);
     await db
