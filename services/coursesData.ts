@@ -3,7 +3,7 @@ import type { CourseModule } from '../types';
 export const COMPREHENSIVE_COURSE_MODULES: CourseModule[] = [
   {
     id: 'module-1',
-    moduleCode: 'NETACAD-SEC-101',
+    moduleCode: 'CS-SEC-101',
     curriculumTrack: 'Fondamentaux de Cybersécurité & Réseaux',
     title: 'Fondamentaux de la Cybersécurité & Architecture Réseau',
     lessonsCount: 5,
@@ -458,7 +458,7 @@ curl -Iv https://cybersens.org  # Inspection de la couche 7 (Handshake TLS & HTT
   },
   {
     id: 'module-2',
-    moduleCode: 'NETACAD-AUTH-201',
+    moduleCode: 'CS-AUTH-201',
     curriculumTrack: 'Gestion des Identités & Cryptographie Pratique',
     title: 'Authentification Robuste, Cryptographie & Gestion des Identités',
     lessonsCount: 5,
@@ -740,7 +740,7 @@ print(f"Entropie : {entropy:.2f} bits (Excellente si > 75 bits)")`,
   },
   {
     id: 'module-3',
-    moduleCode: 'NETACAD-ENG-301',
+    moduleCode: 'CS-ENG-301',
     curriculumTrack: 'Ingénierie Sociale & Sécurité Humaine',
     title: 'Ingénierie Sociale, Phishing Avancé & Manipulation Psychologique',
     lessonsCount: 5,

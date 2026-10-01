@@ -3,7 +3,7 @@ import type { CourseModule } from '../types';
 export const ADVANCED_COURSE_MODULES: CourseModule[] = [
   {
     id: 'module-4',
-    moduleCode: 'NETACAD-NET-401',
+    moduleCode: 'CS-NET-401',
     curriculumTrack: 'Sécurité des Réseaux & Télécommunications',
     title: 'Sécurité des Réseaux & Navigation Web Sécurisée',
     lessonsCount: 4,
@@ -253,7 +253,7 @@ export const ADVANCED_COURSE_MODULES: CourseModule[] = [
   },
   {
     id: 'module-5',
-    moduleCode: 'NETACAD-MOB-501',
+    moduleCode: 'CS-MOB-501',
     curriculumTrack: 'Sécurité Mobile & Systèmes Embarqués',
     title: 'Sécurité Mobile, Smartphones & Objets Connectés (IoT)',
     lessonsCount: 4,
@@ -494,7 +494,7 @@ export const ADVANCED_COURSE_MODULES: CourseModule[] = [
   },
   {
     id: 'module-6',
-    moduleCode: 'NETACAD-CORP-601',
+    moduleCode: 'CS-CORP-601',
     curriculumTrack: 'Cybersécurité en Entreprise & Gouvernance',
     title: 'Cybersécurité en Entreprise, Télétravail & PSSI',
     lessonsCount: 4,
@@ -735,7 +735,7 @@ export const ADVANCED_COURSE_MODULES: CourseModule[] = [
   },
   {
     id: 'module-7',
-    moduleCode: 'NETACAD-AI-701',
+    moduleCode: 'CS-AI-701',
     curriculumTrack: 'Intelligence Artificielle & Cybersécurité Avancée',
     title: 'Cybersécurité & Intelligence Artificielle : Deepfakes, LLM & Attaques Adversariales',
     lessonsCount: 8,
@@ -1226,7 +1226,7 @@ def execute_agent_action(action, parameters):
   },
   {
     id: 'module-8',
-    moduleCode: 'NETACAD-OFFSEC-801',
+    moduleCode: 'CS-OFFSEC-801',
     curriculumTrack: 'Sécurité Offensive & Tests d’Intrusion',
     title: 'Offensive Security & Pentesting Éthique Pratique',
     lessonsCount: 4,
@@ -1489,7 +1489,7 @@ db.execute(sql, [req.body.email, 'active']);`,
   },
   {
     id: 'module-9',
-    moduleCode: 'NETACAD-DFIR-901',
+    moduleCode: 'CS-DFIR-901',
     curriculumTrack: 'Digital Forensics & Incident Response (DFIR)',
     title: 'Digital Forensics & Réponse à Incident (DFIR)',
     lessonsCount: 4,
@@ -1731,7 +1731,7 @@ vol -f memory_dump.raw windows.netscan      # Connexions réseau actives au mome
   },
   {
     id: 'module-10',
-    moduleCode: 'NETACAD-DEVOPS-1001',
+    moduleCode: 'CS-DEVOPS-1001',
     curriculumTrack: 'DevOps & Sécurité des Pipelines',
     title: 'CI/CD, Conteneurs & Pipelines Sécurisés',
     lessonsCount: 4,
@@ -1979,7 +1979,7 @@ CMD ["node", "dist/server.js"]`,
   },
   {
     id: 'module-11',
-    moduleCode: 'NETACAD-IAC-1101',
+    moduleCode: 'CS-IAC-1101',
     curriculumTrack: 'Infrastructure as Code & GitOps',
     title: 'Infrastructure as Code, GitOps & Gouvernance Déclarative',
     lessonsCount: 4,
@@ -2206,7 +2206,7 @@ CMD ["node", "dist/server.js"]`,
   },
   {
     id: 'module-12',
-    moduleCode: 'NETACAD-SRE-1201',
+    moduleCode: 'CS-SRE-1201',
     curriculumTrack: 'SRE, Observabilité & Résilience Cloud',
     title: 'SRE, Observabilité & Résilience des Services Cloud',
     lessonsCount: 4,

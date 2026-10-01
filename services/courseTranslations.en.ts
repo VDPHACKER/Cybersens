@@ -3,7 +3,7 @@ import type { CourseModule } from '../types';
 export const COURSE_TRANSLATIONS_EN: CourseModule[] = [
   {
     id: 'module-1',
-    moduleCode: 'NETACAD-SEC-101',
+    moduleCode: 'CS-SEC-101',
     curriculumTrack: 'Cybersecurity & Networking Fundamentals',
     title: 'Cybersecurity Fundamentals & Network Architecture',
     lessonsCount: 5,
@@ -509,7 +509,7 @@ export const COURSE_TRANSLATIONS_EN: CourseModule[] = [
   },
   {
     id: 'module-2',
-    moduleCode: 'NETACAD-AUTH-201',
+    moduleCode: 'CS-AUTH-201',
     curriculumTrack: 'Identity Management & Practical Cryptography',
     title: 'Robust Authentication, Cryptography & Identity Management',
     lessonsCount: 5,
@@ -820,7 +820,7 @@ export const COURSE_TRANSLATIONS_EN: CourseModule[] = [
   },
   {
     id: 'module-3',
-    moduleCode: 'NETACAD-ENG-301',
+    moduleCode: 'CS-ENG-301',
     curriculumTrack: 'Social Engineering & Human Security',
     title: 'Social Engineering, Advanced Phishing & Psychological Manipulation',
     lessonsCount: 5,
@@ -1124,7 +1124,7 @@ export const COURSE_TRANSLATIONS_EN: CourseModule[] = [
   },
   {
     id: 'module-4',
-    moduleCode: 'NETACAD-NET-401',
+    moduleCode: 'CS-NET-401',
     curriculumTrack: 'Network Security & Telecommunications',
     title: 'Network Security & Secure Web Browsing',
     lessonsCount: 4,
@@ -1393,7 +1393,7 @@ export const COURSE_TRANSLATIONS_EN: CourseModule[] = [
   },
   {
     id: 'module-5',
-    moduleCode: 'NETACAD-MOB-501',
+    moduleCode: 'CS-MOB-501',
     curriculumTrack: 'Mobile Security & Embedded Systems',
     title: 'Mobile Security, Smartphones & Internet of Things (IoT)',
     lessonsCount: 4,
@@ -1658,7 +1658,7 @@ export const COURSE_TRANSLATIONS_EN: CourseModule[] = [
   },
   {
     id: 'module-6',
-    moduleCode: 'NETACAD-CORP-601',
+    moduleCode: 'CS-CORP-601',
     curriculumTrack: 'Enterprise Cybersecurity & Governance',
     title: 'Enterprise Cybersecurity, Remote Work & ISMS',
     lessonsCount: 4,
@@ -1921,7 +1921,7 @@ export const COURSE_TRANSLATIONS_EN: CourseModule[] = [
   },
   {
     id: 'module-7',
-    moduleCode: 'NETACAD-AI-701',
+    moduleCode: 'CS-AI-701',
     curriculumTrack: 'Artificial Intelligence & Advanced Cybersecurity',
     title: 'Cybersecurity & Artificial Intelligence: Deepfakes, LLMs & Adversarial Attacks',
     lessonsCount: 8,
@@ -2440,7 +2440,7 @@ export const COURSE_TRANSLATIONS_EN: CourseModule[] = [
   },
   {
     id: 'module-8',
-    moduleCode: 'NETACAD-OFFSEC-801',
+    moduleCode: 'CS-OFFSEC-801',
     curriculumTrack: 'Offensive Security & Penetration Testing',
     title: 'Offensive Security & Practical Ethical Pentesting',
     lessonsCount: 4,
@@ -2714,7 +2714,7 @@ export const COURSE_TRANSLATIONS_EN: CourseModule[] = [
   },
   {
     id: 'module-9',
-    moduleCode: 'NETACAD-DFIR-901',
+    moduleCode: 'CS-DFIR-901',
     curriculumTrack: 'Digital Forensics & Incident Response (DFIR)',
     title: 'Digital Forensics & Incident Response (DFIR)',
     lessonsCount: 4,
@@ -2976,7 +2976,7 @@ export const COURSE_TRANSLATIONS_EN: CourseModule[] = [
   },
   {
     id: 'module-10',
-    moduleCode: 'NETACAD-DEVOPS-1001',
+    moduleCode: 'CS-DEVOPS-1001',
     curriculumTrack: 'DevOps & Secure Pipelines',
     title: 'CI/CD, Containers & Secure Delivery Pipelines',
     lessonsCount: 4,
@@ -3223,7 +3223,7 @@ export const COURSE_TRANSLATIONS_EN: CourseModule[] = [
   },
   {
     id: 'module-11',
-    moduleCode: 'NETACAD-IAC-1101',
+    moduleCode: 'CS-IAC-1101',
     curriculumTrack: 'Infrastructure as Code & GitOps',
     title: 'Infrastructure as Code, GitOps & Declarative Governance',
     lessonsCount: 4,
@@ -3460,7 +3460,7 @@ export const COURSE_TRANSLATIONS_EN: CourseModule[] = [
   },
   {
     id: 'module-12',
-    moduleCode: 'NETACAD-SRE-1201',
+    moduleCode: 'CS-SRE-1201',
     curriculumTrack: 'SRE, Observability & Cloud Resilience',
     title: 'SRE, Observability & Resilience of Cloud Services',
     lessonsCount: 4,

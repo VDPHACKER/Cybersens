@@ -466,7 +466,7 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
 
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-md bg-sky-500/20 text-sky-400 font-mono text-[11px] font-black tracking-wider border border-sky-500/30">
-                {course.moduleCode || 'NETACAD-SEC'}
+                {course.moduleCode || 'CS-SEC'}
               </span>
               <span className="text-xs text-slate-400 hidden md:inline truncate max-w-xs">
                 {course.curriculumTrack || 'Cursus Certifiant'}
@@ -559,7 +559,7 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
 
         {/* Content Body */}
         <div className="overflow-y-auto p-5 sm:p-7 space-y-6 flex-1">
-          {/* TAB 1: LESSONS (NETACAD-STYLE RICH CURRICULUM) */}
+          {/* TAB 1: LESSONS (CS-STYLE RICH CURRICULUM) */}
           {activeTab === 'lessons' && (
             <div className="space-y-6">
               {/* Module Header Card with Objectives */}
@@ -570,7 +570,7 @@ const CourseReader: React.FC<Omit<CourseReaderModalProps, 'course'> & { course: 
                   </div>
                   <div>
                     <span className="text-[11px] font-black uppercase tracking-wider text-sky-700 dark:text-sky-400 block">
-                      {course.moduleCode || 'NETACAD'} •{' '}
+                      {course.moduleCode || 'CS'} •{' '}
                       {course.level === 'Débutant'
                         ? text.beginner
                         : course.level === 'Intermédiaire'
