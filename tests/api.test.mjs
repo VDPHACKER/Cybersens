@@ -616,3 +616,17 @@ test('points déclarés : plafond quotidien (le classement ne peut pas être tru
   const board = await call('GET', '/api/leaderboard');
   assert.ok(board.data.entries.find((e) => e.isMe).points <= before + 1500);
 });
+
+test('inscription : limite de 30 par heure et par adresse IP', async () => {
+  // La limite est vérifiée avant la validation : des requêtes invalides (sans calcul de mot de passe) suffisent.
+  // Les tests précédents ont déjà utilisé une partie du quota de cette IP.
+  let attempts = 0;
+  let status = 0;
+  while (status !== 429 && attempts < 60) {
+    attempts++;
+    status = (await call('POST', '/api/auth/register', {}, { jar: false })).status;
+  }
+  assert.equal(status, 429, 'la limite finit par s’appliquer');
+  // L'ancienne limite (10) aurait bloqué bien avant 15 tentatives supplémentaires
+  assert.ok(attempts >= 15 && attempts <= 30, `429 atteint après ${attempts} tentatives`);
+});

@@ -22,6 +22,8 @@ const MAX_BODY_BYTES = 1024 * 1024;
 const MAX_AVATAR_CHARS = 400_000; // ≈ 300 Ko d'image en data URL
 const MIN_PASSWORD = 12;
 const RESET_TTL_MS = 30 * 60_000;
+// Inscriptions par adresse IP et par heure (une classe ou une entreprise s'inscrit souvent depuis le même réseau)
+const REGISTER_PER_HOUR = 30;
 const LOGIN_MAX_FAILURES = 5;
 const LOGIN_LOCK_MS = 15 * 60_000;
 const ROLES = new Set(['Particulier', 'Étudiant', 'Professionnel', 'Entreprise']);
@@ -444,7 +446,7 @@ const routes = {
   },
 
   'POST /api/auth/register': async ({ req, res, body, ip, trustProxy }) => {
-    rateLimit(`register:${ip}`, 10, 60 * 60_000);
+    rateLimit(`register:${ip}`, REGISTER_PER_HOUR, 60 * 60_000);
     const name = str(body.name, { min: 2, max: 60, field: 'Nom' });
     const mail = email(body.email);
     const plain = password(body.password, { name, mail });
