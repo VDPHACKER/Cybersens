@@ -289,6 +289,20 @@ const adminHash = () =>
     );
 const sessionToken = (req) => parseCookies(req.headers.cookie)[SESSION_COOKIE] || '';
 
+// Diagnostic sans jamais révéler le secret complet : longueur, séparateurs présents, début/fin masqués.
+// Utile pour comparer la valeur reçue par le serveur à celle que l'on croit avoir collée dans l'hébergeur.
+const hashDiagnostic = () => {
+  const raw = process.env.ADMIN_PASSWORD_HASH || '';
+  if (!raw) return 'variable absente (vide ou non définie)';
+  const mask = (s) => (s.length <= 16 ? s : `${s.slice(0, 8)}…${s.slice(-6)}`);
+  return (
+    `longueur reçue : ${raw.length} caractères | ` +
+    `contient « $ » : ${raw.includes('$') ? 'oui' : 'non'} | ` +
+    `contient « : » : ${raw.includes(':') ? 'oui' : 'non'} | ` +
+    `aperçu (début…fin) : ${mask(raw)}`
+  );
+};
+
 /** Administrateur connecté (compte listé dans ADMIN_EMAILS) : accès à l'écran de déverrouillage uniquement. */
 const requireAdminAccount = async (req) => {
   if (adminEmails().length === 0) throw new HttpError(404, 'Route inconnue');
@@ -298,7 +312,8 @@ const requireAdminAccount = async (req) => {
   if (!ADMIN_HASH_FORMAT.test(adminHash()))
     throw new HttpError(
       503,
-      'Le mot de passe administrateur n’est pas configuré : la variable ADMIN_PASSWORD_HASH est absente ou invalide sur le serveur.',
+      'Le mot de passe administrateur n’est pas configuré : la variable ADMIN_PASSWORD_HASH ' +
+        `est absente ou invalide sur le serveur. Diagnostic : ${hashDiagnostic()}`,
     );
   return user;
 };

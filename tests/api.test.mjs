@@ -515,7 +515,25 @@ test('mot de passe administrateur : verrou par session, configuration obligatoir
   const invalid = await unlock('x');
   assert.equal(invalid.status, 503, 'une empreinte invalide désactive l’espace admin');
   assert.match(invalid.data.error, /ADMIN_PASSWORD_HASH/, 'message précis pour l’administrateur');
+  assert.match(
+    invalid.data.error,
+    /longueur reçue : 24 caractères/,
+    'diagnostic : longueur exacte',
+  );
+  assert.match(invalid.data.error, /contient « \$ » : non/, 'diagnostic : absence de $ signalée');
+  assert.doesNotMatch(
+    invalid.data.error,
+    /pas-une-empreinte-valide/,
+    'le diagnostic ne révèle jamais la valeur complète',
+  );
+
   delete process.env.ADMIN_PASSWORD_HASH;
+  const absent = await unlock(ADMIN_PASSWORD);
+  assert.match(
+    absent.data.error,
+    /variable absente/,
+    'diagnostic distinct quand la variable est vide',
+  );
   assert.equal((await call('GET', '/api/devops/status')).status, 503);
 
   // Espaces, retour à la ligne et guillemets autour de l'empreinte (erreur de copier-coller) sont tolérés
