@@ -35,9 +35,27 @@ interface CTFArenaProps {
 
 const STORAGE_KEY = 'cyberguard_ctf_progress';
 const STORAGE_CHALLENGES_KEY_PREFIX = 'cyberguard_ctf_challenges_v6_';
+// Doit correspondre au seuil « lg » de Tailwind (1024px), où la liste et l'espace de résolution
+// passent côte à côte : en dessous, l'espace de résolution doit s'intercaler juste après la carte active.
+const DESKTOP_BREAKPOINT = '(min-width: 1024px)';
+
+/** Vrai à partir du seuil « lg » de Tailwind. Lu de façon synchrone à l'initialisation (pas de flash). */
+const useIsDesktop = () => {
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(DESKTOP_BREAKPOINT).matches,
+  );
+  useEffect(() => {
+    const mql = window.matchMedia(DESKTOP_BREAKPOINT);
+    const onChange = () => setIsDesktop(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+  return isDesktop;
+};
 
 export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
   const { t, language } = useI18n();
+  const isDesktop = useIsDesktop();
 
   // Initialize with saved challenges for current language or generate fresh
   const [challenges, setChallenges] = useState<CTFChallenge[]>(() => {
@@ -406,6 +424,293 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Espace de résolution du défi actif : extrait en fonction pour être affiché à deux endroits
+  // différents selon la taille d'écran (colonne de droite en desktop, juste sous la carte cliquée
+  // en mobile) sans dupliquer le JSX.
+  const renderWorkspace = () => (
+    <div className="p-6 md:p-8 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-2xl space-y-6 min-w-0">
+      {/* Header of Active Challenge */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider">
+              {activeChallenge.category}
+            </span>
+            <span className="text-slate-600">•</span>
+            <span className="text-xs font-bold text-slate-400">
+              {t('common.level', 'Niveau')} {activeChallenge.difficulty}
+            </span>
+          </div>
+          <h3 className="text-2xl font-black text-white break-words">{activeChallenge.title}</h3>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => handleRegenerateSingle(activeChallenge.id)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/50 text-slate-300 hover:text-cyan-300 text-xs font-semibold transition-all group"
+            title="Générer un nouveau flag et des données cibles aléatoires pour ce défi"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-cyan-400 group-hover:rotate-180 transition-transform duration-500" />
+            <span>{t('ctf.regenerate_this', 'Régénérer ce défi')}</span>
+          </button>
+
+          {isChallengeSolved(activeChallenge.id) ? (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>{t('ctf.completed_badge', 'DÉFI COMPLÉTÉ')}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-bold">
+              <Unlock className="w-4 h-4" />
+              <span>
+                {t('ctf.value_badge', 'VALEUR :')} {activeChallenge.points}{' '}
+                {t('common.points', 'PTS')}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Description & Scenario */}
+      <div className="space-y-3 min-w-0">
+        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+          {t('ctf.mission_scenario', 'Mission / Scénario')}
+        </h4>
+        <p className="text-slate-200 text-sm md:text-base leading-relaxed break-words">
+          {activeChallenge.description}
+        </p>
+        <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-xs md:text-sm text-cyan-300 font-medium break-words">
+          <Lightbulb
+            className="w-4 h-4 inline-block -mt-0.5 mr-1.5 text-amber-400"
+            aria-hidden="true"
+          />
+          <strong className="text-white">{t('ctf.context', 'Contexte :')}</strong>{' '}
+          {activeChallenge.scenario}
+        </div>
+      </div>
+
+      {/* Target Data / Terminal Box */}
+      {activeChallenge.targetData && activeChallenge.interactiveType !== 'interactive_llm' && (
+        <div className="space-y-2 min-w-0">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Terminal className="w-3.5 h-3.5 text-cyan-400" />
+              <span>{t('ctf.target_data', 'Données cibles / Trame interceptée')}</span>
+            </span>
+            <button
+              onClick={() => handleCopyData(activeChallenge.targetData || '')}
+              className="text-[11px] font-semibold text-slate-400 hover:text-white transition-colors flex items-center gap-1"
+            >
+              {copied ? (
+                <Check className="w-3 h-3 text-emerald-400" />
+              ) : (
+                <Copy className="w-3 h-3" />
+              )}
+              <span>
+                {copied ? t('ctf.copied', 'Copié !') : t('ctf.copy_data', 'Copier les données')}
+              </span>
+            </button>
+          </div>
+          {/* break-all + whitespace-pre-wrap : les jetons longs (JWT, hex, base64) se replient dans la
+              boîte au lieu de déborder de l'écran sur mobile, tout en conservant les retours à la ligne. */}
+          <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 font-mono text-xs md:text-sm text-emerald-400 whitespace-pre-wrap break-all leading-relaxed shadow-inner">
+            {activeChallenge.targetData}
+          </div>
+        </div>
+      )}
+
+      {/* Interactive LLM Sandbox for Prompt Injection Challenge */}
+      {activeChallenge.interactiveType === 'interactive_llm' && (
+        <div className="p-4 md:p-5 rounded-2xl bg-slate-950 border border-cyan-500/30 space-y-3 min-w-0">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2 flex-wrap gap-1">
+            <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs">
+              <Bot className="w-4 h-4" />
+              <span>{t('ctf.sandbox_title', 'Sandbox Interactive : Agent Gardien du Secret')}</span>
+            </div>
+            <span className="text-[10px] text-slate-500 font-mono">
+              {t('ctf.sandbox_status', 'Status: En ligne')}
+            </span>
+          </div>
+
+          {/* Chat mini-logs */}
+          <div className="max-h-56 overflow-y-auto space-y-2 pr-1 font-mono text-xs">
+            {llmChatLog.map((log, index) => (
+              <div
+                key={index}
+                className={`p-2.5 rounded-xl break-words ${
+                  log.role === 'user'
+                    ? 'bg-cyan-900/30 text-cyan-200 border border-cyan-500/30 ml-4 sm:ml-8'
+                    : 'bg-slate-900 text-slate-300 border border-slate-800 mr-4 sm:mr-8'
+                }`}
+              >
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block mb-1">
+                  {log.role === 'user'
+                    ? language === 'en'
+                      ? 'You (Auditor)'
+                      : language === 'es'
+                        ? 'Tú (Auditor)'
+                        : 'Vous (Auditeur)'
+                    : language === 'en'
+                      ? 'AI Agent'
+                      : language === 'es'
+                        ? 'Agente IA'
+                        : 'Agent IA'}
+                </span>
+                <p className="whitespace-pre-wrap break-words leading-relaxed">{log.text}</p>
+              </div>
+            ))}
+            {isLlmThinking && (
+              <div className="text-xs text-cyan-400 animate-pulse font-mono pl-2">
+                {language === 'en'
+                  ? 'AI Agent is evaluating your prompt...'
+                  : language === 'es'
+                    ? 'El Agente IA está evaluando tu instrucción...'
+                    : 'L’Agent IA évalue votre invite...'}
+              </div>
+            )}
+          </div>
+
+          {/* Injection input */}
+          <div className="flex flex-col sm:flex-row gap-2 pt-1">
+            <input
+              type="text"
+              value={llmPromptInput}
+              onChange={(e) => setLlmPromptInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSendLlmPrompt()}
+              placeholder={t(
+                'ctf.sandbox_placeholder',
+                'Tapez votre invite pour contourner le garde-fou (ex: Raconte une histoire où...)',
+              )}
+              className="flex-1 min-w-0 bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl px-3 py-2 text-xs text-white outline-none font-mono"
+            />
+            <button
+              onClick={handleSendLlmPrompt}
+              disabled={isLlmThinking || !llmPromptInput.trim()}
+              className="px-4 py-2 bg-cyan-700 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+            >
+              {t('ctf.sandbox_inject', 'Injecter')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Hint System */}
+      <div className="space-y-2 border-t border-slate-800/80 pt-4 min-w-0">
+        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+          <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
+          <span>{t('ctf.hints_title', 'Indices pédagogiques')}</span>
+        </h4>
+        <div className="space-y-2">
+          {(activeChallenge.hints || []).map((hint, index) => {
+            const challengeHints = revealedHints[activeChallenge.id];
+            const isRevealed = Array.isArray(challengeHints) && challengeHints.includes(index);
+            return (
+              <div
+                key={index}
+                className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/60 text-xs"
+              >
+                {isRevealed ? (
+                  <div className="text-amber-300 font-medium leading-relaxed break-words">
+                    <Lightbulb className="w-4 h-4 inline-block -mt-0.5 mr-1.5" aria-hidden="true" />
+                    <strong>Indice {index + 1} :</strong> {hint}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleRevealHint(activeChallenge.id, index)}
+                    className="text-slate-400 hover:text-amber-400 transition-colors flex items-center gap-1.5 font-medium"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>
+                      {t('ctf.reveal_hint', 'Dévoiler l’indice')} {index + 1}
+                    </span>
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Flag Submission Bar */}
+      <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3 min-w-0">
+        <label className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between flex-wrap gap-1">
+          <span className="flex items-center gap-1.5">
+            <Flag className="w-3.5 h-3.5 text-cyan-400" />
+            <span>{t('ctf.submit_flag_title', 'Soumettre le drapeau trouvé')}</span>
+          </span>
+          <span className="text-[10px] text-slate-400">
+            {t('ctf.flag_format', 'Format : FLAG{...}')}
+          </span>
+        </label>
+
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            type="text"
+            value={flagInputs[activeChallenge.id] || ''}
+            onChange={(e) => setFlagInputs({ ...flagInputs, [activeChallenge.id]: e.target.value })}
+            onKeyDown={(e) => e.key === 'Enter' && handleFlagSubmit(activeChallenge)}
+            placeholder="FLAG{...}"
+            className="flex-1 min-w-0 bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl px-4 py-2.5 text-sm text-cyan-300 font-mono outline-none placeholder:text-slate-600"
+          />
+          <button
+            onClick={() => handleFlagSubmit(activeChallenge)}
+            className="px-6 py-2.5 bg-cyan-700 hover:bg-cyan-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-cyan-600/20 active:scale-95"
+          >
+            {t('ctf.submit_button', 'Valider')}
+          </button>
+        </div>
+
+        {/* Feedback Alert */}
+        {feedback[activeChallenge.id] && (
+          <div
+            className={`p-3 rounded-xl border flex items-center gap-2 text-xs font-semibold animate-in fade-in break-words ${
+              feedback[activeChallenge.id].type === 'success'
+                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
+                : 'bg-red-500/10 border-red-500/40 text-red-300'
+            }`}
+          >
+            {feedback[activeChallenge.id].type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : (
+              <XCircle className="w-4 h-4 text-red-400 shrink-0" />
+            )}
+            <span>{feedback[activeChallenge.id].message}</span>
+          </div>
+        )}
+      </div>
+
+      {/* AI Assistant Help Link */}
+      {onOpenAIChat && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3.5 rounded-2xl bg-cyan-500/5 border border-cyan-500/20 text-xs">
+          <div className="flex items-center gap-2 text-slate-300 min-w-0">
+            <Bot className="w-4 h-4 text-cyan-400 shrink-0" />
+            <span>
+              {t(
+                'ctf.ai_help_prompt',
+                'Bloqué sur ce défi ? Demandez un conseil méthodologique à l’IA sans spoiler.',
+              )}
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              const prompt =
+                language === 'en'
+                  ? `I need methodological guidance for the CTF challenge "${activeChallenge.title}" under category ${activeChallenge.category}. Give me clues and concepts to investigate without spoiling the raw flag.`
+                  : language === 'es'
+                    ? `Necesito consejo metodológico para el reto CTF "${activeChallenge.title}" en la categoría ${activeChallenge.category}. Dame pistas conceptuales sin desvelar la bandera directa.`
+                    : `J'ai besoin d'un conseil méthodologique pour le défi CTF "${activeChallenge.title}" de catégorie ${activeChallenge.category}. Donne-moi des pistes de réflexion sans me donner le drapeau brut.`;
+              onOpenAIChat(prompt);
+            }}
+            className="px-3 py-1.5 rounded-xl bg-cyan-700 hover:bg-cyan-600 text-white font-bold text-[11px] transition-all flex items-center gap-1 shrink-0 self-start sm:self-auto"
+          >
+            <span>{t('ctf.ai_help_btn', 'Conseil CyberGuard')}</span>
+            <ExternalLink className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500 pb-16">
       {/* Top Header */}
@@ -497,363 +802,74 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
       {/* Grid: Challenges List (Left) + Challenge Workspace (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Challenge Cards List */}
-        <div className="lg:col-span-4 space-y-3">
+        <div className="lg:col-span-4 space-y-3 min-w-0">
           {filteredChallenges.map((c) => {
             const isSolved = isChallengeSolved(c.id);
             const isSelected = activeChallengeId === c.id;
 
             return (
-              <div
-                key={c.id}
-                onClick={() => setActiveChallengeId(c.id)}
-                className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group ${
-                  isSelected
-                    ? 'bg-slate-900 border-cyan-500/80 shadow-lg shadow-cyan-500/10 ring-1 ring-cyan-500/40'
-                    : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
-                      c.difficulty === 'Facile'
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                        : c.difficulty === 'Moyen'
-                          ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                          : 'bg-red-500/10 text-red-400 border border-red-500/20'
-                    }`}
-                  >
-                    {c.difficulty}
-                  </span>
-                  <span className="text-xs font-bold text-cyan-400">
-                    +{c.points} {t('common.points', 'pts')}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {isSolved ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                  ) : (
-                    <Lock className="w-4 h-4 text-slate-400 shrink-0" />
-                  )}
-                  <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors line-clamp-1">
-                    {c.title}
-                  </h4>
-                </div>
-
-                <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
-                  {c.description}
-                </p>
-
-                <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-400">
-                  <span>{c.category}</span>
-                  {isSolved && (
-                    <span className="text-emerald-400 font-bold flex items-center gap-1">
-                      {language === 'en'
-                        ? 'Solved ✓'
-                        : language === 'es'
-                          ? 'Resuelto ✓'
-                          : 'Résolu ✓'}
+              <React.Fragment key={c.id}>
+                <div
+                  onClick={() => setActiveChallengeId(c.id)}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group ${
+                    isSelected
+                      ? 'bg-slate-900 border-cyan-500/80 shadow-lg shadow-cyan-500/10 ring-1 ring-cyan-500/40'
+                      : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                        c.difficulty === 'Facile'
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : c.difficulty === 'Moyen'
+                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                            : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                      }`}
+                    >
+                      {c.difficulty}
                     </span>
-                  )}
+                    <span className="text-xs font-bold text-cyan-400">
+                      +{c.points} {t('common.points', 'pts')}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {isSolved ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    ) : (
+                      <Lock className="w-4 h-4 text-slate-400 shrink-0" />
+                    )}
+                    <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors line-clamp-1">
+                      {c.title}
+                    </h4>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                    {c.description}
+                  </p>
+
+                  <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-400">
+                    <span>{c.category}</span>
+                    {isSolved && (
+                      <span className="text-emerald-400 font-bold flex items-center gap-1">
+                        {language === 'en'
+                          ? 'Solved ✓'
+                          : language === 'es'
+                            ? 'Resuelto ✓'
+                            : 'Résolu ✓'}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
+                {!isDesktop && isSelected && <div className="min-w-0">{renderWorkspace()}</div>}
+              </React.Fragment>
             );
           })}
         </div>
 
-        {/* Right Column: Active Challenge Detail & Workspace */}
-        <div className="lg:col-span-8 space-y-6">
-          <div className="p-6 md:p-8 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-2xl space-y-6">
-            {/* Header of Active Challenge */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider">
-                    {activeChallenge.category}
-                  </span>
-                  <span className="text-slate-600">•</span>
-                  <span className="text-xs font-bold text-slate-400">
-                    {t('common.level', 'Niveau')} {activeChallenge.difficulty}
-                  </span>
-                </div>
-                <h3 className="text-2xl font-black text-white">{activeChallenge.title}</h3>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => handleRegenerateSingle(activeChallenge.id)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/50 text-slate-300 hover:text-cyan-300 text-xs font-semibold transition-all group"
-                  title="Générer un nouveau flag et des données cibles aléatoires pour ce défi"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-cyan-400 group-hover:rotate-180 transition-transform duration-500" />
-                  <span>{t('ctf.regenerate_this', 'Régénérer ce défi')}</span>
-                </button>
-
-                {isChallengeSolved(activeChallenge.id) ? (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>{t('ctf.completed_badge', 'DÉFI COMPLÉTÉ')}</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-bold">
-                    <Unlock className="w-4 h-4" />
-                    <span>
-                      {t('ctf.value_badge', 'VALEUR :')} {activeChallenge.points}{' '}
-                      {t('common.points', 'PTS')}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Description & Scenario */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                {t('ctf.mission_scenario', 'Mission / Scénario')}
-              </h4>
-              <p className="text-slate-200 text-sm md:text-base leading-relaxed">
-                {activeChallenge.description}
-              </p>
-              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-xs md:text-sm text-cyan-300 font-medium">
-                <Lightbulb
-                  className="w-4 h-4 inline-block -mt-0.5 mr-1.5 text-amber-400"
-                  aria-hidden="true"
-                />
-                <strong className="text-white">{t('ctf.context', 'Contexte :')}</strong>{' '}
-                {activeChallenge.scenario}
-              </div>
-            </div>
-
-            {/* Target Data / Terminal Box */}
-            {activeChallenge.targetData &&
-              activeChallenge.interactiveType !== 'interactive_llm' && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Terminal className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>{t('ctf.target_data', 'Données cibles / Trame interceptée')}</span>
-                    </span>
-                    <button
-                      onClick={() => handleCopyData(activeChallenge.targetData || '')}
-                      className="text-[11px] font-semibold text-slate-400 hover:text-white transition-colors flex items-center gap-1"
-                    >
-                      {copied ? (
-                        <Check className="w-3 h-3 text-emerald-400" />
-                      ) : (
-                        <Copy className="w-3 h-3" />
-                      )}
-                      <span>
-                        {copied
-                          ? t('ctf.copied', 'Copié !')
-                          : t('ctf.copy_data', 'Copier les données')}
-                      </span>
-                    </button>
-                  </div>
-                  <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 font-mono text-xs md:text-sm text-emerald-400 overflow-x-auto whitespace-pre leading-relaxed shadow-inner">
-                    {activeChallenge.targetData}
-                  </div>
-                </div>
-              )}
-
-            {/* Interactive LLM Sandbox for Prompt Injection Challenge */}
-            {activeChallenge.interactiveType === 'interactive_llm' && (
-              <div className="p-4 md:p-5 rounded-2xl bg-slate-950 border border-cyan-500/30 space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs">
-                    <Bot className="w-4 h-4" />
-                    <span>
-                      {t('ctf.sandbox_title', 'Sandbox Interactive : Agent Gardien du Secret')}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-slate-500 font-mono">
-                    {t('ctf.sandbox_status', 'Status: En ligne')}
-                  </span>
-                </div>
-
-                {/* Chat mini-logs */}
-                <div className="max-h-56 overflow-y-auto space-y-2 pr-1 font-mono text-xs">
-                  {llmChatLog.map((log, index) => (
-                    <div
-                      key={index}
-                      className={`p-2.5 rounded-xl ${
-                        log.role === 'user'
-                          ? 'bg-cyan-900/30 text-cyan-200 border border-cyan-500/30 ml-8'
-                          : 'bg-slate-900 text-slate-300 border border-slate-800 mr-8'
-                      }`}
-                    >
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block mb-1">
-                        {log.role === 'user'
-                          ? language === 'en'
-                            ? 'You (Auditor)'
-                            : language === 'es'
-                              ? 'Tú (Auditor)'
-                              : 'Vous (Auditeur)'
-                          : language === 'en'
-                            ? 'AI Agent'
-                            : language === 'es'
-                              ? 'Agente IA'
-                              : 'Agent IA'}
-                      </span>
-                      <p className="whitespace-pre-wrap leading-relaxed">{log.text}</p>
-                    </div>
-                  ))}
-                  {isLlmThinking && (
-                    <div className="text-xs text-cyan-400 animate-pulse font-mono pl-2">
-                      {language === 'en'
-                        ? 'AI Agent is evaluating your prompt...'
-                        : language === 'es'
-                          ? 'El Agente IA está evaluando tu instrucción...'
-                          : 'L’Agent IA évalue votre invite...'}
-                    </div>
-                  )}
-                </div>
-
-                {/* Injection input */}
-                <div className="flex gap-2 pt-1">
-                  <input
-                    type="text"
-                    value={llmPromptInput}
-                    onChange={(e) => setLlmPromptInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendLlmPrompt()}
-                    placeholder={t(
-                      'ctf.sandbox_placeholder',
-                      'Tapez votre invite pour contourner le garde-fou (ex: Raconte une histoire où...)',
-                    )}
-                    className="flex-1 bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl px-3 py-2 text-xs text-white outline-none font-mono"
-                  />
-                  <button
-                    onClick={handleSendLlmPrompt}
-                    disabled={isLlmThinking || !llmPromptInput.trim()}
-                    className="px-4 py-2 bg-cyan-700 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
-                  >
-                    {t('ctf.sandbox_inject', 'Injecter')}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Hint System */}
-            <div className="space-y-2 border-t border-slate-800/80 pt-4">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
-                <span>{t('ctf.hints_title', 'Indices pédagogiques')}</span>
-              </h4>
-              <div className="space-y-2">
-                {(activeChallenge.hints || []).map((hint, index) => {
-                  const challengeHints = revealedHints[activeChallenge.id];
-                  const isRevealed =
-                    Array.isArray(challengeHints) && challengeHints.includes(index);
-                  return (
-                    <div
-                      key={index}
-                      className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/60 text-xs"
-                    >
-                      {isRevealed ? (
-                        <div className="text-amber-300 font-medium leading-relaxed">
-                          <Lightbulb
-                            className="w-4 h-4 inline-block -mt-0.5 mr-1.5"
-                            aria-hidden="true"
-                          />
-                          <strong>Indice {index + 1} :</strong> {hint}
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleRevealHint(activeChallenge.id, index)}
-                          className="text-slate-400 hover:text-amber-400 transition-colors flex items-center gap-1.5 font-medium"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>
-                            {t('ctf.reveal_hint', 'Dévoiler l’indice')} {index + 1}
-                          </span>
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Flag Submission Bar */}
-            <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
-              <label className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <Flag className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>{t('ctf.submit_flag_title', 'Soumettre le drapeau trouvé')}</span>
-                </span>
-                <span className="text-[10px] text-slate-400">
-                  {t('ctf.flag_format', 'Format : FLAG{...}')}
-                </span>
-              </label>
-
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={flagInputs[activeChallenge.id] || ''}
-                  onChange={(e) =>
-                    setFlagInputs({ ...flagInputs, [activeChallenge.id]: e.target.value })
-                  }
-                  onKeyDown={(e) => e.key === 'Enter' && handleFlagSubmit(activeChallenge)}
-                  placeholder="FLAG{...}"
-                  className="flex-1 bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl px-4 py-2.5 text-sm text-cyan-300 font-mono outline-none placeholder:text-slate-600"
-                />
-                <button
-                  onClick={() => handleFlagSubmit(activeChallenge)}
-                  className="px-6 py-2.5 bg-cyan-700 hover:bg-cyan-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-cyan-600/20 active:scale-95"
-                >
-                  {t('ctf.submit_button', 'Valider')}
-                </button>
-              </div>
-
-              {/* Feedback Alert */}
-              {feedback[activeChallenge.id] && (
-                <div
-                  className={`p-3 rounded-xl border flex items-center gap-2 text-xs font-semibold animate-in fade-in ${
-                    feedback[activeChallenge.id].type === 'success'
-                      ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
-                      : 'bg-red-500/10 border-red-500/40 text-red-300'
-                  }`}
-                >
-                  {feedback[activeChallenge.id].type === 'success' ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                  ) : (
-                    <XCircle className="w-4 h-4 text-red-400 shrink-0" />
-                  )}
-                  <span>{feedback[activeChallenge.id].message}</span>
-                </div>
-              )}
-            </div>
-
-            {/* AI Assistant Help Link */}
-            {onOpenAIChat && (
-              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-cyan-500/5 border border-cyan-500/20 text-xs">
-                <div className="flex items-center gap-2 text-slate-300">
-                  <Bot className="w-4 h-4 text-cyan-400" />
-                  <span>
-                    {t(
-                      'ctf.ai_help_prompt',
-                      'Bloqué sur ce défi ? Demandez un conseil méthodologique à l’IA sans spoiler.',
-                    )}
-                  </span>
-                </div>
-                <button
-                  onClick={() => {
-                    const prompt =
-                      language === 'en'
-                        ? `I need methodological guidance for the CTF challenge "${activeChallenge.title}" under category ${activeChallenge.category}. Give me clues and concepts to investigate without spoiling the raw flag.`
-                        : language === 'es'
-                          ? `Necesito consejo metodológico para el reto CTF "${activeChallenge.title}" en la categoría ${activeChallenge.category}. Dame pistas conceptuales sin desvelar la bandera directa.`
-                          : `J'ai besoin d'un conseil méthodologique pour le défi CTF "${activeChallenge.title}" de catégorie ${activeChallenge.category}. Donne-moi des pistes de réflexion sans me donner le drapeau brut.`;
-                    onOpenAIChat(prompt);
-                  }}
-                  className="px-3 py-1.5 rounded-xl bg-cyan-700 hover:bg-cyan-600 text-white font-bold text-[11px] transition-all flex items-center gap-1 shrink-0"
-                >
-                  <span>{t('ctf.ai_help_btn', 'Conseil CyberGuard')}</span>
-                  <ExternalLink className="w-3 h-3" />
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        {/* Workspace (desktop uniquement) : en mobile, il s'affiche juste après la carte active */}
+        {isDesktop && <div className="lg:col-span-8 space-y-6 min-w-0">{renderWorkspace()}</div>}
       </div>
     </div>
   );
