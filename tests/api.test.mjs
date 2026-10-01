@@ -400,6 +400,60 @@ test('administration DevOps : réservée aux administrateurs déclarés', async 
   delete process.env.ADMIN_EMAILS;
 });
 
+test('administrateur : réinitialise le mot de passe d’un membre depuis le Centre DevOps', async () => {
+  // Comptes créés par les tests précédents (la limite d'inscriptions par IP empêche d'en créer d'autres)
+  const MEMBER = 'sans-cgu@test.bf';
+  const ADMIN = 'boss@test.bf';
+  process.env.ADMIN_EMAILS = ADMIN;
+
+  const asMember = await call('POST', '/api/auth/login', { email: MEMBER, password: PASSWORD });
+  assert.equal(asMember.status, 200);
+  const memberId = asMember.data.user.id;
+
+  // Un membre ordinaire ne peut pas réinitialiser les mots de passe
+  assert.equal(
+    (await call('POST', '/api/admin/users/reset-password', { userId: memberId })).status,
+    403,
+  );
+  await call('POST', '/api/auth/logout');
+
+  const asAdmin = await call('POST', '/api/auth/login', { email: ADMIN, password: PASSWORD });
+  assert.equal(asAdmin.status, 200);
+  const reset = await call('POST', '/api/admin/users/reset-password', { userId: memberId });
+  assert.equal(reset.status, 200);
+  assert.equal(reset.data.email, MEMBER);
+  assert.ok(reset.data.temporaryPassword.length >= 12);
+
+  // Un administrateur ne peut pas être réinitialisé par cette route ; un membre inconnu non plus
+  assert.equal(
+    (await call('POST', '/api/admin/users/reset-password', { userId: asAdmin.data.user.id }))
+      .status,
+    400,
+  );
+  assert.equal(
+    (await call('POST', '/api/admin/users/reset-password', { userId: 999999 })).status,
+    404,
+  );
+  await call('POST', '/api/auth/logout');
+
+  // Ancien mot de passe refusé, temporaire accepté
+  assert.equal(
+    (await call('POST', '/api/auth/login', { email: MEMBER, password: PASSWORD })).status,
+    401,
+  );
+  assert.equal(
+    (
+      await call('POST', '/api/auth/login', {
+        email: MEMBER,
+        password: reset.data.temporaryPassword,
+      })
+    ).status,
+    200,
+  );
+  await call('POST', '/api/auth/logout');
+  delete process.env.ADMIN_EMAILS;
+});
+
 test('relais Gemini : quota par compte, pas partagé entre utilisateurs', async () => {
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) =>

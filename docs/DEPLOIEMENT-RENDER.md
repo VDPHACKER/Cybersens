@@ -64,6 +64,8 @@ Puis sur le site : s'inscrire (case des conditions obligatoire), se déconnecter
   SELECT id, email, name, role, points, created_at, terms_accepted_at FROM users ORDER BY id DESC;
   ```
 
+- **Mot de passe oublié** : sans service d'e-mail, le membre contacte l'administrateur, qui clique sur **Réinitialiser le mot de passe** dans la liste des membres du Centre DevOps. Un mot de passe temporaire s'affiche une seule fois (les sessions du membre sont fermées) ; il suffit de le lui transmettre. Les comptes administrateurs se réinitialisent depuis votre PC : `DATABASE_URL` dans `.env.local` puis `npm run admin:reset-password -- <e-mail>`. L'envoi automatique par e-mail est optionnel (variables `BREVO_API_KEY` ou `RESEND_API_KEY`, `MAIL_FROM`, `PUBLIC_URL`).
+
 Les mots de passe sont hachés (scrypt) : personne ne peut les lire, administrateur compris.
 
 ## 5. Ce qu'il faut savoir sur l'offre gratuite

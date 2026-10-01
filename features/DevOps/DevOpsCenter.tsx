@@ -59,6 +59,10 @@ export const DevOpsCenter: React.FC = () => {
   const { t, language } = useI18n();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [userFilter, setUserFilter] = useState('');
+  const [confirmResetId, setConfirmResetId] = useState<number | null>(null);
+  const [tempPassword, setTempPassword] = useState<{ email: string; password: string } | null>(
+    null,
+  );
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [denied, setDenied] = useState(false);
@@ -81,6 +85,21 @@ export const DevOpsCenter: React.FC = () => {
       setUsers(data.users);
     } catch {
       setUsers([]);
+    }
+  };
+
+  const resetMemberPassword = async (userId: number) => {
+    setConfirmResetId(null);
+    setMessage(null);
+    try {
+      const res = await api<{ email: string; temporaryPassword: string }>(
+        'POST',
+        '/api/admin/users/reset-password',
+        { userId },
+      );
+      setTempPassword({ email: res.email, password: res.temporaryPassword });
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Réinitialisation impossible.', type: 'error' });
     }
   };
 
@@ -387,6 +406,25 @@ export const DevOpsCenter: React.FC = () => {
             </button>
           </div>
         </div>
+        {tempPassword && (
+          <div
+            role="status"
+            className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-xs text-amber-900 dark:text-amber-200 space-y-2"
+          >
+            <p>
+              Mot de passe temporaire pour <strong>{tempPassword.email}</strong> (affiché une seule
+              fois, toutes ses sessions sont fermées). Transmettez-le par un canal sûr et demandez à
+              la personne de le changer dès la connexion.
+            </p>
+            <p className="font-mono text-base font-black select-all">{tempPassword.password}</p>
+            <button
+              onClick={() => setTempPassword(null)}
+              className="px-3 py-1.5 rounded-lg bg-amber-600 text-white font-bold"
+            >
+              J’ai noté le mot de passe
+            </button>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="text-slate-500 dark:text-slate-400">
@@ -401,6 +439,7 @@ export const DevOpsCenter: React.FC = () => {
                   'Inscrit le',
                   'Dernière connexion',
                   'CGU',
+                  '',
                 ].map((h) => (
                   <th key={h} className="py-2 pr-3 font-bold whitespace-nowrap">
                     {h}
@@ -424,11 +463,36 @@ export const DevOpsCenter: React.FC = () => {
                   <td className="py-2 pr-3 whitespace-nowrap">
                     {u.termsAcceptedAt ? u.termsAcceptedAt.slice(0, 10) : '—'}
                   </td>
+                  <td className="py-2 pr-3 whitespace-nowrap">
+                    {confirmResetId === u.id ? (
+                      <span className="flex gap-1">
+                        <button
+                          onClick={() => resetMemberPassword(u.id)}
+                          className="px-2 py-1 rounded-lg bg-rose-600 text-white font-bold"
+                        >
+                          Confirmer
+                        </button>
+                        <button
+                          onClick={() => setConfirmResetId(null)}
+                          className="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600"
+                        >
+                          Annuler
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmResetId(u.id)}
+                        className="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600 font-bold hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        Réinitialiser le mot de passe
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {filteredUsers.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="py-4 text-center text-slate-500">
+                  <td colSpan={10} className="py-4 text-center text-slate-500">
                     Aucun membre.
                   </td>
                 </tr>

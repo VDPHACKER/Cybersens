@@ -10,6 +10,7 @@ import { getNews } from './news.mjs';
 import { answerRoom, createRoom, joinRoom, leaveRoom, openStream, startRoom } from './rooms.mjs';
 import { verifyGoogleIdToken } from './google.mjs';
 import { mailConfigured, publicUrl, sendMail } from './mail.mjs';
+import { resetUserPassword } from './accountTools.mjs';
 
 // ---------- Paramètres ----------
 // Firebase Hosting ne transmet à Cloud Run que le cookie nommé « __session » : SESSION_COOKIE_NAME=__session
@@ -1119,6 +1120,23 @@ const routes = {
       termsVersion: u.terms_version,
     }));
     send(res, 200, { total: users.length, users });
+  },
+
+  // Mot de passe oublié sans e-mail : l'administrateur génère un mot de passe temporaire (affiché une seule fois),
+  // toutes les sessions du membre sont fermées. Les comptes administrateurs sont exclus (réinitialisation en ligne de commande).
+  'POST /api/admin/users/reset-password': async ({ req, res, body }) => {
+    const admin = await requireAdmin(req);
+    rateLimit(`admin-reset:${admin.id}`, 20, 60 * 60_000);
+    const id = int(body.userId, 1, Number.MAX_SAFE_INTEGER, 'Membre');
+    const target = await db.prepare('SELECT id, email FROM users WHERE id = ?').get(id);
+    if (!target) throw new HttpError(404, 'Membre introuvable');
+    if (isAdmin(target))
+      throw new HttpError(
+        400,
+        'Le mot de passe d’un administrateur se réinitialise en ligne de commande (npm run admin:reset-password).',
+      );
+    const temporaryPassword = await resetUserPassword(target.email, `admin:${admin.id}`);
+    send(res, 200, { email: target.email, temporaryPassword });
   },
 
   // Sauvegarde téléchargeable (JSON). Contient les empreintes de mots de passe : à conserver comme un secret.

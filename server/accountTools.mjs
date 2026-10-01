@@ -13,7 +13,7 @@ export const generateTemporaryPassword = (length = 16) =>
  * Remplace le mot de passe d'un compte par un mot de passe temporaire, ferme toutes ses sessions
  * et lève le verrouillage. Retourne le mot de passe temporaire, ou null si le compte n'existe pas.
  */
-export const resetUserPassword = async (emailInput) => {
+export const resetUserPassword = async (emailInput, source = 'cli') => {
   const email = String(emailInput || '')
     .trim()
     .toLowerCase();
@@ -26,6 +26,6 @@ export const resetUserPassword = async (emailInput) => {
   await db.prepare('DELETE FROM login_attempts WHERE key = ?').run(`login:${email}`);
   await db
     .prepare('INSERT INTO security_log (user_id, event, ip) VALUES (?, ?, ?)')
-    .run(user.id, 'password_reset_by_operator', 'cli');
+    .run(user.id, 'password_reset_by_operator', source);
   return temporary;
 };
