@@ -6,13 +6,38 @@
     <title>CyberSens - Sensibiliser • Protéger • Agir</title>
     <meta
       name="description"
-      content="Plateforme interactive de sensibilisation à la cybersécurité. Apprenez simplement, adoptez les bons réflexes et protégez votre communauté."
+      content="Plateforme interactive de sensibilisation à la cybersécurité : 12 modules de formation, quiz, arène CTF, mini-jeux, certificats vérifiables et assistant IA. Gratuit, en français, anglais et espagnol."
     />
+    <!-- Domaine actuel du site (hébergement gratuit Render). À mettre à jour ici, dans og:url et dans
+         public/sitemap.xml si un nom de domaine personnalisé est ajouté un jour. -->
+    <link rel="canonical" href="https://cybersens.onrender.com/" />
+    <meta name="robots" content="index, follow" />
+    <meta name="author" content="VDPHACKER" />
+
+    <!-- Open Graph (aperçu sur les réseaux sociaux et messageries) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="CyberSens" />
+    <meta property="og:locale" content="fr_FR" />
+    <meta property="og:url" content="https://cybersens.onrender.com/" />
     <meta property="og:title" content="CyberSens - Sensibiliser • Protéger • Agir" />
     <meta
       property="og:description"
-      content="Plateforme interactive de sensibilisation à la cybersécurité. Apprenez simplement, adoptez les bons réflexes et protégez votre communauté."
+      content="Plateforme interactive de sensibilisation à la cybersécurité : 12 modules de formation, quiz, arène CTF, mini-jeux, certificats vérifiables et assistant IA. Gratuit, en français, anglais et espagnol."
     />
+    <meta property="og:image" content="https://cybersens.onrender.com/pwa-512x512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+
+    <!-- Twitter / X : carte "summary" (image carrée). Passer à "summary_large_image" si une bannière
+         1200x630 est ajoutée un jour. -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="CyberSens - Sensibiliser • Protéger • Agir" />
+    <meta
+      name="twitter:description"
+      content="Plateforme interactive de sensibilisation à la cybersécurité : formations, quiz, arène CTF et assistant IA."
+    />
+    <meta name="twitter:image" content="https://cybersens.onrender.com/pwa-512x512.png" />
+
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
@@ -22,6 +47,34 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="CyberSens" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
+
+    <!-- Données structurées (schema.org) : aide les moteurs de recherche à identifier l'éditeur et le
+         site. Pas de type "EducationalOrganization" ni de note/avis : les certificats ne sont pas des
+         diplômes officiels (voir les conditions d'utilisation) et il n'existe pas de système d'avis. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://cybersens.onrender.com/#organization",
+            "name": "CyberSens",
+            "url": "https://cybersens.onrender.com/",
+            "logo": "https://cybersens.onrender.com/pwa-512x512.png",
+            "founder": { "@type": "Person", "name": "VDPHACKER" }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://cybersens.onrender.com/#website",
+            "url": "https://cybersens.onrender.com/",
+            "name": "CyberSens",
+            "description": "Plateforme interactive de sensibilisation à la cybersécurité : formations, quiz, arène CTF, mini-jeux, certificats vérifiables et assistant IA.",
+            "publisher": { "@id": "https://cybersens.onrender.com/#organization" },
+            "inLanguage": ["fr", "en", "es"]
+          }
+        ]
+      }
+    </script>
   </head>
   <body class="mesh-bg min-h-screen overflow-x-hidden">
     <div id="root"></div>

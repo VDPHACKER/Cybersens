@@ -1,0 +1,6 @@
+# CyberSens : l'API et le Centre DevOps ne sont pas destinés à l'indexation.
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://cybersens.onrender.com/sitemap.xml

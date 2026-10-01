@@ -6,3 +6,6 @@ backup-avant-allongement
 package-lock.json
 bun.lock
 dev-dist
+# Prettier n'a pas de parseur pour ces formats sans plugin supplémentaire
+public/robots.txt
+public/sitemap.xml
