@@ -11,6 +11,7 @@ import { answerRoom, createRoom, joinRoom, leaveRoom, openStream, startRoom } fr
 import { verifyGoogleIdToken } from './google.mjs';
 import { mailConfigured, publicUrl, sendMail } from './mail.mjs';
 import { resetUserPassword } from './accountTools.mjs';
+import { clientIp } from './clientIp.mjs';
 
 // ---------- Paramètres ----------
 // Firebase Hosting ne transmet à Cloud Run que le cookie nommé « __session » : SESSION_COOKIE_NAME=__session
@@ -117,14 +118,6 @@ const parseCookies = (header = '') =>
       .filter(([k, v]) => k && v)
       .map(([k, v]) => [k, decodeURIComponent(v)]),
   );
-
-const clientIp = (req, trustProxy) =>
-  (trustProxy &&
-    String(req.headers['x-forwarded-for'] || '')
-      .split(',')[0]
-      .trim()) ||
-  req.socket.remoteAddress ||
-  'inconnu';
 
 const isHttps = (req, trustProxy) =>
   req.socket.encrypted || (trustProxy && req.headers['x-forwarded-proto'] === 'https');

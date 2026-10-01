@@ -2,6 +2,7 @@
 // Utilisé par le serveur de développement Vite (vite.config.ts) et par le serveur de production (server/index.mjs).
 
 import { checkOrigin } from './csrf.mjs';
+import { clientIp } from './clientIp.mjs';
 
 const UPSTREAM = 'https://generativelanguage.googleapis.com';
 export const PROXY_PREFIX = '/api/gemini';
@@ -124,16 +125,8 @@ export const handleGeminiProxy = async (
   if (!apiKey || apiKey.includes('PLACEHOLDER'))
     return (sendJson(res, 503, 'Assistant IA non configuré sur le serveur'), true);
 
-  // Derrière un reverse-proxy, remoteAddress est celle du proxy : le quota ne doit pas être partagé par tous
-  const forwarded = trustProxy
-    ? String(req.headers['x-forwarded-for'] || '')
-        .split(',')[0]
-        .trim()
-    : '';
   const rateKey =
-    typeof auth === 'object' && auth?.id != null
-      ? `user:${auth.id}`
-      : forwarded || req.socket.remoteAddress || 'inconnu';
+    typeof auth === 'object' && auth?.id != null ? `user:${auth.id}` : clientIp(req, trustProxy);
   if (isRateLimited(rateKey))
     return (sendJson(res, 429, 'Trop de requêtes, réessayez dans une minute'), true);
 
