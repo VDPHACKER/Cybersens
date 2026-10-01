@@ -135,6 +135,11 @@ const rateLimit = (key, max, windowMs) => {
   if (++b.count > max) throw new HttpError(429, 'Trop de requêtes, réessayez plus tard');
 };
 
+/** Réservé aux tests : remet à zéro les limites de débit dont la clé commence par ce préfixe. */
+export const resetRateLimits = (prefix) => {
+  for (const key of buckets.keys()) if (key.startsWith(prefix)) buckets.delete(key);
+};
+
 // ---------- Validation ----------
 const str = (v, { min = 0, max = 200, field = 'champ' } = {}) => {
   if (typeof v !== 'string') throw new HttpError(400, `${field} invalide`);
@@ -271,15 +276,17 @@ const adminEmails = () =>
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 const isAdmin = (user) => adminEmails().includes(user.email.toLowerCase());
-// Identifiants administrateur : l'e-mail de ADMIN_EMAILS et le mot de passe dont l'empreinte scrypt est dans
-// ADMIN_PASSWORD_HASH (voir npm run admin:hash-password). Le mot de passe n'est jamais stocké en clair.
-// Sans empreinte valide, toutes les routes d'administration sont désactivées (404).
+
+// Mot de passe administrateur : second verrou, distinct du mot de passe du compte.
+// Stocké haché (scrypt) dans la table meta, défini depuis le Centre DevOps (bouton « Définir » la première
+// fois) — jamais dans une variable d'environnement, pour éviter les soucis de copier-coller côté hébergeur.
+// ADMIN_PASSWORD_HASH reste accepté en complément (prioritaire) pour qui préfère le configurer par variable
+// d'environnement (format npm run admin:hash-password) ; la plupart des sites n'en ont pas besoin.
 const ADMIN_UNLOCK_MS = 30 * 60_000;
 const ADMIN_HASH_FORMAT = /^scrypt\$\d+\$\d+\$\d+\$[0-9a-f]+\$[0-9a-f]+$/;
-// Tolère les espaces, retours à la ligne et guillemets ajoutés par erreur autour de la valeur.
-// Le séparateur « : » est accepté à la place de « $ » : certains champs de saisie (variables d'environnement)
-// interprètent « $ » comme une variable et suppriment une partie de la valeur.
-const adminHash = () =>
+const ADMIN_HASH_META_KEY = 'admin_password_hash';
+
+const envAdminHash = () =>
   (process.env.ADMIN_PASSWORD_HASH || '')
     .trim()
     .replace(/^["']+|["']+$/g, '')
@@ -287,34 +294,26 @@ const adminHash = () =>
       /^scrypt:(\d+):(\d+):(\d+):([0-9a-f]+):([0-9a-f]+)$/,
       (_, ...p) => 'scrypt$' + p.slice(0, 5).join('$'),
     );
-const sessionToken = (req) => parseCookies(req.headers.cookie)[SESSION_COOKIE] || '';
 
-// Diagnostic sans jamais révéler le secret complet : longueur, séparateurs présents, début/fin masqués.
-// Utile pour comparer la valeur reçue par le serveur à celle que l'on croit avoir collée dans l'hébergeur.
-const hashDiagnostic = () => {
-  const raw = process.env.ADMIN_PASSWORD_HASH || '';
-  if (!raw) return 'variable absente (vide ou non définie)';
-  const mask = (s) => (s.length <= 16 ? s : `${s.slice(0, 8)}…${s.slice(-6)}`);
-  return (
-    `longueur reçue : ${raw.length} caractères | ` +
-    `contient « $ » : ${raw.includes('$') ? 'oui' : 'non'} | ` +
-    `contient « : » : ${raw.includes(':') ? 'oui' : 'non'} | ` +
-    `aperçu (début…fin) : ${mask(raw)}`
-  );
+const storedAdminHash = async () =>
+  (await db.prepare('SELECT value FROM meta WHERE key = ?').get(ADMIN_HASH_META_KEY))?.value || '';
+
+/** L'empreinte active : la variable d'environnement si valide, sinon celle définie depuis le site. */
+const getAdminHash = async () => {
+  const env = envAdminHash();
+  return ADMIN_HASH_FORMAT.test(env) ? env : await storedAdminHash();
 };
 
-/** Administrateur connecté (compte listé dans ADMIN_EMAILS) : accès à l'écran de déverrouillage uniquement. */
+const adminPasswordConfigured = async () => ADMIN_HASH_FORMAT.test(await getAdminHash());
+
+const sessionToken = (req) => parseCookies(req.headers.cookie)[SESSION_COOKIE] || '';
+
+/** Administrateur connecté (compte listé dans ADMIN_EMAILS), sans exiger que le mot de passe soit déjà défini :
+ * utilisé par l'écran d'état et de première configuration. */
 const requireAdminAccount = async (req) => {
   if (adminEmails().length === 0) throw new HttpError(404, 'Route inconnue');
   const user = await requireUser(req);
   if (!isAdmin(user)) throw new HttpError(403, 'Accès réservé aux administrateurs');
-  // Message précis, réservé à l'administrateur déjà identifié : la configuration du serveur est à corriger
-  if (!ADMIN_HASH_FORMAT.test(adminHash()))
-    throw new HttpError(
-      503,
-      'Le mot de passe administrateur n’est pas configuré : la variable ADMIN_PASSWORD_HASH ' +
-        `est absente ou invalide sur le serveur. Diagnostic : ${hashDiagnostic()}`,
-    );
   return user;
 };
 
@@ -325,9 +324,19 @@ const isUnlocked = async (req) => {
   return Boolean(row?.admin_unlocked_until && row.admin_unlocked_until > new Date().toISOString());
 };
 
-/** Routes d'administration : compte administrateur ET mot de passe administrateur saisi dans cette session. */
+const unlockSession = (req) =>
+  db
+    .prepare('UPDATE sessions SET admin_unlocked_until = ? WHERE token_hash = ?')
+    .run(new Date(Date.now() + ADMIN_UNLOCK_MS).toISOString(), sha256(sessionToken(req)));
+
+/** Routes d'administration : compte administrateur ET mot de passe administrateur défini et saisi. */
 const requireAdmin = async (req) => {
   const user = await requireAdminAccount(req);
+  if (!(await adminPasswordConfigured()))
+    throw new HttpError(
+      503,
+      'Le mot de passe administrateur n’est pas encore défini. Ouvrez le Centre DevOps pour le configurer.',
+    );
   if (!(await isUnlocked(req))) throw new HttpError(423, 'Mot de passe administrateur requis.');
   return user;
 };
@@ -1143,11 +1152,50 @@ const routes = {
   // Déverrouillage de l'espace administrateur : état, saisie du mot de passe admin, verrouillage
   'GET /api/admin/status': async ({ req, res }) => {
     await requireAdminAccount(req);
-    send(res, 200, { unlocked: await isUnlocked(req) });
+    send(res, 200, {
+      configured: await adminPasswordConfigured(),
+      unlocked: await isUnlocked(req),
+    });
+  },
+
+  // Première configuration : seulement tant qu'aucun mot de passe administrateur n'est encore défini.
+  // Au-delà, passer par /api/admin/change-password (exige l'ancien mot de passe).
+  'POST /api/admin/bootstrap': async ({ req, res, body, trustProxy }) => {
+    const user = await requireAdminAccount(req);
+    if (await adminPasswordConfigured())
+      throw new HttpError(
+        409,
+        'Un mot de passe administrateur est déjà configuré. Utilisez le changement de mot de passe.',
+      );
+    if (typeof body.password !== 'string' || body.password.length < MIN_PASSWORD)
+      throw new HttpError(
+        400,
+        `Le mot de passe administrateur doit contenir au moins ${MIN_PASSWORD} caractères.`,
+      );
+    if (body.password.length > 200)
+      throw new HttpError(
+        400,
+        'Le mot de passe administrateur ne doit pas dépasser 200 caractères.',
+      );
+    const hash = await hashPassword(body.password);
+    await db
+      .prepare(
+        `INSERT INTO meta (key, value) VALUES (?, ?)
+         ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+      )
+      .run(ADMIN_HASH_META_KEY, hash);
+    await unlockSession(req);
+    await logSecurity('admin_password_configured', req, trustProxy, user.id);
+    send(res, 200, { configured: true, unlocked: true, minutes: ADMIN_UNLOCK_MS / 60_000 });
   },
 
   'POST /api/admin/unlock': async ({ req, res, body, ip, trustProxy }) => {
     const user = await requireAdminAccount(req);
+    if (!(await adminPasswordConfigured()))
+      throw new HttpError(
+        503,
+        'Le mot de passe administrateur n’est pas encore défini. Ouvrez le Centre DevOps pour le configurer.',
+      );
     rateLimit(`admin-unlock-ip:${ip}`, 20, 60 * 60_000);
     const key = `admin:${user.id}`; // même mécanisme de blocage que la connexion (5 échecs = 15 min)
     await checkLock(key);
@@ -1161,7 +1209,7 @@ const routes = {
     }
     // Le mot de passe est toujours vérifié (même durée que l'e-mail soit bon ou non), puis l'e-mail doit
     // correspondre au compte connecté : un seul message d'erreur dans les deux cas
-    const passwordOk = await verifyPassword(body.password, adminHash());
+    const passwordOk = await verifyPassword(body.password, await getAdminHash());
     const emailOk = body.email.trim().toLowerCase() === user.email.toLowerCase();
     if (!passwordOk || !emailOk) {
       await recordFailure(key);
@@ -1169,9 +1217,7 @@ const routes = {
       throw new HttpError(403, 'Identifiants administrateur incorrects.');
     }
     await clearFailures(key);
-    await db
-      .prepare('UPDATE sessions SET admin_unlocked_until = ? WHERE token_hash = ?')
-      .run(new Date(Date.now() + ADMIN_UNLOCK_MS).toISOString(), sha256(sessionToken(req)));
+    await unlockSession(req);
     await logSecurity('admin_unlock', req, trustProxy, user.id);
     send(res, 200, { unlocked: true, minutes: ADMIN_UNLOCK_MS / 60_000 });
   },
@@ -1182,6 +1228,35 @@ const routes = {
       .prepare('UPDATE sessions SET admin_unlocked_until = NULL WHERE token_hash = ?')
       .run(sha256(sessionToken(req)));
     send(res, 200, { unlocked: false });
+  },
+
+  // Changement du mot de passe administrateur une fois configuré : exige l'ancien (comme pour un compte).
+  'POST /api/admin/change-password': async ({ req, res, body, trustProxy }) => {
+    const user = await requireAdmin(req); // déjà configuré et déverrouillé
+    if (
+      typeof body.current !== 'string' ||
+      !(await verifyPassword(body.current, await getAdminHash()))
+    )
+      throw new HttpError(403, 'Le mot de passe administrateur actuel est incorrect.');
+    if (typeof body.next !== 'string' || body.next.length < MIN_PASSWORD)
+      throw new HttpError(
+        400,
+        `Le nouveau mot de passe administrateur doit contenir au moins ${MIN_PASSWORD} caractères.`,
+      );
+    if (body.next.length > 200)
+      throw new HttpError(
+        400,
+        'Le mot de passe administrateur ne doit pas dépasser 200 caractères.',
+      );
+    const hash = await hashPassword(body.next);
+    await db
+      .prepare(
+        `INSERT INTO meta (key, value) VALUES (?, ?)
+         ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+      )
+      .run(ADMIN_HASH_META_KEY, hash);
+    await logSecurity('admin_password_changed', req, trustProxy, user.id);
+    send(res, 200, { ok: true });
   },
 
   // Liste des membres (administrateurs uniquement) : jamais de hash de mot de passe ni de jeton

@@ -69,13 +69,19 @@ export const DevOpsCenter: React.FC = () => {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [denied, setDenied] = useState(false);
-  const [deniedReason, setDeniedReason] = useState('');
-  // null : vérification en cours ; false : mot de passe administrateur requis ; true : espace déverrouillé
-  const [unlocked, setUnlocked] = useState<boolean | null>(null);
+  // null : vérification en cours ; false : mot de passe jamais défini (première configuration) ; true : défini
+  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [unlocked, setUnlocked] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
+  const [adminPasswordConfirm, setAdminPasswordConfirm] = useState('');
   const [unlockError, setUnlockError] = useState('');
   const [unlocking, setUnlocking] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwNext, setPwNext] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [pwSaving, setPwSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Efface de l'écran toutes les données personnelles et redemande le mot de passe administrateur
@@ -86,6 +92,7 @@ export const DevOpsCenter: React.FC = () => {
     setTempPassword(null);
     setConfirmResetId(null);
     setMessage(null);
+    setShowChangePassword(false);
   };
   const isLockedError = (err: unknown) => err instanceof ApiError && err.status === 423;
 
@@ -177,14 +184,14 @@ export const DevOpsCenter: React.FC = () => {
   );
 
   useEffect(() => {
-    api<{ unlocked: boolean }>('GET', '/api/admin/status')
-      .then((res) => setUnlocked(res.unlocked))
+    api<{ configured: boolean; unlocked: boolean }>('GET', '/api/admin/status')
+      .then((res) => {
+        setConfigured(res.configured);
+        setUnlocked(res.unlocked);
+      })
       .catch((err) => {
-        if (err instanceof ApiError && [401, 403, 404, 503].includes(err.status)) {
-          // 503 : configuration du serveur incomplète, message précis réservé à l'administrateur
-          if (err.status === 503) setDeniedReason(err.message);
-          setDenied(true);
-        } else setUnlocked(false);
+        if (err instanceof ApiError && [401, 403, 404].includes(err.status)) setDenied(true);
+        else setConfigured(false);
       });
   }, []);
 
@@ -209,6 +216,51 @@ export const DevOpsCenter: React.FC = () => {
       setUnlockError(err.message || 'Déverrouillage impossible.');
     } finally {
       setUnlocking(false);
+    }
+  };
+
+  // Première configuration : définit le mot de passe administrateur (stocké haché dans la base), puis déverrouille
+  const handleBootstrap = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUnlockError('');
+    if (adminPassword !== adminPasswordConfirm) {
+      setUnlockError('Les deux mots de passe ne correspondent pas.');
+      return;
+    }
+    setUnlocking(true);
+    try {
+      await api('POST', '/api/admin/bootstrap', { password: adminPassword });
+      setAdminPassword('');
+      setAdminPasswordConfirm('');
+      setConfigured(true);
+      setUnlocked(true);
+    } catch (err: any) {
+      setUnlockError(err.message || 'Configuration impossible.');
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMessage(null);
+    if (pwNext !== pwConfirm) {
+      setMessage({ text: 'Les deux nouveaux mots de passe ne correspondent pas.', type: 'error' });
+      return;
+    }
+    setPwSaving(true);
+    try {
+      await api('POST', '/api/admin/change-password', { current: pwCurrent, next: pwNext });
+      setPwCurrent('');
+      setPwNext('');
+      setPwConfirm('');
+      setShowChangePassword(false);
+      setMessage({ text: 'Mot de passe administrateur modifié.', type: 'success' });
+    } catch (err: any) {
+      if (isLockedError(err)) return lockUi();
+      setMessage({ text: err.message || 'Modification impossible.', type: 'error' });
+    } finally {
+      setPwSaving(false);
     }
   };
 
@@ -276,20 +328,81 @@ export const DevOpsCenter: React.FC = () => {
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
           Le Centre DevOps n'est disponible que pour les comptes déclarés dans la variable
-          ADMIN_EMAILS du serveur, lorsque l'empreinte du mot de passe administrateur
-          (ADMIN_PASSWORD_HASH) est configurée.
+          ADMIN_EMAILS du serveur.
         </p>
-        {deniedReason && (
-          <p className="text-sm font-bold text-rose-600 dark:text-rose-400">{deniedReason}</p>
-        )}
       </div>
     );
   }
 
-  if (unlocked === null) {
+  if (configured === null) {
     return (
       <div className="flex justify-center py-24" role="status" aria-label="Chargement">
         <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+      </div>
+    );
+  }
+
+  // Première ouverture : aucun mot de passe administrateur n'a encore été défini
+  if (!configured) {
+    return (
+      <div className="max-w-sm mx-auto px-4 py-16 space-y-5">
+        <div className="text-center space-y-2">
+          <Lock className="w-12 h-12 mx-auto text-slate-400" aria-hidden="true" />
+          <h1 className="text-xl font-black text-slate-900 dark:text-white">
+            Définir le mot de passe administrateur
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Première ouverture du Centre DevOps : choisissez un mot de passe administrateur,
+            différent de celui de votre compte. Il sera demandé à chaque session (30 minutes),
+            jamais stocké en clair.
+          </p>
+        </div>
+        <form onSubmit={handleBootstrap} className="space-y-3" noValidate>
+          <input
+            type="password"
+            autoComplete="new-password"
+            placeholder="Nouveau mot de passe administrateur"
+            value={adminPassword}
+            onChange={(e) => setAdminPassword(e.target.value)}
+            minLength={12}
+            maxLength={200}
+            required
+            autoFocus
+            className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500"
+          />
+          <input
+            type="password"
+            autoComplete="new-password"
+            placeholder="Confirmer le mot de passe"
+            value={adminPasswordConfirm}
+            onChange={(e) => setAdminPasswordConfirm(e.target.value)}
+            minLength={12}
+            maxLength={200}
+            required
+            className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500"
+          />
+          {unlockError && (
+            <p
+              role="alert"
+              className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/50 text-xs text-rose-800 dark:text-rose-200"
+            >
+              {unlockError}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={unlocking || adminPassword.length < 12 || !adminPasswordConfirm}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-sky-700 hover:bg-sky-600 disabled:opacity-60 text-white text-sm font-black"
+          >
+            {unlocking ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Lock className="w-4 h-4" />
+            )}
+            Définir le mot de passe
+          </button>
+        </form>
+        <p className="text-[11px] text-center text-slate-400">12 caractères minimum.</p>
       </div>
     );
   }
@@ -379,6 +492,13 @@ export const DevOpsCenter: React.FC = () => {
 
         <div className="self-start sm:self-auto flex gap-2">
           <button
+            onClick={() => setShowChangePassword((v) => !v)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-xs font-black hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>Changer le mot de passe</span>
+          </button>
+          <button
             onClick={handleLock}
             className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-xs font-black hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
           >
@@ -395,6 +515,58 @@ export const DevOpsCenter: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {showChangePassword && (
+        <form
+          onSubmit={handleChangePassword}
+          className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-3"
+        >
+          <h2 className="text-sm font-black text-slate-900 dark:text-white">
+            Changer le mot de passe administrateur
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <input
+              type="password"
+              autoComplete="off"
+              placeholder="Mot de passe actuel"
+              value={pwCurrent}
+              onChange={(e) => setPwCurrent(e.target.value)}
+              maxLength={200}
+              required
+              className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+            />
+            <input
+              type="password"
+              autoComplete="new-password"
+              placeholder="Nouveau mot de passe"
+              value={pwNext}
+              onChange={(e) => setPwNext(e.target.value)}
+              minLength={12}
+              maxLength={200}
+              required
+              className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+            />
+            <input
+              type="password"
+              autoComplete="new-password"
+              placeholder="Confirmer le nouveau"
+              value={pwConfirm}
+              onChange={(e) => setPwConfirm(e.target.value)}
+              minLength={12}
+              maxLength={200}
+              required
+              className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={pwSaving || !pwCurrent || pwNext.length < 12 || !pwConfirm}
+            className="px-4 py-2 rounded-xl bg-slate-900 dark:bg-sky-500 text-white dark:text-slate-950 text-xs font-black disabled:opacity-50"
+          >
+            {pwSaving ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </form>
+      )}
 
       {message && (
         <div

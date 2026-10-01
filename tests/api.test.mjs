@@ -11,10 +11,10 @@ import { Readable } from 'node:stream';
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cybersens-test-'));
 process.env.DB_PATH = path.join(tmpDir, 'pglite');
 
-const { handleApi, getSessionUser } = await import('../server/api.mjs');
+const { handleApi, getSessionUser, resetRateLimits } = await import('../server/api.mjs');
 const { handleGeminiProxy } = await import('../server/geminiProxy.mjs');
 const { checkOrigin } = await import('../server/csrf.mjs');
-const { closeDb } = await import('../server/db.mjs');
+const { closeDb, db } = await import('../server/db.mjs');
 const { COMPREHENSIVE_COURSE_MODULES } = await import('../services/coursesData.ts');
 
 let server;
@@ -381,7 +381,10 @@ test('administration DevOps : réservée aux administrateurs déclarés', async 
   assert.equal((await call('GET', '/api/devops/backup')).status, 423);
   assert.equal((await call('POST', '/api/devops/exec', { action: 'vacuum' })).status, 423);
   assert.equal((await call('POST', '/api/admin/users/reset-password', { userId: 1 })).status, 423);
-  assert.deepEqual((await call('GET', '/api/admin/status')).data, { unlocked: false });
+  assert.deepEqual((await call('GET', '/api/admin/status')).data, {
+    configured: true,
+    unlocked: false,
+  });
   assert.equal(
     (
       await call('POST', '/api/admin/unlock', {
@@ -396,7 +399,10 @@ test('administration DevOps : réservée aux administrateurs déclarés', async 
       .status,
     200,
   );
-  assert.deepEqual((await call('GET', '/api/admin/status')).data, { unlocked: true });
+  assert.deepEqual((await call('GET', '/api/admin/status')).data, {
+    configured: true,
+    unlocked: true,
+  });
   const status = await call('GET', '/api/devops/status');
   assert.equal(status.status, 200);
   assert.ok(status.data.stats.users >= 2);
@@ -509,31 +515,28 @@ test('mot de passe administrateur : verrou par session, configuration obligatoir
   assert.equal((await unlock(ADMIN_PASSWORD)).status, 200);
   assert.equal((await call('GET', '/api/admin/users')).status, 200);
 
-  // Sans mot de passe administrateur configuré (ou trop court), tout est désactivé, même pour un administrateur
-  process.env.ADMIN_PASSWORD_HASH = 'pas-une-empreinte-valide';
+  // Sans mot de passe administrateur configuré (ni variable d'environnement, ni défini depuis le site),
+  // tout est désactivé, même pour un administrateur
+  process.env.ADMIN_PASSWORD_HASH = 'pas-une-empreinte-valide'; // ignorée : mauvais format
   assert.equal((await call('GET', '/api/admin/users')).status, 503);
   const invalid = await unlock('x');
   assert.equal(invalid.status, 503, 'une empreinte invalide désactive l’espace admin');
-  assert.match(invalid.data.error, /ADMIN_PASSWORD_HASH/, 'message précis pour l’administrateur');
   assert.match(
     invalid.data.error,
-    /longueur reçue : 24 caractères/,
-    'diagnostic : longueur exacte',
+    /pas encore défini/,
+    'message qui renvoie vers le Centre DevOps',
   );
-  assert.match(invalid.data.error, /contient « \$ » : non/, 'diagnostic : absence de $ signalée');
   assert.doesNotMatch(
     invalid.data.error,
     /pas-une-empreinte-valide/,
-    'le diagnostic ne révèle jamais la valeur complète',
+    'le message ne révèle jamais la valeur de la variable',
   );
+  assert.deepEqual((await call('GET', '/api/admin/status')).data, {
+    configured: false,
+    unlocked: true, // la session reste déverrouillée (effet de bord mineur) ; les données restent 503
+  });
 
   delete process.env.ADMIN_PASSWORD_HASH;
-  const absent = await unlock(ADMIN_PASSWORD);
-  assert.match(
-    absent.data.error,
-    /variable absente/,
-    'diagnostic distinct quand la variable est vide',
-  );
   assert.equal((await call('GET', '/api/devops/status')).status, 503);
 
   // Espaces, retour à la ligne et guillemets autour de l'empreinte (erreur de copier-coller) sont tolérés
@@ -579,6 +582,112 @@ test('mot de passe administrateur : verrou par session, configuration obligatoir
   await call('POST', '/api/auth/logout');
   delete process.env.ADMIN_EMAILS;
   delete process.env.ADMIN_PASSWORD_HASH;
+});
+
+test('mot de passe administrateur : première configuration depuis le Centre DevOps (sans variable d’environnement)', async () => {
+  resetRateLimits('admin-unlock-ip:'); // budget frais : les tests précédents ont déjà sollicité /api/admin/unlock
+  process.env.ADMIN_EMAILS = 'boss@test.bf';
+  delete process.env.ADMIN_PASSWORD_HASH;
+  await db.prepare("DELETE FROM meta WHERE key = 'admin_password_hash'").run();
+  await call('POST', '/api/auth/logout');
+  const bossLogin = await call('POST', '/api/auth/login', {
+    email: 'boss@test.bf',
+    password: PASSWORD,
+  });
+  // Le test précédent se termine volontairement sur un blocage (5 échecs) de ce même compte
+  // (checkLock/recordFailure préfixent toujours la clé par « login: », y compris pour l'admin)
+  await db
+    .prepare('DELETE FROM login_attempts WHERE key = ?')
+    .run(`login:admin:${bossLogin.data.user.id}`);
+
+  // Avant toute configuration : ni le déverrouillage ni les données ne fonctionnent, l'état le dit clairement
+  assert.deepEqual((await call('GET', '/api/admin/status')).data, {
+    configured: false,
+    unlocked: false,
+  });
+  assert.equal(
+    (await call('POST', '/api/admin/unlock', { email: 'boss@test.bf', password: 'x' })).status,
+    503,
+  );
+
+  // Un membre ordinaire (compte absent de ADMIN_EMAILS) ne peut pas définir le mot de passe administrateur,
+  // même en connaissant la route
+  process.env.ADMIN_EMAILS = 'autre-admin@test.bf';
+  assert.equal(
+    (await call('POST', '/api/admin/bootstrap', { password: 'peu-importe-12345' })).status,
+    403,
+  );
+  process.env.ADMIN_EMAILS = 'boss@test.bf';
+
+  // Mot de passe trop court refusé
+  assert.equal((await call('POST', '/api/admin/bootstrap', { password: 'court' })).status, 400);
+
+  // Première configuration : déverrouille immédiatement la session en cours
+  const NEW_ADMIN_PASSWORD = 'premiere-config-admin-123';
+  const boot = await call('POST', '/api/admin/bootstrap', { password: NEW_ADMIN_PASSWORD });
+  assert.equal(boot.status, 200);
+  assert.deepEqual(boot.data, { configured: true, unlocked: true, minutes: 30 });
+  assert.deepEqual((await call('GET', '/api/admin/status')).data, {
+    configured: true,
+    unlocked: true,
+  });
+  assert.equal((await call('GET', '/api/admin/users')).status, 200);
+
+  // Une deuxième tentative de première configuration est refusée (déjà configuré)
+  assert.equal(
+    (await call('POST', '/api/admin/bootstrap', { password: 'un-autre-mot-de-passe-12' })).status,
+    409,
+  );
+
+  // Changer le mot de passe : exige l'ancien
+  assert.equal(
+    (
+      await call('POST', '/api/admin/change-password', {
+        current: 'faux',
+        next: 'peu-importe-12345',
+      })
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await call('POST', '/api/admin/change-password', {
+        current: NEW_ADMIN_PASSWORD,
+        next: 'trop-court',
+      })
+    ).status,
+    400,
+  );
+  const CHANGED = 'nouveau-mot-de-passe-admin-9';
+  assert.equal(
+    (
+      await call('POST', '/api/admin/change-password', {
+        current: NEW_ADMIN_PASSWORD,
+        next: CHANGED,
+      })
+    ).status,
+    200,
+  );
+
+  // L'ancien mot de passe administrateur ne fonctionne plus, le nouveau oui
+  await call('POST', '/api/admin/lock', {});
+  assert.equal(
+    (
+      await call('POST', '/api/admin/unlock', {
+        email: 'boss@test.bf',
+        password: NEW_ADMIN_PASSWORD,
+      })
+    ).status,
+    403,
+  );
+  assert.equal(
+    (await call('POST', '/api/admin/unlock', { email: 'boss@test.bf', password: CHANGED })).status,
+    200,
+  );
+
+  await call('POST', '/api/auth/logout');
+  delete process.env.ADMIN_EMAILS;
+  await db.prepare("DELETE FROM meta WHERE key = 'admin_password_hash'").run();
 });
 
 test('relais Gemini : quota par compte, pas partagé entre utilisateurs', async () => {

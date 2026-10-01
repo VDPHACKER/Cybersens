@@ -1,5 +1,6 @@
-// Génère l'empreinte du mot de passe administrateur : node server/hashAdminPassword.mjs "<mot de passe>"
-// Copier la ligne affichée dans la variable d'environnement ADMIN_PASSWORD_HASH du serveur (jamais le mot de passe lui-même).
+// Outil réservé à ceux qui préfèrent configurer le mot de passe administrateur par variable d'environnement
+// plutôt que depuis le Centre DevOps (méthode recommandée : bouton « Définir » à la première ouverture).
+// Usage : node server/hashAdminPassword.mjs "<mot de passe>", puis copier la ligne dans ADMIN_PASSWORD_HASH.
 import { hashPassword } from './passwords.mjs';
 
 const plain = process.argv[2];
