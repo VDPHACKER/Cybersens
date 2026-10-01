@@ -382,7 +382,7 @@ const MessageItem = memo(function MessageItem({
 
       {/* Bubble */}
       <div
-        className={`flex flex-col ${isAssistant ? 'items-start' : 'items-end'} max-w-[88%] md:max-w-[80%]`}
+        className={`flex min-w-0 flex-col ${isAssistant ? 'items-start' : 'items-end'} max-w-[88%] md:max-w-[80%]`}
       >
         <div className="flex items-center gap-2 mb-1.5 px-2">
           <span className="text-[11px] font-semibold tracking-wider uppercase text-slate-400">
@@ -921,7 +921,7 @@ ${messages.map((m) => `[${m.timestamp}] ${m.role === 'assistant' ? 'CYBERGUARD' 
             <div className="w-9 h-9 md:w-11 md:h-11 rounded-2xl flex items-center justify-center bg-slate-900 border border-cyan-500/30 text-cyan-400 shrink-0 shadow-lg">
               <Shield className="w-5 h-5 animate-pulse text-cyan-400" />
             </div>
-            <div className="flex flex-col items-start max-w-[88%] md:max-w-[80%]">
+            <div className="flex min-w-0 flex-col items-start max-w-[88%] md:max-w-[80%]">
               <div className="flex items-center gap-2 mb-1.5 px-2">
                 <span className="text-[11px] font-semibold tracking-wider uppercase text-cyan-400 animate-pulse">
                   CyberGuard IA analyse...
