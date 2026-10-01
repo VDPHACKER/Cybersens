@@ -32,15 +32,16 @@ Les tables sont créées automatiquement au premier démarrage du site.
 3. **Advanced → Health Check Path** : `/api/health`
 4. **Environment Variables** :
 
-   | Variable         | Valeur                                                                       |
-   | ---------------- | ---------------------------------------------------------------------------- |
-   | `DATABASE_URL`   | la chaîne Neon de l'étape 1                                                  |
-   | `TRUST_PROXY`    | `1`                                                                          |
-   | `CERT_SECRET`    | une valeur aléatoire de 64 caractères hexadécimaux. **Ne jamais la changer** |
-   | `GEMINI_API_KEY` | votre clé Gemini (assistant IA)                                              |
-   | `ADMIN_EMAILS`   | `freelence1200@gmail.com` (comptes administrateurs)                          |
-   | `CONTACT_EMAIL`  | `freelence1200@gmail.com` (affiché dans les conditions d'utilisation)        |
-   | `PUBLIC_URL`     | l'adresse `https://….onrender.com` du site (utile pour les e-mails)          |
+   | Variable         | Valeur                                                                                           |
+   | ---------------- | ------------------------------------------------------------------------------------------------ |
+   | `DATABASE_URL`   | la chaîne Neon de l'étape 1                                                                      |
+   | `TRUST_PROXY`    | `1`                                                                                              |
+   | `CERT_SECRET`    | une valeur aléatoire de 64 caractères hexadécimaux. **Ne jamais la changer**                     |
+   | `GEMINI_API_KEY` | votre clé Gemini (assistant IA)                                                                  |
+   | `ADMIN_EMAILS`   | `freelence1200@gmail.com` (comptes administrateurs)                                              |
+   | `ADMIN_PASSWORD` | mot de passe administrateur long (12 caractères minimum), **différent** de celui de votre compte |
+   | `CONTACT_EMAIL`  | `freelence1200@gmail.com` (affiché dans les conditions d'utilisation)                            |
+   | `PUBLIC_URL`     | l'adresse `https://….onrender.com` du site (utile pour les e-mails)                              |
 
    Pour générer `CERT_SECRET` : `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
 
@@ -57,7 +58,7 @@ Puis sur le site : s'inscrire (case des conditions obligatoire), se déconnecter
 
 ## 4. Voir les utilisateurs et les données
 
-- **Dans le site** : inscrivez-vous avec l'e-mail de `ADMIN_EMAILS`. Le **Centre DevOps** apparaît dans le menu : nombre d'inscrits, **liste des membres** (nom, e-mail, profil, points, leçons, certificats, dates d'inscription et de dernière connexion, acceptation des conditions), recherche, export CSV, sauvegarde JSON téléchargeable.
+- **Dans le site** : inscrivez-vous avec l'e-mail de `ADMIN_EMAILS`. Le **Centre DevOps** apparaît dans le menu et demande d'abord le **mot de passe administrateur** (`ADMIN_PASSWORD`), valable 30 minutes ou jusqu'à la déconnexion (bouton **Verrouiller**) ; sans lui, aucune donnée n'est affichée. Ensuite : nombre d'inscrits, **liste des membres** (nom, e-mail, profil, points, leçons, certificats, dates d'inscription et de dernière connexion, acceptation des conditions), recherche, export CSV, sauvegarde JSON téléchargeable.
 - **Dans Neon** : projet → **Tables** (ou **SQL Editor**) : toutes les tables (`users`, `certificates`, `posts`, `security_log`…) se consultent et se modifient. Exemple :
 
   ```sql

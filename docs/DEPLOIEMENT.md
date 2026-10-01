@@ -20,19 +20,20 @@ Ce guide décrit comment mettre CyberSens en ligne (Railway ou serveur Docker), 
 
 Copier `.env.example` vers `.env` (Docker) ou `.env.local` (`npm start`). **Ne jamais versionner ces fichiers.**
 
-| Variable                                                       | Obligatoire | Rôle                                                                                                                                                                   |
-| -------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GEMINI_API_KEY`                                               | Oui         | Clé de l'assistant IA. Reste sur le serveur. Sans elle, l'IA répond « non configurée ».                                                                                |
-| `CERT_SECRET`                                                  | Oui         | Secret de signature des certificats (`openssl rand -hex 32`). **Différent** entre test et production, **jamais modifié** après émission de certificats.                |
-| `TRUST_PROXY`                                                  | Oui (HTTPS) | `1` derrière un reverse-proxy HTTPS : active HSTS, cookies `Secure` et l'IP réelle du client.                                                                          |
-| `ADMIN_EMAILS`                                                 | Conseillé   | E-mails des administrateurs (séparés par des virgules) : Centre DevOps et modération de la Communauté. Vide = désactivés.                                              |
-| `GOOGLE_CLIENT_ID`                                             | Optionnel   | Active « Se connecter avec Google ». ID client OAuth (Google Cloud Console) ; ajouter l'URL du site dans les « origines JavaScript autorisées ». Vide = bouton masqué. |
-| `BREVO_API_KEY` ou `RESEND_API_KEY`, `MAIL_FROM`, `PUBLIC_URL` | Optionnel   | Active « Mot de passe oublié » par e-mail (service Resend). Les trois sont nécessaires. Sinon l'écran renvoie vers l'administrateur.                                   |
-| `PORT`, `HOST`                                                 | Non         | Adresse d'écoute (8080 par défaut).                                                                                                                                    |
-| `DB_PATH`                                                      | Non         | Dossier de la base PGlite (développement ou Docker sans `DATABASE_URL`).                                                                                               |
-| `BACKUP_DIR`                                                   | Non         | Dossier des sauvegardes (`backups/` par défaut).                                                                                                                       |
-| `GEMINI_FALLBACK_MODELS`                                       | Non         | Modèles IA de secours si le principal est surchargé (par défaut `gemini-3.5-flash-lite,gemini-flash-lite-latest`).                                                     |
-| `ACCESS_LOG`                                                   | Non         | `0` pour couper le journal d'accès JSON.                                                                                                                               |
+| Variable                                                       | Obligatoire | Rôle                                                                                                                                                                          |
+| -------------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY`                                               | Oui         | Clé de l'assistant IA. Reste sur le serveur. Sans elle, l'IA répond « non configurée ».                                                                                       |
+| `CERT_SECRET`                                                  | Oui         | Secret de signature des certificats (`openssl rand -hex 32`). **Différent** entre test et production, **jamais modifié** après émission de certificats.                       |
+| `TRUST_PROXY`                                                  | Oui (HTTPS) | `1` derrière un reverse-proxy HTTPS : active HSTS, cookies `Secure` et l'IP réelle du client.                                                                                 |
+| `ADMIN_EMAILS`                                                 | Conseillé   | E-mails des administrateurs (séparés par des virgules) : Centre DevOps et modération de la Communauté. Vide = désactivés.                                                     |
+| `ADMIN_PASSWORD`                                               | Conseillé   | Mot de passe administrateur (12 caractères minimum), saisi dans le Centre DevOps en plus de la connexion. Sans lui, le Centre DevOps et la liste des membres sont désactivés. |
+| `GOOGLE_CLIENT_ID`                                             | Optionnel   | Active « Se connecter avec Google ». ID client OAuth (Google Cloud Console) ; ajouter l'URL du site dans les « origines JavaScript autorisées ». Vide = bouton masqué.        |
+| `BREVO_API_KEY` ou `RESEND_API_KEY`, `MAIL_FROM`, `PUBLIC_URL` | Optionnel   | Active « Mot de passe oublié » par e-mail (service Resend). Les trois sont nécessaires. Sinon l'écran renvoie vers l'administrateur.                                          |
+| `PORT`, `HOST`                                                 | Non         | Adresse d'écoute (8080 par défaut).                                                                                                                                           |
+| `DB_PATH`                                                      | Non         | Dossier de la base PGlite (développement ou Docker sans `DATABASE_URL`).                                                                                                      |
+| `BACKUP_DIR`                                                   | Non         | Dossier des sauvegardes (`backups/` par défaut).                                                                                                                              |
+| `GEMINI_FALLBACK_MODELS`                                       | Non         | Modèles IA de secours si le principal est surchargé (par défaut `gemini-3.5-flash-lite,gemini-flash-lite-latest`).                                                            |
+| `ACCESS_LOG`                                                   | Non         | `0` pour couper le journal d'accès JSON.                                                                                                                                      |
 
 ## 3. Déploiement sur Railway (staging puis production)
 
@@ -63,7 +64,7 @@ Le conteneur tourne sans privilèges (utilisateur non root, système de fichiers
 
 ## 5. Premier lancement et tests de fumée
 
-1. **Créer le compte administrateur** : s'inscrire sur le site avec l'e-mail voulu, puis ajouter cet e-mail dans `ADMIN_EMAILS` et redémarrer. Le Centre DevOps apparaît alors dans le menu.
+1. **Créer le compte administrateur** : s'inscrire sur le site avec l'e-mail voulu, puis ajouter cet e-mail dans `ADMIN_EMAILS` et définir `ADMIN_PASSWORD`, puis redémarrer. Le Centre DevOps apparaît alors dans le menu.
 2. Vérifier, dans l'ordre :
    - [ ] `GET /api/health` répond `{"status":"ok","database":"ok"}`
    - [ ] La page se charge en HTTPS ; les en-têtes contiennent HSTS, CSP et `X-Frame-Options: DENY`

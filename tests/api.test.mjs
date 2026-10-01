@@ -63,6 +63,7 @@ const call = async (method, url, body, { origin, raw, jar = true } = {}) => {
 };
 
 const PASSWORD = 'soleil-riviere-mangue-7';
+const ADMIN_PASSWORD = 'mot-de-passe-admin-test-1';
 const exam = COMPREHENSIVE_COURSE_MODULES[0].examQuestions;
 const goodAnswers = Object.fromEntries(exam.map((q) => [q.id, q.correctAnswer]));
 const wrongAnswers = Object.fromEntries(
@@ -334,6 +335,7 @@ test('inscription : les conditions d’utilisation doivent être acceptées', as
 
 test('administration DevOps : réservée aux administrateurs déclarés', async () => {
   delete process.env.ADMIN_EMAILS;
+  process.env.ADMIN_PASSWORD = ADMIN_PASSWORD;
   await call('POST', '/api/auth/logout');
 
   // Non configurée : routes invisibles, même pour un visiteur anonyme
@@ -366,8 +368,24 @@ test('administration DevOps : réservée aux administrateurs déclarés', async 
   assert.equal((await call('GET', '/api/devops/backup')).status, 403);
   assert.equal((await call('POST', '/api/devops/exec', { action: 'vacuum' })).status, 403);
 
-  // Le même compte, une fois déclaré administrateur, est accepté
+  // Le même compte, une fois déclaré administrateur, doit encore saisir le mot de passe administrateur
   process.env.ADMIN_EMAILS = 'BOSS@test.bf';
+  assert.equal((await call('GET', '/api/devops/status')).status, 423, 'verrouillé par défaut');
+  assert.equal(
+    (await call('GET', '/api/admin/users')).status,
+    423,
+    'liste des membres verrouillée',
+  );
+  assert.equal((await call('GET', '/api/devops/backup')).status, 423);
+  assert.equal((await call('POST', '/api/devops/exec', { action: 'vacuum' })).status, 423);
+  assert.equal((await call('POST', '/api/admin/users/reset-password', { userId: 1 })).status, 423);
+  assert.deepEqual((await call('GET', '/api/admin/status')).data, { unlocked: false });
+  assert.equal(
+    (await call('POST', '/api/admin/unlock', { password: 'mauvais-mot-de-passe' })).status,
+    403,
+  );
+  assert.equal((await call('POST', '/api/admin/unlock', { password: ADMIN_PASSWORD })).status, 200);
+  assert.deepEqual((await call('GET', '/api/admin/status')).data, { unlocked: true });
   const status = await call('GET', '/api/devops/status');
   assert.equal(status.status, 200);
   assert.ok(status.data.stats.users >= 2);
@@ -398,6 +416,7 @@ test('administration DevOps : réservée aux administrateurs déclarés', async 
     /Origine refusée/,
   );
   delete process.env.ADMIN_EMAILS;
+  delete process.env.ADMIN_PASSWORD;
 });
 
 test('administrateur : réinitialise le mot de passe d’un membre depuis le Centre DevOps', async () => {
@@ -405,6 +424,7 @@ test('administrateur : réinitialise le mot de passe d’un membre depuis le Cen
   const MEMBER = 'sans-cgu@test.bf';
   const ADMIN = 'boss@test.bf';
   process.env.ADMIN_EMAILS = ADMIN;
+  process.env.ADMIN_PASSWORD = ADMIN_PASSWORD;
 
   const asMember = await call('POST', '/api/auth/login', { email: MEMBER, password: PASSWORD });
   assert.equal(asMember.status, 200);
@@ -419,6 +439,12 @@ test('administrateur : réinitialise le mot de passe d’un membre depuis le Cen
 
   const asAdmin = await call('POST', '/api/auth/login', { email: ADMIN, password: PASSWORD });
   assert.equal(asAdmin.status, 200);
+  assert.equal(
+    (await call('POST', '/api/admin/users/reset-password', { userId: memberId })).status,
+    423,
+    'mot de passe administrateur requis avant toute réinitialisation',
+  );
+  assert.equal((await call('POST', '/api/admin/unlock', { password: ADMIN_PASSWORD })).status, 200);
   const reset = await call('POST', '/api/admin/users/reset-password', { userId: memberId });
   assert.equal(reset.status, 200);
   assert.equal(reset.data.email, MEMBER);
@@ -452,6 +478,52 @@ test('administrateur : réinitialise le mot de passe d’un membre depuis le Cen
   );
   await call('POST', '/api/auth/logout');
   delete process.env.ADMIN_EMAILS;
+  delete process.env.ADMIN_PASSWORD;
+});
+
+test('mot de passe administrateur : verrou par session, configuration obligatoire, blocage après échecs', async () => {
+  process.env.ADMIN_EMAILS = 'boss@test.bf';
+  process.env.ADMIN_PASSWORD = ADMIN_PASSWORD;
+  const loginBoss = () =>
+    call('POST', '/api/auth/login', { email: 'boss@test.bf', password: PASSWORD });
+  const unlock = (password) => call('POST', '/api/admin/unlock', { password });
+
+  await call('POST', '/api/auth/logout');
+  assert.equal((await loginBoss()).status, 200);
+  assert.equal((await unlock(ADMIN_PASSWORD)).status, 200);
+  assert.equal((await call('GET', '/api/admin/users')).status, 200);
+
+  // Sans mot de passe administrateur configuré (ou trop court), tout est désactivé, même pour un administrateur
+  process.env.ADMIN_PASSWORD = 'court';
+  assert.equal((await call('GET', '/api/admin/users')).status, 404);
+  assert.equal((await unlock('court')).status, 404, 'un mot de passe trop court ne protège rien');
+  delete process.env.ADMIN_PASSWORD;
+  assert.equal((await call('GET', '/api/devops/status')).status, 404);
+  process.env.ADMIN_PASSWORD = ADMIN_PASSWORD;
+
+  // Verrouillage manuel
+  assert.equal((await call('POST', '/api/admin/lock', {})).status, 200);
+  assert.equal((await call('GET', '/api/admin/users')).status, 423);
+
+  // Le déverrouillage appartient à la session : une nouvelle connexion le redemande
+  assert.equal((await unlock(ADMIN_PASSWORD)).status, 200);
+  await call('POST', '/api/auth/logout');
+  assert.equal((await loginBoss()).status, 200);
+  assert.equal((await call('GET', '/api/admin/users')).status, 423);
+
+  // Un membre ordinaire ne peut pas tenter le mot de passe administrateur
+  process.env.ADMIN_EMAILS = 'autre-admin@test.bf';
+  assert.equal((await unlock(ADMIN_PASSWORD)).status, 403);
+  process.env.ADMIN_EMAILS = 'boss@test.bf';
+
+  // Après 5 erreurs, même le bon mot de passe est refusé (blocage temporaire)
+  for (let i = 0; i < 5; i++) assert.equal((await unlock(`faux-${i}`)).status, 403);
+  assert.equal((await unlock(ADMIN_PASSWORD)).status, 429, 'blocage après 5 échecs');
+  assert.equal((await call('GET', '/api/admin/users')).status, 423, 'toujours verrouillé');
+
+  await call('POST', '/api/auth/logout');
+  delete process.env.ADMIN_EMAILS;
+  delete process.env.ADMIN_PASSWORD;
 });
 
 test('relais Gemini : quota par compte, pas partagé entre utilisateurs', async () => {

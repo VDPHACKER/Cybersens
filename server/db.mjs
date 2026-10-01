@@ -145,6 +145,10 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL DEFAULT (${NOW})
   );
   `,
+  // Déverrouillage administrateur (mot de passe admin saisi) : attaché à la session, expire seul
+  `
+  ALTER TABLE sessions ADD COLUMN admin_unlocked_until TEXT;
+  `,
 ];
 
 // ---------- Pilotes ----------

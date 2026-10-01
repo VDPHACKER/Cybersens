@@ -278,10 +278,38 @@ const adminEmails = () =>
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 const isAdmin = (user) => adminEmails().includes(user.email.toLowerCase());
-const requireAdmin = async (req) => {
-  if (adminEmails().length === 0) throw new HttpError(404, 'Route inconnue');
+// Mot de passe administrateur (variable ADMIN_PASSWORD, 12 caractères minimum) : second verrou, distinct du compte.
+// Sans lui, toutes les routes d'administration sont désactivées (404).
+const MIN_ADMIN_PASSWORD = 12;
+const ADMIN_UNLOCK_MS = 30 * 60_000;
+const adminConfigured = () =>
+  adminEmails().length > 0 && (process.env.ADMIN_PASSWORD || '').length >= MIN_ADMIN_PASSWORD;
+const sameSecret = (a, b) =>
+  crypto.timingSafeEqual(
+    crypto.createHash('sha256').update(String(a)).digest(),
+    crypto.createHash('sha256').update(String(b)).digest(),
+  );
+const sessionToken = (req) => parseCookies(req.headers.cookie)[SESSION_COOKIE] || '';
+
+/** Administrateur connecté (compte listé dans ADMIN_EMAILS) : accès à l'écran de déverrouillage uniquement. */
+const requireAdminAccount = async (req) => {
+  if (!adminConfigured()) throw new HttpError(404, 'Route inconnue');
   const user = await requireUser(req);
   if (!isAdmin(user)) throw new HttpError(403, 'Accès réservé aux administrateurs');
+  return user;
+};
+
+const isUnlocked = async (req) => {
+  const row = await db
+    .prepare('SELECT admin_unlocked_until FROM sessions WHERE token_hash = ?')
+    .get(sha256(sessionToken(req)));
+  return Boolean(row?.admin_unlocked_until && row.admin_unlocked_until > new Date().toISOString());
+};
+
+/** Routes d'administration : compte administrateur ET mot de passe administrateur saisi dans cette session. */
+const requireAdmin = async (req) => {
+  const user = await requireAdminAccount(req);
+  if (!(await isUnlocked(req))) throw new HttpError(423, 'Mot de passe administrateur requis.');
   return user;
 };
 
@@ -1091,6 +1119,41 @@ const routes = {
       },
       timestamp: new Date().toISOString(),
     });
+  },
+
+  // Déverrouillage de l'espace administrateur : état, saisie du mot de passe admin, verrouillage
+  'GET /api/admin/status': async ({ req, res }) => {
+    await requireAdminAccount(req);
+    send(res, 200, { unlocked: await isUnlocked(req) });
+  },
+
+  'POST /api/admin/unlock': async ({ req, res, body, ip, trustProxy }) => {
+    const user = await requireAdminAccount(req);
+    rateLimit(`admin-unlock-ip:${ip}`, 20, 60 * 60_000);
+    const key = `admin:${user.id}`; // même mécanisme de blocage que la connexion (5 échecs = 15 min)
+    await checkLock(key);
+    if (typeof body.password !== 'string' || body.password.length > 200) {
+      throw new HttpError(400, 'Mot de passe administrateur invalide.');
+    }
+    if (!sameSecret(body.password, process.env.ADMIN_PASSWORD)) {
+      await recordFailure(key);
+      await logSecurity('admin_unlock_failed', req, trustProxy, user.id);
+      throw new HttpError(403, 'Mot de passe administrateur incorrect.');
+    }
+    await clearFailures(key);
+    await db
+      .prepare('UPDATE sessions SET admin_unlocked_until = ? WHERE token_hash = ?')
+      .run(new Date(Date.now() + ADMIN_UNLOCK_MS).toISOString(), sha256(sessionToken(req)));
+    await logSecurity('admin_unlock', req, trustProxy, user.id);
+    send(res, 200, { unlocked: true, minutes: ADMIN_UNLOCK_MS / 60_000 });
+  },
+
+  'POST /api/admin/lock': async ({ req, res }) => {
+    await requireAdminAccount(req);
+    await db
+      .prepare('UPDATE sessions SET admin_unlocked_until = NULL WHERE token_hash = ?')
+      .run(sha256(sessionToken(req)));
+    send(res, 200, { unlocked: false });
   },
 
   // Liste des membres (administrateurs uniquement) : jamais de hash de mot de passe ni de jeton

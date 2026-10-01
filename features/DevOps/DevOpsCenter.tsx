@@ -11,6 +11,9 @@ import {
   Zap,
   Users,
   Download,
+  Lock,
+  LockOpen,
+  Loader2,
 } from 'lucide-react';
 import { api, ApiError } from '../../services/apiClient';
 import { useI18n } from '../../services/i18n';
@@ -66,7 +69,23 @@ export const DevOpsCenter: React.FC = () => {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [denied, setDenied] = useState(false);
+  // null : vérification en cours ; false : mot de passe administrateur requis ; true : espace déverrouillé
+  const [unlocked, setUnlocked] = useState<boolean | null>(null);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [unlockError, setUnlockError] = useState('');
+  const [unlocking, setUnlocking] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // Efface de l'écran toutes les données personnelles et redemande le mot de passe administrateur
+  const lockUi = () => {
+    setUnlocked(false);
+    setUsers([]);
+    setStatus(null);
+    setTempPassword(null);
+    setConfirmResetId(null);
+    setMessage(null);
+  };
+  const isLockedError = (err: unknown) => err instanceof ApiError && err.status === 423;
 
   const fetchStatus = async () => {
     try {
@@ -75,7 +94,8 @@ export const DevOpsCenter: React.FC = () => {
     } catch (err) {
       // Aucune donnée factice : l'accès est réservé aux administrateurs du serveur
       setStatus(null);
-      if (err instanceof ApiError && [401, 403, 404].includes(err.status)) setDenied(true);
+      if (isLockedError(err)) lockUi();
+      else if (err instanceof ApiError && [401, 403, 404].includes(err.status)) setDenied(true);
     }
   };
 
@@ -83,8 +103,9 @@ export const DevOpsCenter: React.FC = () => {
     try {
       const data = await api<{ users: AdminUser[] }>('GET', '/api/admin/users');
       setUsers(data.users);
-    } catch {
+    } catch (err) {
       setUsers([]);
+      if (isLockedError(err)) lockUi();
     }
   };
 
@@ -99,6 +120,7 @@ export const DevOpsCenter: React.FC = () => {
       );
       setTempPassword({ email: res.email, password: res.temporaryPassword });
     } catch (err: any) {
+      if (isLockedError(err)) return lockUi();
       setMessage({ text: err.message || 'Réinitialisation impossible.', type: 'error' });
     }
   };
@@ -153,11 +175,45 @@ export const DevOpsCenter: React.FC = () => {
   );
 
   useEffect(() => {
+    api<{ unlocked: boolean }>('GET', '/api/admin/status')
+      .then((res) => setUnlocked(res.unlocked))
+      .catch((err) => {
+        if (err instanceof ApiError && [401, 403, 404].includes(err.status)) setDenied(true);
+        else setUnlocked(false);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!unlocked) return;
     fetchStatus();
     fetchUsers();
     const interval = setInterval(fetchStatus, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [unlocked]);
+
+  const handleUnlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUnlocking(true);
+    setUnlockError('');
+    try {
+      await api('POST', '/api/admin/unlock', { password: adminPassword });
+      setAdminPassword('');
+      setUnlocked(true);
+    } catch (err: any) {
+      setUnlockError(err.message || 'Déverrouillage impossible.');
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
+  const handleLock = async () => {
+    try {
+      await api('POST', '/api/admin/lock', {});
+    } catch {
+      // le verrouillage de l'écran a lieu dans tous les cas
+    }
+    lockUi();
+  };
 
   const handleBackup = async () => {
     setLoading(true);
@@ -175,6 +231,7 @@ export const DevOpsCenter: React.FC = () => {
         type: 'success',
       });
     } catch (err: any) {
+      if (isLockedError(err)) return lockUi();
       setMessage({ text: err.message || 'Erreur lors de la sauvegarde.', type: 'error' });
     } finally {
       setLoading(false);
@@ -191,6 +248,7 @@ export const DevOpsCenter: React.FC = () => {
       setMessage({ text: res.message || 'Action exécutée avec succès.', type: 'success' });
       fetchStatus();
     } catch (err: any) {
+      if (isLockedError(err)) return lockUi();
       setMessage({ text: err.message || 'Erreur lors de l’exécution.', type: 'error' });
     } finally {
       setLoading(false);
@@ -212,7 +270,69 @@ export const DevOpsCenter: React.FC = () => {
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
           Le Centre DevOps n'est disponible que pour les comptes déclarés dans la variable
-          ADMIN_EMAILS du serveur.
+          ADMIN_EMAILS du serveur, lorsque le mot de passe administrateur (ADMIN_PASSWORD) est
+          configuré.
+        </p>
+      </div>
+    );
+  }
+
+  if (unlocked === null) {
+    return (
+      <div className="flex justify-center py-24" role="status" aria-label="Chargement">
+        <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+      </div>
+    );
+  }
+
+  if (!unlocked) {
+    return (
+      <div className="max-w-sm mx-auto px-4 py-16 space-y-5">
+        <div className="text-center space-y-2">
+          <Lock className="w-12 h-12 mx-auto text-slate-400" aria-hidden="true" />
+          <h1 className="text-xl font-black text-slate-900 dark:text-white">
+            Espace administrateur
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Saisissez le mot de passe administrateur pour afficher les membres inscrits et les
+            outils d'exploitation.
+          </p>
+        </div>
+        <form onSubmit={handleUnlock} className="space-y-3" noValidate>
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder="Mot de passe administrateur"
+            value={adminPassword}
+            onChange={(e) => setAdminPassword(e.target.value)}
+            maxLength={200}
+            required
+            autoFocus
+            className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500"
+          />
+          {unlockError && (
+            <p
+              role="alert"
+              className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/50 text-xs text-rose-800 dark:text-rose-200"
+            >
+              {unlockError}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={unlocking || !adminPassword}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-sky-700 hover:bg-sky-600 disabled:opacity-60 text-white text-sm font-black"
+          >
+            {unlocking ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <LockOpen className="w-4 h-4" />
+            )}
+            Déverrouiller
+          </button>
+        </form>
+        <p className="text-[11px] text-center text-slate-400">
+          Le déverrouillage dure 30 minutes et prend fin à la déconnexion.
         </p>
       </div>
     );
@@ -238,14 +358,23 @@ export const DevOpsCenter: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={fetchStatus}
-          disabled={loading}
-          className="self-start sm:self-auto flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 dark:bg-sky-500 text-white dark:text-slate-950 text-xs font-black shadow-md hover:scale-105 transition-all"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          <span>Actualiser les métriques</span>
-        </button>
+        <div className="self-start sm:self-auto flex gap-2">
+          <button
+            onClick={handleLock}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-xs font-black hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+          >
+            <Lock className="w-4 h-4" />
+            <span>Verrouiller</span>
+          </button>
+          <button
+            onClick={fetchStatus}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 dark:bg-sky-500 text-white dark:text-slate-950 text-xs font-black shadow-md hover:scale-105 transition-all"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>Actualiser les métriques</span>
+          </button>
+        </div>
       </div>
 
       {message && (
