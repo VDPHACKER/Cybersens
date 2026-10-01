@@ -283,9 +283,17 @@ const isAdmin = (user) => adminEmails().includes(user.email.toLowerCase());
 // Sans empreinte valide, toutes les routes d'administration sont désactivées (404).
 const ADMIN_UNLOCK_MS = 30 * 60_000;
 const ADMIN_HASH_FORMAT = /^scrypt\$\d+\$\d+\$\d+\$[0-9a-f]+\$[0-9a-f]+$/;
-// Tolère les espaces, retours à la ligne et guillemets ajoutés par erreur autour de la valeur
+// Tolère les espaces, retours à la ligne et guillemets ajoutés par erreur autour de la valeur.
+// Le séparateur « : » est accepté à la place de « $ » : certains champs de saisie (variables d'environnement)
+// interprètent « $ » comme une variable et suppriment une partie de la valeur.
 const adminHash = () =>
-  (process.env.ADMIN_PASSWORD_HASH || '').trim().replace(/^["']+|["']+$/g, '');
+  (process.env.ADMIN_PASSWORD_HASH || '')
+    .trim()
+    .replace(/^["']+|["']+$/g, '')
+    .replace(
+      /^scrypt:(\d+):(\d+):(\d+):([0-9a-f]+):([0-9a-f]+)$/,
+      (_, ...p) => 'scrypt$' + p.slice(0, 5).join('$'),
+    );
 const sessionToken = (req) => parseCookies(req.headers.cookie)[SESSION_COOKIE] || '';
 
 /** Administrateur connecté (compte listé dans ADMIN_EMAILS) : accès à l'écran de déverrouillage uniquement. */

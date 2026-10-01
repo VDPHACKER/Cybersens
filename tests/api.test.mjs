@@ -522,6 +522,12 @@ test('mot de passe administrateur : verrou par session, configuration obligatoir
   process.env.ADMIN_PASSWORD_HASH = ` "${ADMIN_HASH}" \n`;
   assert.equal((await unlock(ADMIN_PASSWORD)).status, 200);
   assert.equal((await call('POST', '/api/admin/lock', {})).status, 200);
+
+  // Version sans « $ » (séparateur « : »), pour les champs qui interprètent le dollar
+  process.env.ADMIN_PASSWORD_HASH = ADMIN_HASH.replaceAll('$', ':');
+  assert.equal((await unlock(ADMIN_PASSWORD)).status, 200);
+  assert.equal((await unlock('mauvais-mot-de-passe')).status, 403);
+  assert.equal((await call('POST', '/api/admin/lock', {})).status, 200);
   process.env.ADMIN_PASSWORD_HASH = ADMIN_HASH;
 
   // Verrouillage manuel

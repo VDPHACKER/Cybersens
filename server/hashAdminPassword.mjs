@@ -9,4 +9,7 @@ if (!plain || plain.length < 12) {
   );
   process.exit(1);
 }
-console.log(`ADMIN_PASSWORD_HASH=${await hashPassword(plain)}`);
+const hash = await hashPassword(plain);
+console.log(`ADMIN_PASSWORD_HASH=${hash}`);
+// Même empreinte avec « : » à la place de « $ » : à utiliser si l'hébergeur supprime les « $ » de la valeur
+console.log(`ADMIN_PASSWORD_HASH (sans $)=${hash.replaceAll('$', ':')}`);
