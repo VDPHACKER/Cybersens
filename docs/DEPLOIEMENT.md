@@ -31,7 +31,7 @@ Copier `.env.example` vers `.env` (Docker) ou `.env.local` (`npm start`). **Ne j
 | `PORT`, `HOST`                                                 | Non         | Adresse d'écoute (8080 par défaut).                                                                                                                                    |
 | `DB_PATH`                                                      | Non         | Dossier de la base PGlite (développement ou Docker sans `DATABASE_URL`).                                                                                               |
 | `BACKUP_DIR`                                                   | Non         | Dossier des sauvegardes (`backups/` par défaut).                                                                                                                       |
-| `GEMINI_FALLBACK_MODELS`                                       | Non         | Modèles IA de secours si le principal est surchargé (par défaut `gemini-2.5-flash,gemini-2.5-flash-lite`).                                                             |
+| `GEMINI_FALLBACK_MODELS`                                       | Non         | Modèles IA de secours si le principal est surchargé (par défaut `gemini-3.5-flash-lite,gemini-flash-lite-latest`).                                                     |
 | `ACCESS_LOG`                                                   | Non         | `0` pour couper le journal d'accès JSON.                                                                                                                               |
 
 ## 3. Déploiement sur Railway (staging puis production)

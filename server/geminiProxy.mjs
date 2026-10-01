@@ -8,16 +8,24 @@ export const PROXY_PREFIX = '/api/gemini';
 
 // Seuls ces modèles et ces méthodes peuvent être appelés via le relais
 const ALLOWED_MODELS = new Set(['gemini-3.8-flash']);
-// Modèles de secours essayés quand le modèle principal est surchargé (surchargeable via GEMINI_FALLBACK_MODELS)
+// Modèles de secours essayés quand le modèle principal est surchargé ou injoignable (surchargeable via GEMINI_FALLBACK_MODELS).
+// Les modèles « lite » répondent en 1 à 2 s même quand les modèles « flash » sont saturés.
 const FALLBACK_MODELS = (
-  process.env.GEMINI_FALLBACK_MODELS ?? 'gemini-2.5-flash,gemini-2.5-flash-lite'
+  process.env.GEMINI_FALLBACK_MODELS ?? 'gemini-3.5-flash-lite,gemini-flash-lite-latest'
 )
   .split(',')
   .map((m) => m.trim())
   .filter((m) => /^[a-z0-9.-]+$/.test(m));
 const RETRYABLE_STATUS = new Set([429, 500, 503, 504]);
-const RETRY_DELAY_MS = 800;
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Délai maximal avant le premier octet de réponse : au-delà, on passe au modèle suivant au lieu d'attendre
+const HEADER_TIMEOUT_MS = Number(process.env.GEMINI_HEADER_TIMEOUT_MS) || 5_000;
+// Un modèle en échec est ignoré pendant ce délai : seule la première requête subit l'attente (modèle supprimé : plus long)
+const COOLDOWN_MS = 180_000;
+const GONE_COOLDOWN_MS = 10 * 60_000;
+const skipUntil = new Map();
+
+/** Réservé aux tests : oublie l'état de santé des modèles. */
+export const resetGeminiHealth = () => skipUntil.clear();
 const ALLOWED_PATH = /^\/v1beta\/models\/([a-z0-9.-]+):(generateContent|streamGenerateContent)$/;
 
 const MAX_BODY_BYTES = 8 * 1024 * 1024; // images en base64 incluses
@@ -143,28 +151,45 @@ export const handleGeminiProxy = async (
     if (match[2] === 'streamGenerateContent') u.searchParams.set('alt', 'sse');
     return u;
   };
-  const callModel = (model) =>
-    fetch(buildUrl(model), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body,
-      signal: AbortSignal.timeout(120_000),
-    });
+  // Le délai « premier octet » ne couvre que l'attente des en-têtes : une réponse en cours de flux n'est pas coupée.
+  // Sans streaming, les en-têtes n'arrivent qu'une fois toute la réponse générée : délai plus long.
+  const headerTimeoutMs =
+    match[2] === 'streamGenerateContent' ? HEADER_TIMEOUT_MS : HEADER_TIMEOUT_MS * 5;
+  const callModel = async (model) => {
+    const slow = new AbortController();
+    const timer = setTimeout(() => slow.abort(), headerTimeoutMs);
+    try {
+      return await fetch(buildUrl(model), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body,
+        signal: AbortSignal.any([slow.signal, AbortSignal.timeout(120_000)]),
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
 
   try {
-    // Surcharge du fournisseur (503, 429, 500, 504) : un nouvel essai, puis les modèles de secours.
-    const attempts = [match[1], match[1], ...FALLBACK_MODELS];
+    // Modèle demandé puis modèles de secours ; ceux qui viennent d'échouer sont ignorés (sauf s'il n'en reste aucun).
+    const chain = [...new Set([match[1], ...FALLBACK_MODELS])];
+    const healthy = chain.filter((m) => (skipUntil.get(m) ?? 0) <= Date.now());
+    const attempts = healthy.length ? healthy : chain;
     let upstream;
     for (let i = 0; i < attempts.length; i++) {
-      if (i === 1) await sleep(RETRY_DELAY_MS);
+      const last = i === attempts.length - 1;
       try {
         upstream = await callModel(attempts[i]);
       } catch (err) {
-        if (i === attempts.length - 1) throw err;
+        skipUntil.set(attempts[i], Date.now() + COOLDOWN_MS);
+        console.warn(`[gemini-proxy] ${attempts[i]} injoignable ou trop lent (${err.name})`);
+        if (last) throw err;
         continue;
       }
-      if (!RETRYABLE_STATUS.has(upstream.status) || i === attempts.length - 1) break;
-      console.warn(`[gemini-proxy] ${attempts[i]} → HTTP ${upstream.status}, nouvel essai`);
+      const gone = upstream.status === 404;
+      if (!(RETRYABLE_STATUS.has(upstream.status) || gone) || last) break;
+      skipUntil.set(attempts[i], Date.now() + (gone ? GONE_COOLDOWN_MS : COOLDOWN_MS));
+      console.warn(`[gemini-proxy] ${attempts[i]} → HTTP ${upstream.status}, modèle suivant`);
       await upstream.body?.cancel().catch(() => {});
     }
 
