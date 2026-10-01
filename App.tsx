@@ -21,6 +21,7 @@ import { ArenaSurface } from './components/ui';
 import { getPreferences, savePreferences } from './services/persistenceService';
 import { I18nProvider, useI18n } from './services/i18n';
 import { Auth } from './features/Auth';
+import { Landing } from './features/Landing';
 import { restoreSession } from './services/authService';
 import { clearUserCache } from './services/persistenceService';
 import { SESSION_EXPIRED_EVENT } from './services/apiClient';
@@ -53,6 +54,13 @@ const AppShell: React.FC = () => {
   const [prefs, setPrefs] = useState<UserPreferences>(getPreferences());
   const [chatInitialPrompt, setChatInitialPrompt] = useState<string | undefined>(undefined);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  // Page d'accueil publique avant connexion : sautée si l'URL est un lien de réinitialisation de mot
+  // de passe ou une invitation à une salle de quiz (initialTab() a déjà consommé ce dernier ci-dessus).
+  const [authMode, setAuthMode] = useState<'login' | 'register' | null>(() => {
+    const hasResetLink = /(?:^|[?&])reset=/.test(window.location.search);
+    const hasRoomInvite = !!sessionStorage.getItem('cybersens-join-room');
+    return hasResetLink || hasRoomInvite ? 'login' : null;
+  });
   // État de session : vérifié auprès du serveur au démarrage (cookie HttpOnly)
   const [session, setSession] = useState<'loading' | 'anonymous' | 'authenticated' | 'offline'>(
     'loading',
@@ -225,14 +233,22 @@ const AppShell: React.FC = () => {
           </button>
         </div>
       ) : session === 'anonymous' ? (
-        <Auth
-          onAuthenticated={(updated) => {
-            setPrefs(updated);
-            // Invitation à une salle reçue avant la connexion : on y retourne au lieu de l'accueil
-            setActiveTab(sessionStorage.getItem('cybersens-join-room') ? AppTab.QUIZ : AppTab.HOME);
-            setSession('authenticated');
-          }}
-        />
+        authMode ? (
+          <Auth
+            initialMode={authMode}
+            onBack={() => setAuthMode(null)}
+            onAuthenticated={(updated) => {
+              setPrefs(updated);
+              // Invitation à une salle reçue avant la connexion : on y retourne au lieu de l'accueil
+              setActiveTab(
+                sessionStorage.getItem('cybersens-join-room') ? AppTab.QUIZ : AppTab.HOME,
+              );
+              setSession('authenticated');
+            }}
+          />
+        ) : (
+          <Landing onEnter={setAuthMode} />
+        )
       ) : showOnboarding ? (
         <Onboarding onComplete={handleFinishOnboarding} />
       ) : (

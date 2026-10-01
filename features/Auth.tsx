@@ -1,5 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Mail, Lock, User, Eye, EyeOff, Loader2, AlertCircle, Check, X } from 'lucide-react';
+import {
+  Mail,
+  Lock,
+  User,
+  Eye,
+  EyeOff,
+  Loader2,
+  AlertCircle,
+  Check,
+  X,
+  ArrowLeft,
+} from 'lucide-react';
 import { UserPreferences } from '../types';
 import { LanguageSelector, useI18n } from '../services/i18n';
 import { useL } from '../components/ui';
@@ -19,6 +30,10 @@ import {
 
 interface AuthProps {
   onAuthenticated: (prefs: UserPreferences) => void;
+  /** Mode affiché à l'ouverture (ignoré si un lien de réinitialisation est présent dans l'URL). */
+  initialMode?: 'login' | 'register';
+  /** Si fourni, affiche un bouton de retour (ex. vers la page d'accueil publique). */
+  onBack?: () => void;
 }
 
 const ROLES: AccountRole[] = ['Étudiant', 'Particulier', 'Professionnel', 'Entreprise'];
@@ -58,11 +73,11 @@ const loadGoogleScript = () => {
 const inputClass =
   'w-full pl-10 pr-3 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500 transition';
 
-export const Auth: React.FC<AuthProps> = ({ onAuthenticated }) => {
+export const Auth: React.FC<AuthProps> = ({ onAuthenticated, initialMode = 'login', onBack }) => {
   const L = useL();
   const { language } = useI18n();
   const resetToken = useRef(new URLSearchParams(window.location.search).get('reset') || '');
-  const [mode, setMode] = useState<AuthMode>(resetToken.current ? 'reset' : 'login');
+  const [mode, setMode] = useState<AuthMode>(resetToken.current ? 'reset' : initialMode);
   const [config, setConfig] = useState<AuthConfig>({ googleClientId: null, passwordReset: false });
   const [info, setInfo] = useState('');
   const googleRef = useRef<HTMLDivElement>(null);
@@ -229,6 +244,15 @@ export const Auth: React.FC<AuthProps> = ({ onAuthenticated }) => {
   return (
     <div className="relative min-h-screen flex items-center justify-center px-4 py-10 bg-gradient-to-br from-slate-50 via-sky-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <LanguageSelector className="absolute top-4 right-4 z-10" />
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="absolute top-4 left-4 z-10 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-white/5 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          {L('Retour', 'Back', 'Volver')}
+        </button>
+      )}
       {showTerms && (
         <TermsDialog
           contactEmail={config.contactEmail ?? null}
