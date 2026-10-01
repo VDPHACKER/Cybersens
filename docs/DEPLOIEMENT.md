@@ -20,19 +20,19 @@ Ce guide décrit comment mettre CyberSens en ligne (Railway ou serveur Docker), 
 
 Copier `.env.example` vers `.env` (Docker) ou `.env.local` (`npm start`). **Ne jamais versionner ces fichiers.**
 
-| Variable                                    | Obligatoire | Rôle                                                                                                                                                                   |
-| ------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GEMINI_API_KEY`                            | Oui         | Clé de l'assistant IA. Reste sur le serveur. Sans elle, l'IA répond « non configurée ».                                                                                |
-| `CERT_SECRET`                               | Oui         | Secret de signature des certificats (`openssl rand -hex 32`). **Différent** entre test et production, **jamais modifié** après émission de certificats.                |
-| `TRUST_PROXY`                               | Oui (HTTPS) | `1` derrière un reverse-proxy HTTPS : active HSTS, cookies `Secure` et l'IP réelle du client.                                                                          |
-| `ADMIN_EMAILS`                              | Conseillé   | E-mails des administrateurs (séparés par des virgules) : Centre DevOps et modération de la Communauté. Vide = désactivés.                                              |
-| `GOOGLE_CLIENT_ID`                          | Optionnel   | Active « Se connecter avec Google ». ID client OAuth (Google Cloud Console) ; ajouter l'URL du site dans les « origines JavaScript autorisées ». Vide = bouton masqué. |
-| `RESEND_API_KEY`, `MAIL_FROM`, `PUBLIC_URL` | Optionnel   | Active « Mot de passe oublié » par e-mail (service Resend). Les trois sont nécessaires. Sinon l'écran renvoie vers l'administrateur.                                   |
-| `PORT`, `HOST`                              | Non         | Adresse d'écoute (8080 par défaut).                                                                                                                                    |
-| `DB_PATH`                                   | Non         | Dossier de la base PGlite (développement ou Docker sans `DATABASE_URL`).                                                                                               |
-| `BACKUP_DIR`                                | Non         | Dossier des sauvegardes (`backups/` par défaut).                                                                                                                       |
-| `GEMINI_FALLBACK_MODELS`                    | Non         | Modèles IA de secours si le principal est surchargé (par défaut `gemini-2.5-flash,gemini-2.5-flash-lite`).                                                             |
-| `ACCESS_LOG`                                | Non         | `0` pour couper le journal d'accès JSON.                                                                                                                               |
+| Variable                                                       | Obligatoire | Rôle                                                                                                                                                                   |
+| -------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY`                                               | Oui         | Clé de l'assistant IA. Reste sur le serveur. Sans elle, l'IA répond « non configurée ».                                                                                |
+| `CERT_SECRET`                                                  | Oui         | Secret de signature des certificats (`openssl rand -hex 32`). **Différent** entre test et production, **jamais modifié** après émission de certificats.                |
+| `TRUST_PROXY`                                                  | Oui (HTTPS) | `1` derrière un reverse-proxy HTTPS : active HSTS, cookies `Secure` et l'IP réelle du client.                                                                          |
+| `ADMIN_EMAILS`                                                 | Conseillé   | E-mails des administrateurs (séparés par des virgules) : Centre DevOps et modération de la Communauté. Vide = désactivés.                                              |
+| `GOOGLE_CLIENT_ID`                                             | Optionnel   | Active « Se connecter avec Google ». ID client OAuth (Google Cloud Console) ; ajouter l'URL du site dans les « origines JavaScript autorisées ». Vide = bouton masqué. |
+| `BREVO_API_KEY` ou `RESEND_API_KEY`, `MAIL_FROM`, `PUBLIC_URL` | Optionnel   | Active « Mot de passe oublié » par e-mail (service Resend). Les trois sont nécessaires. Sinon l'écran renvoie vers l'administrateur.                                   |
+| `PORT`, `HOST`                                                 | Non         | Adresse d'écoute (8080 par défaut).                                                                                                                                    |
+| `DB_PATH`                                                      | Non         | Dossier de la base PGlite (développement ou Docker sans `DATABASE_URL`).                                                                                               |
+| `BACKUP_DIR`                                                   | Non         | Dossier des sauvegardes (`backups/` par défaut).                                                                                                                       |
+| `GEMINI_FALLBACK_MODELS`                                       | Non         | Modèles IA de secours si le principal est surchargé (par défaut `gemini-2.5-flash,gemini-2.5-flash-lite`).                                                             |
+| `ACCESS_LOG`                                                   | Non         | `0` pour couper le journal d'accès JSON.                                                                                                                               |
 
 ## 3. Déploiement sur Railway (staging puis production)
 

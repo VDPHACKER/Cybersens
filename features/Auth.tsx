@@ -1,16 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  Mail,
-  Lock,
-  User,
-  Eye,
-  EyeOff,
-  Loader2,
-  ShieldCheck,
-  AlertCircle,
-  Check,
-  X,
-} from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, Loader2, AlertCircle, Check, X } from 'lucide-react';
 import { UserPreferences } from '../types';
 import { LanguageSelector, useI18n } from '../services/i18n';
 import { useL } from '../components/ui';
@@ -89,6 +78,8 @@ export const Auth: React.FC<AuthProps> = ({ onAuthenticated }) => {
   const [showTerms, setShowTerms] = useState(false);
 
   const isRegister = mode === 'register';
+  // « Mot de passe oublié » sans service d'e-mail configuré : on renvoie vers l'administrateur
+  const resetUnavailable = mode === 'forgot' && !config.passwordReset;
   const passwordIssue = isRegister && password ? validatePassword(password, { name, email }) : null;
 
   useEffect(() => {
@@ -285,21 +276,23 @@ export const Auth: React.FC<AuthProps> = ({ onAuthenticated }) => {
                   : 'Bon retour parmi nous'}
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">
-            {mode === 'forgot'
-              ? L(
-                  'Indiquez votre adresse e-mail : nous vous envoyons un lien pour choisir un nouveau mot de passe.',
-                  'Enter your email address: we will send you a link to choose a new password.',
-                  'Indique su correo: le enviaremos un enlace para elegir una nueva contraseña.',
-                )
-              : mode === 'reset'
+            {resetUnavailable
+              ? ''
+              : mode === 'forgot'
                 ? L(
-                    'Choisissez un nouveau mot de passe pour votre compte.',
-                    'Choose a new password for your account.',
-                    'Elija una nueva contraseña para su cuenta.',
+                    'Indiquez votre adresse e-mail : nous vous envoyons un lien pour choisir un nouveau mot de passe.',
+                    'Enter your email address: we will send you a link to choose a new password.',
+                    'Indique su correo: le enviaremos un enlace para elegir una nueva contraseña.',
                   )
-                : isRegister
-                  ? 'Suivez vos formations, passez les examens et obtenez vos certificats.'
-                  : 'Connectez-vous pour retrouver vos formations et vos certificats.'}
+                : mode === 'reset'
+                  ? L(
+                      'Choisissez un nouveau mot de passe pour votre compte.',
+                      'Choose a new password for your account.',
+                      'Elija una nueva contraseña para su cuenta.',
+                    )
+                  : isRegister
+                    ? 'Suivez vos formations, passez les examens et obtenez vos certificats.'
+                    : 'Connectez-vous pour retrouver vos formations et vos certificats.'}
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-3.5" noValidate>
@@ -319,7 +312,7 @@ export const Auth: React.FC<AuthProps> = ({ onAuthenticated }) => {
               </div>
             )}
 
-            {mode !== 'reset' && (
+            {mode !== 'reset' && !resetUnavailable && (
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
@@ -359,7 +352,7 @@ export const Auth: React.FC<AuthProps> = ({ onAuthenticated }) => {
               </div>
             )}
 
-            {mode === 'login' && config.passwordReset && (
+            {mode === 'login' && (
               <button
                 type="button"
                 onClick={() => switchMode('forgot')}
@@ -369,14 +362,39 @@ export const Auth: React.FC<AuthProps> = ({ onAuthenticated }) => {
               </button>
             )}
 
-            {mode === 'login' && !config.passwordReset && (
-              <p className="pl-1 text-[11px] text-slate-500 dark:text-slate-400">
-                {L(
-                  'Mot de passe oublié ? Contactez l’administrateur du site : il peut le réinitialiser et vous transmettre un mot de passe temporaire.',
-                  'Forgot your password? Contact the site administrator: they can reset it and give you a temporary password.',
-                  '¿Olvidó su contraseña? Contacte con el administrador del sitio: puede restablecerla y darle una contraseña temporal.',
+            {resetUnavailable && (
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-xs text-amber-900 dark:text-amber-200 space-y-2">
+                <p>
+                  {L(
+                    'La réinitialisation automatique par e-mail n’est pas activée sur ce site. Contactez l’administrateur : il peut réinitialiser votre mot de passe et vous transmettre un mot de passe temporaire.',
+                    'Automatic reset by email is not enabled on this site. Contact the administrator: they can reset your password and give you a temporary one.',
+                    'El restablecimiento automático por correo no está activado en este sitio. Contacte con el administrador: puede restablecer su contraseña y darle una temporal.',
+                  )}
+                </p>
+                {config.contactEmail && (
+                  <a
+                    href={`mailto:${config.contactEmail}?subject=${encodeURIComponent(
+                      L(
+                        'CyberSens : mot de passe oublié',
+                        'CyberSens: forgotten password',
+                        'CyberSens: contraseña olvidada',
+                      ),
+                    )}&body=${encodeURIComponent(
+                      email
+                        ? `${email}
+`
+                        : '',
+                    )}`}
+                    className="inline-block font-bold underline"
+                  >
+                    {L(
+                      'Écrire à l’administrateur',
+                      'Email the administrator',
+                      'Escribir al administrador',
+                    )}
+                  </a>
                 )}
-              </p>
+              </div>
             )}
 
             {(isRegister || mode === 'reset') && (
@@ -496,24 +514,26 @@ export const Auth: React.FC<AuthProps> = ({ onAuthenticated }) => {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-sky-700 hover:bg-sky-600 disabled:opacity-60 text-white text-sm font-black shadow-md shadow-sky-600/20 transition-all active:scale-[0.99]"
-            >
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-              {loading
-                ? isRegister
-                  ? 'Création du compte…'
-                  : 'Vérification…'
-                : mode === 'forgot'
-                  ? L('Envoyer le lien', 'Send the link', 'Enviar el enlace')
-                  : mode === 'reset'
-                    ? L('Enregistrer le mot de passe', 'Save password', 'Guardar contraseña')
-                    : isRegister
-                      ? 'Créer mon compte'
-                      : 'Se connecter'}
-            </button>
+            {!resetUnavailable && (
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-sky-700 hover:bg-sky-600 disabled:opacity-60 text-white text-sm font-black shadow-md shadow-sky-600/20 transition-all active:scale-[0.99]"
+              >
+                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                {loading
+                  ? isRegister
+                    ? 'Création du compte…'
+                    : 'Vérification…'
+                  : mode === 'forgot'
+                    ? L('Envoyer le lien', 'Send the link', 'Enviar el enlace')
+                    : mode === 'reset'
+                      ? L('Enregistrer le mot de passe', 'Save password', 'Guardar contraseña')
+                      : isRegister
+                        ? 'Créer mon compte'
+                        : 'Se connecter'}
+              </button>
+            )}
           </form>
 
           {config.googleClientId && (mode === 'login' || mode === 'register') && (
@@ -552,12 +572,6 @@ export const Auth: React.FC<AuthProps> = ({ onAuthenticated }) => {
             </p>
           )}
         </div>
-
-        <p className="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
-          <ShieldCheck className="w-3.5 h-3.5" />
-          Votre mot de passe n’est jamais stocké en clair : le serveur n’en conserve qu’une
-          empreinte (scrypt).
-        </p>
       </div>
     </div>
   );
