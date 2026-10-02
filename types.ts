@@ -122,6 +122,7 @@ export enum AppTab {
   DEVOPS = 'devops', // DevOps & Operations Center
   LEADERBOARD = 'leaderboard', // Classements
   COMMUNITY = 'community', // Communauté
+  GUIDE = 'guide', // Guide d'utilisation
 }
 
 export interface PracticalExercise {

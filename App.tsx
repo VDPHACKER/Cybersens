@@ -13,6 +13,7 @@ import SecurityTools from './features/Tools/SecurityTools';
 import GamesHub from './features/Games/GamesHub';
 import CTFArena from './features/CTF/CTFArena';
 import About from './features/About';
+import Guide from './features/Guide';
 import Donate from './features/Donate';
 import { DevOpsCenter } from './features/DevOps/DevOpsCenter';
 import { Leaderboard } from './features/Leaderboard';
@@ -203,6 +204,8 @@ const AppShell: React.FC = () => {
         return <Community onBack={goHome} />;
       case AppTab.DEVOPS:
         return <DevOpsCenter />;
+      case AppTab.GUIDE:
+        return <Guide onBack={goHome} onNavigate={setActiveTab} />;
       case AppTab.ABOUT:
         return <About onBack={goHome} onNavigate={setActiveTab} />;
       default:

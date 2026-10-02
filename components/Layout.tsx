@@ -7,6 +7,7 @@ import {
   Wrench,
   Gamepad2,
   Info,
+  LifeBuoy,
   Sun,
   Moon,
   Volume2,
@@ -155,6 +156,7 @@ const Layout: React.FC<LayoutProps> = ({
       icon: Trophy,
     },
     { id: AppTab.COMMUNITY, label: L('Communauté', 'Community', 'Comunidad'), icon: Users },
+    { id: AppTab.GUIDE, label: L('Guide', 'Guide', 'Guía'), icon: LifeBuoy },
   ];
 
   const moreNav: NavItem[] = [
