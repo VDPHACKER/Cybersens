@@ -1,7 +1,6 @@
-// Contenu du Guide d'utilisation : trois langues partout, identifiants uniques, cibles valides.
+// Contenu du Guide d'utilisation : trois langues partout, identifiants uniques.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import { GUIDE_SECTIONS, QUICK_START, TROUBLESHOOTING } from '../features/Guide/guideContent.ts';
 
 const LANGS = ['fr', 'en', 'es'];
@@ -32,15 +31,5 @@ test('les identifiants du guide sont uniques', () => {
   for (const list of [GUIDE_SECTIONS, TROUBLESHOOTING]) {
     const ids = list.map((x) => x.id);
     assert.equal(new Set(ids).size, ids.length);
-  }
-});
-
-test('chaque bouton « Ouvrir » pointe vers un onglet existant', () => {
-  const types = fs.readFileSync(new URL('../types.ts', import.meta.url), 'utf8');
-  const enumBody = types.match(/export enum AppTab \{([\s\S]*?)\n\}/)[1];
-  const tabs = [...enumBody.matchAll(/=\s*'([^']+)'/g)].map((m) => m[1]);
-  assert.ok(tabs.includes('guide'));
-  for (const s of GUIDE_SECTIONS.filter((x) => x.target)) {
-    assert.ok(tabs.includes(s.target), `${s.id} : onglet inconnu « ${s.target} »`);
   }
 });

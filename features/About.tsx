@@ -228,14 +228,6 @@ const About: React.FC<AboutProps> = ({ onBack, onNavigate }) => {
               'CyberSens es una plataforma gratuita de formación y concienciación en ciberseguridad, pensada para particulares, estudiantes, profesionales y empresas.',
             )}
           </p>
-          <button
-            type="button"
-            onClick={() => go(AppTab.GUIDE)}
-            className={`mt-5 inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-black text-white transition-colors hover:bg-brand-dark ${ring}`}
-          >
-            {L('Lire le guide d’utilisation', 'Read the user guide', 'Leer la guía de uso')}
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </button>
         </div>
       </section>
 

@@ -1,5 +1,4 @@
 // Contenu du Guide d'utilisation : données pures (aucun JSX) pour pouvoir être testées sans navigateur.
-import type { AppTab } from '../../types';
 
 export interface Tr {
   fr: string;
@@ -9,8 +8,6 @@ export interface Tr {
 
 export interface GuideSection {
   id: string;
-  /** Onglet ouvert par le bouton « Ouvrir » (absent pour les sections purement explicatives). */
-  target?: `${AppTab}`;
   title: Tr;
   summary: Tr;
   steps: Tr[];
@@ -48,7 +45,6 @@ export const QUICK_START: Tr[] = [
 export const GUIDE_SECTIONS: GuideSection[] = [
   {
     id: 'home',
-    target: 'home',
     title: { fr: 'Tableau de bord', en: 'Dashboard', es: 'Panel' },
     summary: {
       fr: 'Votre point de départ : progression, accès rapides et prochaines actions conseillées.',
@@ -70,7 +66,6 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   },
   {
     id: 'learn',
-    target: 'learn',
     title: { fr: 'Formations', en: 'Courses', es: 'Formaciones' },
     summary: {
       fr: 'Des modules progressifs, du niveau débutant à avancé, avec un examen et un certificat à la clé.',
@@ -104,7 +99,6 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   },
   {
     id: 'quiz',
-    target: 'quiz',
     title: {
       fr: 'Quiz solo et salles multijoueurs',
       en: 'Solo quiz and multiplayer rooms',
@@ -142,7 +136,6 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   },
   {
     id: 'ctf',
-    target: 'ctf',
     title: { fr: 'Arène CTF', en: 'CTF Arena', es: 'Arena CTF' },
     summary: {
       fr: 'Des défis de type « Capture The Flag » : trouvez un drapeau caché pour valider chaque épreuve.',
@@ -176,7 +169,6 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   },
   {
     id: 'games',
-    target: 'games',
     title: { fr: 'Mini-jeux', en: 'Mini-games', es: 'Minijuegos' },
     summary: {
       fr: 'Apprendre en jouant : hameçonnage, pare-feu, chiffrement, menaces liées à l’IA, mémoire…',
@@ -203,7 +195,6 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   },
   {
     id: 'tools',
-    target: 'tools',
     title: { fr: 'Outils de sécurité', en: 'Security tools', es: 'Herramientas de seguridad' },
     summary: {
       fr: 'Six outils concrets : testeur de deepfakes, audit de logs IA, liens douteux, e-mails de phishing, mots de passe, logs d’audit.',
@@ -242,7 +233,6 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   },
   {
     id: 'ai',
-    target: 'ai_chat',
     title: { fr: 'Assistant IA', en: 'AI assistant', es: 'Asistente IA' },
     summary: {
       fr: 'Un assistant spécialisé en cybersécurité pour expliquer une notion, analyser une situation ou vous guider dans un défi.',
@@ -271,7 +261,6 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   },
   {
     id: 'news',
-    target: 'news',
     title: { fr: 'Actualités', en: 'News', es: 'Noticias' },
     summary: {
       fr: 'L’actualité cyber en direct, issue de sites spécialisés.',
@@ -288,7 +277,6 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   },
   {
     id: 'leaderboard',
-    target: 'leaderboard',
     title: { fr: 'Classements', en: 'Leaderboard', es: 'Clasificaciones' },
     summary: {
       fr: 'Comparez vos points d’expérience et votre niveau avec ceux des autres apprenants.',
@@ -317,7 +305,6 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   },
   {
     id: 'community',
-    target: 'community',
     title: { fr: 'Communauté', en: 'Community', es: 'Comunidad' },
     summary: {
       fr: 'Posez vos questions, partagez des astuces et signalez des alertes.',
@@ -344,7 +331,6 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   },
   {
     id: 'profile',
-    target: 'profile',
     title: {
       fr: 'Profil, certificats et préférences',
       en: 'Profile, certificates and settings',

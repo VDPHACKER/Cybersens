@@ -17,18 +17,17 @@ import {
   Users,
   Wrench,
   ChevronDown,
-  ArrowRight,
   Lightbulb,
   type LucideIcon,
 } from 'lucide-react';
 import { useI18n } from '../services/i18n';
 import { Card, useL } from '../components/ui';
-import { AppTab } from '../types';
 import { GUIDE_SECTIONS, QUICK_START, TROUBLESHOOTING, type Tr } from './Guide/guideContent';
 
 interface GuideProps {
   onBack: () => void;
-  onNavigate?: (tab: AppTab) => void;
+  /** Ouvre l'écran de connexion ou d'inscription. */
+  onEnter: (mode: 'login' | 'register') => void;
 }
 
 const ICONS: Record<string, LucideIcon> = {
@@ -46,7 +45,7 @@ const ICONS: Record<string, LucideIcon> = {
   install: Download,
 };
 
-const Guide: React.FC<GuideProps> = ({ onBack, onNavigate }) => {
+const Guide: React.FC<GuideProps> = ({ onBack, onEnter }) => {
   const { language, t } = useI18n();
   const L = useL();
   const [query, setQuery] = useState('');
@@ -78,12 +77,6 @@ const Guide: React.FC<GuideProps> = ({ onBack, onNavigate }) => {
     [needle],
   );
   const searching = needle.length > 0;
-
-  const open = (tab: string) => {
-    if (onNavigate) onNavigate(tab as AppTab);
-    else onBack();
-    window.scrollTo({ top: 0 });
-  };
 
   const ring =
     'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-light focus-visible:ring-offset-2 focus-visible:ring-offset-transparent';
@@ -228,17 +221,7 @@ const Guide: React.FC<GuideProps> = ({ onBack, onNavigate }) => {
                       <Lightbulb className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                       <span>{tr(tip)}</span>
                     </p>
-                  ))}
-                  {s.target && (
-                    <button
-                      type="button"
-                      onClick={() => open(s.target as string)}
-                      className={`inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-black text-white transition-colors hover:bg-brand-dark ${ring}`}
-                    >
-                      {L('Ouvrir', 'Open', 'Abrir')} {tr(s.title)}
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                  )}
+                  ))}{' '}
                 </div>
               )}
             </Card>
@@ -276,18 +259,17 @@ const Guide: React.FC<GuideProps> = ({ onBack, onNavigate }) => {
       <Card className="flex flex-col items-start gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-slate-600 dark:text-slate-300">
           {L(
-            'Vous ne trouvez pas votre réponse ? L’Assistant IA peut vous aider.',
-            'Can’t find your answer? The AI assistant can help.',
-            '¿No encuentra su respuesta? El Asistente IA puede ayudarle.',
+            'Prêt à essayer ? Créez votre compte gratuit en une minute.',
+            'Ready to try it? Create your free account in a minute.',
+            '¿Listo para probar? Cree su cuenta gratis en un minuto.',
           )}
         </p>
         <button
           type="button"
-          onClick={() => open(AppTab.AI_CHAT)}
+          onClick={() => onEnter('register')}
           className={`inline-flex items-center gap-2 rounded-xl border border-brand/40 px-4 py-2 text-sm font-black text-brand transition-colors hover:bg-brand/10 dark:text-brand-light ${ring}`}
         >
-          <Bot className="h-4 w-4" aria-hidden="true" />
-          {L('Demander à l’assistant', 'Ask the assistant', 'Preguntar al asistente')}
+          {L('Créer un compte', 'Sign up', 'Crear cuenta')}
         </button>
       </Card>
     </div>
