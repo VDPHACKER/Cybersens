@@ -44,6 +44,7 @@ import { CertificateModal } from '../components/CertificateModal';
 import { BadgeIcon } from '../components/BadgeIcon';
 import { PasswordChangeCard } from '../components/PasswordChangeCard';
 import { LiveNotificationsCard } from '../components/LiveNotificationsCard';
+import { MyReviewCard } from '../components/MyReviewCard';
 import { useI18n } from '../services/i18n';
 import { compressImageFile, testImageUrl } from '../services/imageUtils';
 
@@ -1474,6 +1475,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
 
       {prefs.isAuthenticated && (
         <div className="mt-6 space-y-6">
+          <MyReviewCard />
           <LiveNotificationsCard />
           <PasswordChangeCard />
         </div>

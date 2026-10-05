@@ -22,6 +22,9 @@ import { useL } from '../components/ui';
 import { getAuthConfig } from '../services/authService';
 import { TermsDialog } from './Legal/TermsDialog';
 import Guide from './Guide';
+import { fetchReviews, type ReviewsOverview } from '../services/reviewsApi';
+import { membersLabel } from '../services/reviewsFormat';
+import { ReviewsSection } from './Reviews';
 
 interface LandingProps {
   /** Ouvre l'écran de connexion ou d'inscription. */
@@ -146,6 +149,13 @@ export const Landing: React.FC<LandingProps> = ({ onEnter }) => {
   const [contactEmail, setContactEmail] = useState<string | null>(null);
   const [showTerms, setShowTerms] = useState(false);
   const [view, setView] = useState<'home' | 'guide'>('home');
+  const [overview, setOverview] = useState<ReviewsOverview | null>(null);
+
+  useEffect(() => {
+    fetchReviews()
+      .then(setOverview)
+      .catch(() => {}); // sans réponse du serveur : ni avis ni nombre de membres, sans erreur visible
+  }, []);
 
   useEffect(() => {
     getAuthConfig()
@@ -267,6 +277,12 @@ export const Landing: React.FC<LandingProps> = ({ onEnter }) => {
                   {p.text[idx]}
                 </li>
               ))}
+              {overview && (
+                <li className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  <Users className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                  {membersLabel(overview.members, language)}
+                </li>
+              )}
             </ul>
           </section>
 
@@ -296,6 +312,8 @@ export const Landing: React.FC<LandingProps> = ({ onEnter }) => {
               ))}
             </div>
           </section>
+
+          {overview && <ReviewsSection overview={overview} />}
 
           {/* CTA band */}
           <section className="px-4 sm:px-8 pb-16 sm:pb-24 max-w-4xl mx-auto text-center">
