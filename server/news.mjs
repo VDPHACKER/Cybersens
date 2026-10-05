@@ -96,7 +96,11 @@ const fetchFeed = async (feed) => {
 let cache = { at: 0, articles: [] };
 let inflight = null;
 
+// Identifiants déjà vus : permettent de repérer les articles réellement nouveaux
+let knownIds = null; // null tant que le premier chargement n'a pas eu lieu (aucune notification)
 let onNew = () => {};
+const MAX_KNOWN_IDS = 1000;
+
 /** Enregistre la fonction appelée avec les nouveaux articles à chaque rafraîchissement. */
 export const onNewArticles = (fn) => {
   onNew = fn;
@@ -109,8 +113,19 @@ const refresh = async () => {
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
     .slice(0, MAX_TOTAL);
   // On ne remplace le cache que si au moins une source a répondu.
-  if (articles.length) cache = { at: Date.now(), articles };
-  else cache.at = Date.now() - CACHE_MS + 60_000; // réessai dans 1 min
+  if (articles.length) {
+    const fresh = knownIds ? articles.filter((a) => !knownIds.has(a.id)) : [];
+    const kept = knownIds && knownIds.size < MAX_KNOWN_IDS ? [...knownIds] : [];
+    knownIds = new Set([...kept, ...articles.map((a) => a.id)]);
+    cache = { at: Date.now(), articles };
+    if (fresh.length) {
+      try {
+        onNew(fresh);
+      } catch (err) {
+        console.error('[news] Notification impossible :', err instanceof Error ? err.message : err);
+      }
+    }
+  } else cache.at = Date.now() - CACHE_MS + 60_000; // réessai dans 1 min
   return cache;
 };
 
@@ -123,3 +138,6 @@ export const getNews = async () => {
 };
 
 export const _parseFeedForTest = parseFeed;
+export const _expireCacheForTest = () => {
+  cache.at = 0;
+};

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handleGeminiProxy } from './geminiProxy.mjs';
 import { handleApi, getSessionUser } from './api.mjs';
-import { closeLiveStreams } from './liveFeed.mjs';
+import { closeLiveStreams, startNewsWatcher } from './liveFeed.mjs';
 import { DB_LABEL, closeDb } from './db.mjs';
 import { SECURITY_HEADERS, HSTS_HEADER } from './securityHeaders.mjs';
 
@@ -113,9 +113,10 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, HOST, () =>
-  console.log(`CyberSens en ligne sur http://localhost:${PORT} (base : ${DB_LABEL})`),
-);
+server.listen(PORT, HOST, () => {
+  console.log(`CyberSens en ligne sur http://localhost:${PORT} (base : ${DB_LABEL})`);
+  startNewsWatcher();
+});
 
 // Arrêt propre (docker stop, redéploiement) : on termine les requêtes en cours puis on ferme la base
 const shutdown = (signal) => {
