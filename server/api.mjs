@@ -140,6 +140,22 @@ export const resetRateLimits = (prefix) => {
   for (const key of buckets.keys()) if (key.startsWith(prefix)) buckets.delete(key);
 };
 
+// Nombre total de comptes affiché sur l'accueil public (mis en cache 5 min)
+const MEMBERS_TTL_MS = 5 * 60_000;
+let membersCache = { at: 0, value: 0 };
+const memberCount = async () => {
+  if (Date.now() - membersCache.at > MEMBERS_TTL_MS) {
+    const row = await db.prepare('SELECT COUNT(*) AS cnt FROM users').get();
+    membersCache = { at: Date.now(), value: Number(row.cnt) };
+  }
+  return membersCache.value;
+};
+
+/** Réservé aux tests : oublie le nombre de membres en cache. */
+export const resetMembersCache = () => {
+  membersCache = { at: 0, value: 0 };
+};
+
 // ---------- Validation ----------
 const str = (v, { min = 0, max = 200, field = 'champ' } = {}) => {
   if (typeof v !== 'string') throw new HttpError(400, `${field} invalide`);
@@ -1122,6 +1138,79 @@ const routes = {
     if (!c) throw new HttpError(404, 'Commentaire introuvable');
     if (c.user_id !== user.id && !isAdmin(user)) throw new HttpError(403, 'Action non autorisée');
     await db.prepare('DELETE FROM post_comments WHERE id = ?').run(id);
+    send(res, 200, { ok: true });
+  },
+
+  // Avis des utilisateurs : lecture publique (accueil), écriture réservée aux comptes
+  'GET /api/reviews': async ({ res, ip }) => {
+    rateLimit(`reviews:${ip}`, 60, 60_000);
+    const stats = await db
+      .prepare('SELECT COUNT(*) AS cnt, AVG(rating)::float8 AS avg FROM reviews')
+      .get();
+    const rows = await db
+      .prepare(
+        `SELECT r.id, r.rating, r.body, r.created_at, u.name, u.points
+         FROM reviews r JOIN users u ON u.id = r.user_id
+         ORDER BY r.id DESC LIMIT 6`,
+      )
+      .all();
+    send(
+      res,
+      200,
+      {
+        members: await memberCount(),
+        average: Math.round(Number(stats.avg || 0) * 10) / 10,
+        count: Number(stats.cnt),
+        reviews: rows.map((r) => ({
+          id: r.id,
+          rating: r.rating,
+          body: r.body,
+          author: publicName(r.name),
+          authorLevel: levelFor(r.points),
+          createdAt: r.created_at.replace(' ', 'T') + 'Z',
+        })),
+      },
+      { 'Cache-Control': 'no-store' },
+    );
+  },
+
+  'GET /api/reviews/mine': async ({ req, res }) => {
+    const user = await requireUser(req);
+    const row = await db
+      .prepare('SELECT id, rating, body FROM reviews WHERE user_id = ?')
+      .get(user.id);
+    send(res, 200, { review: row || null });
+  },
+
+  // Création ou mise à jour de son avis (un seul par compte)
+  'POST /api/reviews': async ({ req, res, body }) => {
+    const user = await requireUser(req);
+    rateLimit(`review-write:${user.id}`, 10, 10 * 60_000);
+    const rating = int(body.rating, 1, 5, 'Note');
+    const text = longText(body.body, { min: 10, max: 500, field: 'Avis' });
+    await db
+      .prepare(
+        `INSERT INTO reviews (user_id, rating, body) VALUES (?, ?, ?)
+         ON CONFLICT (user_id) DO UPDATE
+         SET rating = EXCLUDED.rating, body = EXCLUDED.body,
+             updated_at = to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`,
+      )
+      .run(user.id, rating, text);
+    send(res, 200, { ok: true });
+  },
+
+  // Sans ?id : supprime son propre avis. Avec ?id : réservé aux administrateurs.
+  'DELETE /api/reviews': async ({ req, res, url }) => {
+    const user = await requireUser(req);
+    const idParam = url.searchParams.get('id');
+    if (idParam === null) {
+      await db.prepare('DELETE FROM reviews WHERE user_id = ?').run(user.id);
+    } else {
+      if (!isAdmin(user)) throw new HttpError(403, 'Action non autorisée');
+      const id = int(Number(idParam), 1, Number.MAX_SAFE_INTEGER, 'Avis');
+      const { changes } = await db.prepare('DELETE FROM reviews WHERE id = ?').run(id);
+      if (!changes) throw new HttpError(404, 'Avis introuvable');
+    }
     send(res, 200, { ok: true });
   },
 

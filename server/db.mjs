@@ -149,6 +149,17 @@ const MIGRATIONS = [
   `
   ALTER TABLE sessions ADD COLUMN admin_unlocked_until TEXT;
   `,
+  // Avis des utilisateurs (affichés sur l'accueil public) : un seul avis par compte
+  `
+  CREATE TABLE reviews (
+    id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id    BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    rating     INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    body       TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (${NOW}),
+    updated_at TEXT NOT NULL DEFAULT (${NOW})
+  );
+  `,
 ];
 
 // ---------- Pilotes ----------
