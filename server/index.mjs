@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handleGeminiProxy } from './geminiProxy.mjs';
 import { handleApi, getSessionUser } from './api.mjs';
+import { closeLiveStreams } from './liveFeed.mjs';
 import { DB_LABEL, closeDb } from './db.mjs';
 import { SECURITY_HEADERS, HSTS_HEADER } from './securityHeaders.mjs';
 
@@ -119,6 +120,7 @@ server.listen(PORT, HOST, () =>
 // Arrêt propre (docker stop, redéploiement) : on termine les requêtes en cours puis on ferme la base
 const shutdown = (signal) => {
   console.log(`${signal} reçu : arrêt en cours…`);
+  closeLiveStreams();
   server.close(async () => {
     await closeDb();
     process.exit(0);

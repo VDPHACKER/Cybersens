@@ -96,6 +96,12 @@ const fetchFeed = async (feed) => {
 let cache = { at: 0, articles: [] };
 let inflight = null;
 
+let onNew = () => {};
+/** Enregistre la fonction appelée avec les nouveaux articles à chaque rafraîchissement. */
+export const onNewArticles = (fn) => {
+  onNew = fn;
+};
+
 const refresh = async () => {
   const results = await Promise.allSettled(FEEDS.map(fetchFeed));
   const articles = results

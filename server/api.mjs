@@ -7,6 +7,7 @@ import { HttpError } from './httpError.mjs';
 import { checkOrigin } from './csrf.mjs';
 import { hashPassword, verifyPassword } from './passwords.mjs';
 import { getNews } from './news.mjs';
+import { openLiveStream, publish } from './liveFeed.mjs';
 import { answerRoom, createRoom, joinRoom, leaveRoom, openStream, startRoom } from './rooms.mjs';
 import { verifyGoogleIdToken } from './google.mjs';
 import { mailConfigured, publicUrl, sendMail } from './mail.mjs';
@@ -720,6 +721,13 @@ const routes = {
     openStream(req, res, user, url.searchParams.get('code'));
   },
 
+  // Notifications en direct (nouveaux posts de la Communauté, nouvelles actualités)
+  'GET /api/live/stream': async ({ req, res }) => {
+    const user = await requireUser(req);
+    rateLimit(`live-stream:${user.id}`, 30, 60_000);
+    openLiveStream(req, res, user);
+  },
+
   'POST /api/auth/logout': async ({ req, res }) => {
     const token = parseCookies(req.headers.cookie)[SESSION_COOKIE];
     if (token) await db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha256(token));
@@ -1067,6 +1075,11 @@ const routes = {
     const { id } = await db
       .prepare('INSERT INTO posts (user_id, topic, body) VALUES (?, ?, ?) RETURNING id')
       .get(user.id, topic, text);
+    publish(
+      'community_post',
+      { id, topic, author: publicName(user.name), excerpt: text.replace(/\s+/g, ' ').slice(0, 80) },
+      { exceptUserId: user.id },
+    );
     send(res, 201, { id });
   },
 
