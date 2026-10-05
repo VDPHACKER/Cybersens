@@ -32,7 +32,7 @@ Un seul avis par compte (UNIQUE sur `user_id`), modifiable.
 
 - `GET /api/reviews` — public, `rateLimit` par IP. Renvoie `{ members, average, count, reviews[6 derniers] }` où `members` = nombre total de comptes (`SELECT COUNT(*) FROM users`, mis en cache 5 min ; aucun autre détail exposé); chaque avis : `{ id, rating, body, author (publicName), authorLevel, createdAt }`.
 - `GET /api/reviews/mine` — connecté. Renvoie l'avis de l'utilisateur ou `null`.
-- `PUT /api/reviews` — connecté, `rateLimit`. Crée ou met à jour (upsert) son avis. Validation : `rating` entier 1–5, `body` 10–500 caractères, texte brut.
+- `POST /api/reviews` — connecté, `rateLimit`. Crée ou met à jour (upsert) son avis. Validation : `rating` entier 1–5, `body` 10–500 caractères, texte brut.
 - `DELETE /api/reviews` — connecté : supprime son avis. Admin (`isAdmin`) : peut supprimer un avis par `?id=`.
 
 ### Interface
@@ -58,9 +58,9 @@ Un seul avis par compte (UNIQUE sur `user_id`), modifiable.
 ### Client
 
 - Hook `useLiveFeed` (`services/liveFeed.ts`) utilisé dans `components/Layout.tsx`, actif seulement si connecté (`EventSource`, reconnexion native).
-- Chaque événement déclenche le toast existant `cyber-notify`, avec action « ouvrir » vers Communauté ou Actualités. Textes FR / EN / ES.
+- Chaque événement déclenche le toast existant `cyber-notify`, (sans action cliquable ; le message reste dans l'historique de la cloche). Textes FR / EN / ES.
 - Sur l'onglet Communauté, un `community_post` recharge le fil.
-- Réglage `settings.liveNotifications` (défaut : activé), modifiable dans Profil comme `showInLeaderboard`. Désactivé : le flux n'est pas ouvert.
+- Préférence locale à l'appareil (`localStorage`, défaut : activé), modifiable dans Profil. Désactivé : le flux n'est pas ouvert.
 
 ## Sécurité
 
