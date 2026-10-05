@@ -31,6 +31,8 @@ export const openLiveStream = (req, res, user) => {
   while (set.size >= MAX_STREAMS_PER_USER) {
     const oldest = set.values().next().value;
     set.delete(oldest);
+    // Le navigateur reconnecte seul un flux fermé : on prévient l'onglet évincé pour qu'il s'arrête
+    write(oldest, 'event: replaced\ndata: {}\n\n');
     oldest.end();
   }
   set.add(res);

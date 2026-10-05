@@ -41,6 +41,8 @@ export const useLiveFeed = () => {
       const data = parse<NewsEvent>(e);
       if (data) notify(liveMessage('news', data, languageRef.current));
     });
+    // Trop d'onglets ouverts : ce flux a été remplacé, inutile de se reconnecter en boucle
+    source.addEventListener('replaced', () => source.close());
     return () => source.close();
   }, [enabled]);
 };

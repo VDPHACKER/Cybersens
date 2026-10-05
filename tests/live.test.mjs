@@ -7,6 +7,7 @@ import { startHarness } from './helpers/apiHarness.mjs';
 let h;
 let awa;
 let bob;
+let firstBobStream;
 const opened = [];
 
 before(async () => {
@@ -71,6 +72,7 @@ test('le flux exige une session', async () => {
 test('un post de la Communauté est diffusé aux autres, pas à son auteur', async () => {
   const sAwa = await openSse(awa.cookie);
   const sBob = await openSse(bob.cookie);
+  firstBobStream = sBob;
   assert.equal(sBob.status, 200);
 
   const long = 'x'.repeat(200);
@@ -95,6 +97,11 @@ test('au plus 3 connexions par utilisateur : la plus ancienne est fermée', asyn
   const closed = await waitFor(() => opened.filter((s) => s.ended).length >= 1);
   assert.ok(closed, 'une connexion a été fermée');
   assert.equal(first.ended, false, 'les plus récentes restent ouvertes');
+  // Le navigateur reconnecte un flux fermé sans explication : l'évincé doit être prévenu pour ne pas reboucler
+  assert.ok(
+    firstBobStream.events.some((e) => e.event === 'replaced'),
+    'la connexion évincée reçoit l’événement « replaced » avant la fermeture',
+  );
 });
 
 test('announceNews : un seul événement, 3 articles listés au plus', async () => {

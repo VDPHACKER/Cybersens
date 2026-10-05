@@ -29,6 +29,7 @@ import {
 import { ApiError } from '../services/apiClient';
 import { refreshFromServer } from '../services/persistenceService';
 import { COMMUNITY_POST_EVENT } from '../services/useLiveFeed';
+import { mergeNewPosts } from '../services/communityMerge';
 
 interface CommunityProps {
   onBack?: () => void;
@@ -105,9 +106,9 @@ export const Community: React.FC<CommunityProps> = () => {
     const refresh = () => {
       fetchPosts(filter)
         .then((res) => {
-          setPosts(res.posts);
+          // Fusion : le fil déjà déroulé (« Voir plus ») et les commentaires ouverts ne bougent pas
+          setPosts((prev) => mergeNewPosts(prev, res.posts));
           setCanModerate(res.canModerate);
-          setHasMore(res.posts.length >= 20);
         })
         .catch(() => {});
     };
