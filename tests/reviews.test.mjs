@@ -27,7 +27,6 @@ test('GET /api/reviews est public : vide au départ, compte les membres', async 
     { count: 0, average: 0, reviews: [], members: 0 },
   );
   awa = await h.register('Awa Traoré', 'awa@test.bf');
-  h.resetMembersCache();
   r = await anon.call('GET', '/api/reviews');
   assert.equal(r.data.members, 1);
 });

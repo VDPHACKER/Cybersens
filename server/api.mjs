@@ -549,6 +549,7 @@ const routes = {
           legacy ? null : nowSql(),
           legacy ? null : TERMS_VERSION,
         );
+      resetMembersCache(); // le nombre de membres affiché sur l'accueil doit suivre les inscriptions
     } catch (err) {
       if (err.code === '23505')
         throw new HttpError(409, 'Un compte existe déjà avec cet e-mail. Connectez-vous.');
@@ -617,6 +618,7 @@ const routes = {
            VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *`,
         )
         .get(googleMail, name.trim(), role, `${role} certifié`, hash, nowSql(), TERMS_VERSION);
+      resetMembersCache();
       created = true;
     }
     await logSecurity(created ? 'register_google' : 'login_google', req, trustProxy, user.id);
