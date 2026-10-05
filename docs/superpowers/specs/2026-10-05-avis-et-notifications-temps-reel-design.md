@@ -4,7 +4,7 @@ Date : 2026-10-05 · Branche : `feature/deploiement-firebase`
 
 ## Objectif
 
-1. Afficher sur l'onglet **Accueil** de la page publique des avis laissés par de vrais utilisateurs inscrits.
+1. Afficher sur l'onglet **Accueil** de la page publique des avis laissés par de vrais utilisateurs inscrits, ainsi que le nombre réel d'utilisateurs de la plateforme.
 2. Notifier instantanément les utilisateurs connectés quand quelqu'un publie dans la **Communauté** ou quand une **nouvelle actualité** apparaît.
 
 Hors périmètre : notifications push application fermée, notifications de commentaires/likes, modération automatique, page ou onglet « Avis » dédié.
@@ -30,7 +30,7 @@ Un seul avis par compte (UNIQUE sur `user_id`), modifiable.
 
 ### API (`server/api.mjs`)
 
-- `GET /api/reviews` — public, `rateLimit` par IP. Renvoie `{ average, count, reviews[6 derniers] }`; chaque avis : `{ id, rating, body, author (publicName), authorLevel, createdAt }`.
+- `GET /api/reviews` — public, `rateLimit` par IP. Renvoie `{ members, average, count, reviews[6 derniers] }` où `members` = nombre total de comptes (`SELECT COUNT(*) FROM users`, mis en cache 5 min ; aucun autre détail exposé); chaque avis : `{ id, rating, body, author (publicName), authorLevel, createdAt }`.
 - `GET /api/reviews/mine` — connecté. Renvoie l'avis de l'utilisateur ou `null`.
 - `PUT /api/reviews` — connecté, `rateLimit`. Crée ou met à jour (upsert) son avis. Validation : `rating` entier 1–5, `body` 10–500 caractères, texte brut.
 - `DELETE /api/reviews` — connecté : supprime son avis. Admin (`isAdmin`) : peut supprimer un avis par `?id=`.
@@ -38,6 +38,7 @@ Un seul avis par compte (UNIQUE sur `user_id`), modifiable.
 ### Interface
 
 - `features/Reviews.tsx` : section « Ce que disent nos utilisateurs » (moyenne + étoiles + nombre d'avis, grille des 6 derniers). Insérée dans la vue Accueil de `features/Landing.tsx`, entre les fonctionnalités et le bandeau d'appel à l'action. **Masquée s'il n'y a aucun avis** ; aucun témoignage inventé.
+- **Nombre de membres** : ligne « N membres inscrits » affichée sur l'Accueil, toujours visible (sans seuil), même quand la section des avis est masquée. Placée avec les points de confiance du hero, et reprise dans l'en-tête de la section des avis. Le chiffre vient de `members` (le composant `Reviews` charge les données une fois et les partage avec le hero).
 - Texte rendu comme texte React (échappé), jamais en HTML.
 - Formulaire d'écriture, de modification et de suppression de son avis : dans **Profil** (`features/Profile.tsx`).
 - Textes en FR / EN / ES (`useL`).
