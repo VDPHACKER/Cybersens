@@ -38,6 +38,7 @@ import { AppTab, UserPreferences } from '../types';
 import { audioService } from '../services/audioService';
 import { useI18n, LanguageSelector } from '../services/i18n';
 import { getPreferences, logoutLearnerAccount } from '../services/persistenceService';
+import { useLiveFeed } from '../services/useLiveFeed';
 import { PWAInstallButton } from './PWAInstallButton';
 import { OfflineIndicator } from './OfflineIndicator';
 import { GlobalSearch } from './GlobalSearch';
@@ -105,6 +106,9 @@ const Layout: React.FC<LayoutProps> = ({
     window.addEventListener('cyber-notify', onNotify);
     return () => window.removeEventListener('cyber-notify', onNotify);
   }, []);
+
+  // Notifications en direct (nouveaux posts de la Communauté, nouvelles actualités)
+  useLiveFeed();
 
   const go = useCallback(
     (tab: AppTab) => {

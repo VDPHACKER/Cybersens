@@ -28,6 +28,7 @@ import {
 } from '../services/communityApi';
 import { ApiError } from '../services/apiClient';
 import { refreshFromServer } from '../services/persistenceService';
+import { COMMUNITY_POST_EVENT } from '../services/useLiveFeed';
 
 interface CommunityProps {
   onBack?: () => void;
@@ -98,6 +99,21 @@ export const Community: React.FC<CommunityProps> = () => {
   useEffect(() => {
     void load(filter);
   }, [filter, load]);
+
+  // Un autre membre vient de publier : on rafraîchit le fil sans afficher de chargement
+  useEffect(() => {
+    const refresh = () => {
+      fetchPosts(filter)
+        .then((res) => {
+          setPosts(res.posts);
+          setCanModerate(res.canModerate);
+          setHasMore(res.posts.length >= 20);
+        })
+        .catch(() => {});
+    };
+    window.addEventListener(COMMUNITY_POST_EVENT, refresh);
+    return () => window.removeEventListener(COMMUNITY_POST_EVENT, refresh);
+  }, [filter]);
 
   const loadMore = async () => {
     const last = posts[posts.length - 1];
