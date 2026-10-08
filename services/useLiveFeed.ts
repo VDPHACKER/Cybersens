@@ -41,6 +41,11 @@ export const useLiveFeed = () => {
       const data = parse<NewsEvent>(e);
       if (data) notify(liveMessage('news', data, languageRef.current));
     });
+    // Annonce d'une nouveauté par l'équipe : affichée ici car le push est masqué quand l'application est visible
+    source.addEventListener('announce', (e) => {
+      const data = parse<{ title: string; body: string }>(e);
+      if (data) notify(`${data.title} : ${data.body}`);
+    });
     // Trop d'onglets ouverts : ce flux a été remplacé, inutile de se reconnecter en boucle
     source.addEventListener('replaced', () => source.close());
     return () => source.close();

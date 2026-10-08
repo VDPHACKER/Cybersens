@@ -114,6 +114,16 @@ En local, toutes les étapes hors Docker ont été exécutées avec succès. Pou
 3. Les nouvelles migrations de base s'appliquent automatiquement au démarrage.
 4. Les utilisateurs de la PWA voient la bannière « Nouvelle version disponible ».
 
+## 9 bis. Notifications push (application fermée)
+
+Les membres connectés peuvent recevoir une notification sur leur appareil, **application fermée**, quand quelqu'un publie dans la Communauté, quand une actualité paraît ou quand l'équipe annonce une nouveauté (Centre DevOps → « Annoncer une nouveauté »).
+
+- **Configuration** : aucune clé à créer. Une paire VAPID est générée au premier démarrage et conservée dans la table `meta`. Il faut seulement un contact : `ADMIN_EMAILS` suffit, sinon `VAPID_SUBJECT`.
+- **HTTPS obligatoire** (sauf `localhost`). Sur iPhone/iPad, l'application doit être ajoutée à l'écran d'accueil.
+- **Activation** : chaque membre active l'option dans Profil → « Notifications même application fermée ». Elle s'arrête à la déconnexion.
+- **Serveur toujours actif** : les actualités sont détectées par un surveillant interne. Sur un hébergeur qui met l'instance en veille, aucune alerte d'actualité ne partira pendant la veille.
+- **Confidentialité** : le texte transite chiffré par le service de push du navigateur (Google, Mozilla, Apple, Microsoft). Seuls ces services sont acceptés comme destination.
+
 ## 10. Pourquoi pas Firebase / Cloud Run ?
 
 Un lien `.web.app` (Firebase Hosting) passe par Cloud Run, dont le disque est **éphémère** : la base embarquée (comptes, progression, certificats, communauté) y serait effacée à chaque redéploiement ou redémarrage. Avec de vrais utilisateurs, il faut un **disque persistant** : c'est le cas de Railway avec un volume monté sur `/app/data` (section 3) ou d'un VPS.

@@ -31,6 +31,7 @@ interface SystemStatus {
     users: number;
     certificates: number;
     activeSessions: number;
+    pushDevices?: number;
   };
   timestamp: string;
 }
@@ -82,6 +83,9 @@ export const DevOpsCenter: React.FC = () => {
   const [pwNext, setPwNext] = useState('');
   const [pwConfirm, setPwConfirm] = useState('');
   const [pwSaving, setPwSaving] = useState(false);
+  const [annTitle, setAnnTitle] = useState('');
+  const [annBody, setAnnBody] = useState('');
+  const [annSending, setAnnSending] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Efface de l'écran toutes les données personnelles et redemande le mot de passe administrateur
@@ -177,6 +181,25 @@ export const DevOpsCenter: React.FC = () => {
     a.download = `cybersens-membres-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
+  };
+
+  const handleAnnounce = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAnnSending(true);
+    setMessage(null);
+    try {
+      await api('POST', '/api/admin/announce', { title: annTitle, body: annBody });
+      setAnnTitle('');
+      setAnnBody('');
+      setMessage({ text: 'Annonce envoyée à tous les membres abonnés.', type: 'success' });
+    } catch (err) {
+      setMessage({
+        text: err instanceof Error && err.message ? err.message : 'Envoi impossible.',
+        type: 'error',
+      });
+    } finally {
+      setAnnSending(false);
+    }
   };
 
   const filteredUsers = users.filter((u) =>
@@ -699,6 +722,53 @@ export const DevOpsCenter: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Annonce d'une nouveauté */}
+      <form
+        onSubmit={handleAnnounce}
+        className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-3"
+      >
+        <h2 className="text-base font-black text-slate-900 dark:text-white">
+          Annoncer une nouveauté
+        </h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Envoie une notification à tous les membres : dans l'application s'ils l'ont ouverte, sinon
+          sur leur appareil
+          {typeof status?.stats.pushDevices === 'number'
+            ? ` (${status.stats.pushDevices} appareil${status.stats.pushDevices > 1 ? 's' : ''} abonné${status.stats.pushDevices > 1 ? 's' : ''})`
+            : ''}
+          . À réserver aux vraies nouveautés.
+        </p>
+        <input
+          type="text"
+          value={annTitle}
+          onChange={(e) => setAnnTitle(e.target.value)}
+          placeholder="Titre (80 caractères max)"
+          aria-label="Titre de l'annonce"
+          minLength={3}
+          maxLength={80}
+          required
+          className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+        />
+        <textarea
+          value={annBody}
+          onChange={(e) => setAnnBody(e.target.value)}
+          placeholder="Message (200 caractères max)"
+          aria-label="Message de l'annonce"
+          minLength={3}
+          maxLength={200}
+          rows={2}
+          required
+          className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+        />
+        <button
+          type="submit"
+          disabled={annSending}
+          className="px-4 py-2.5 rounded-xl bg-sky-700 hover:bg-sky-600 disabled:opacity-50 text-white font-bold text-xs"
+        >
+          {annSending ? 'Envoi…' : 'Envoyer à tous les membres'}
+        </button>
+      </form>
 
       {/* Membres inscrits */}
       <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">

@@ -1,6 +1,7 @@
 import { QuizHistoryEntry, UserPreferences, AuditLogEntry, Certificate, UserBadge } from '../types';
 import { apiInBackground, api, ServerSnapshot, SYNC_QUEUE_KEY } from './apiClient';
 import { COMPREHENSIVE_COURSE_MODULES } from './coursesData';
+import { getStoredPushEndpoint, releasePushDevice } from './pushDevice';
 
 /*
  * Le stockage local sert de cache synchrone pour l'interface.
@@ -555,7 +556,10 @@ export const applyServerSnapshot = (snap: ServerSnapshot): UserPreferences => {
 };
 
 export const logoutLearnerAccount = (): UserPreferences => {
-  apiInBackground('POST', '/api/auth/logout');
+  // Le serveur retire l'appareil du compte avant de fermer la session
+  const endpoint = getStoredPushEndpoint();
+  apiInBackground('POST', '/api/auth/logout', endpoint ? { endpoint } : undefined);
+  void releasePushDevice();
   clearUserCache();
   return getPreferences();
 };

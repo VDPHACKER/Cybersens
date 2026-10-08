@@ -8,6 +8,15 @@ import { checkOrigin } from './csrf.mjs';
 import { hashPassword, verifyPassword } from './passwords.mjs';
 import { getNews } from './news.mjs';
 import { openLiveStream, publish } from './liveFeed.mjs';
+import {
+  announcementPush,
+  communityPostPush,
+  countSubscriptions,
+  getPublicKey,
+  pushInBackground,
+  removeSubscription,
+  saveSubscription,
+} from './push.mjs';
 import { answerRoom, createRoom, joinRoom, leaveRoom, openStream, startRoom } from './rooms.mjs';
 import { verifyGoogleIdToken } from './google.mjs';
 import { mailConfigured, publicUrl, sendMail } from './mail.mjs';
@@ -730,8 +739,33 @@ const routes = {
     openLiveStream(req, res, user);
   },
 
-  'POST /api/auth/logout': async ({ req, res }) => {
+  // Notifications Web Push (reçues application fermée) : clé publique, abonnement et désabonnement d'un appareil
+  'GET /api/push/key': async ({ req, res }) => {
+    const user = await requireUser(req);
+    rateLimit(`push-key:${user.id}`, 30, 60_000);
+    const publicKey = await getPublicKey();
+    send(res, 200, { configured: !!publicKey, publicKey });
+  },
+
+  'POST /api/push/subscribe': async ({ req, res, body }) => {
+    const user = await requireUser(req);
+    rateLimit(`push-subscribe:${user.id}`, 20, 10 * 60_000);
+    if (!(await getPublicKey())) throw new HttpError(503, 'Notifications non configurées');
+    await saveSubscription(user, body);
+    send(res, 200, { ok: true });
+  },
+
+  'POST /api/push/unsubscribe': async ({ req, res, body }) => {
+    const user = await requireUser(req);
+    await removeSubscription(user, body.endpoint);
+    send(res, 200, { ok: true });
+  },
+
+  'POST /api/auth/logout': async ({ req, res, body }) => {
     const token = parseCookies(req.headers.cookie)[SESSION_COOKIE];
+    // L'appareil ne doit plus recevoir les notifications de ce compte une fois déconnecté
+    const user = body?.endpoint ? await getSessionUser(req) : null;
+    if (user) await removeSubscription(user, body.endpoint);
     if (token) await db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha256(token));
     clearSessionCookie(res);
     send(res, 200, { ok: true });
@@ -1082,6 +1116,13 @@ const routes = {
       { id, topic, author: publicName(user.name), excerpt: text.replace(/\s+/g, ' ').slice(0, 80) },
       { exceptUserId: user.id },
     );
+    pushInBackground(
+      communityPostPush({
+        author: publicName(user.name),
+        excerpt: text.replace(/\s+/g, ' ').slice(0, 80),
+      }),
+      { exceptUserId: user.id },
+    );
     send(res, 201, { id });
   },
 
@@ -1248,9 +1289,22 @@ const routes = {
         users: await count('users'),
         certificates: await count('certificates'),
         activeSessions: await count('sessions'),
+        pushDevices: await countSubscriptions(),
       },
       timestamp: new Date().toISOString(),
     });
+  },
+
+  // Annonce d'une nouveauté à tous les membres : notification dans l'application ouverte et push sinon
+  'POST /api/admin/announce': async ({ req, res, body }) => {
+    const admin = await requireAdmin(req);
+    rateLimit(`announce:${admin.id}`, 5, 10 * 60_000);
+    const oneLine = (s) => s.replace(/\s*\n\s*/g, ' ');
+    const title = oneLine(longText(body.title, { min: 3, max: 80, field: 'Titre' }));
+    const text = oneLine(longText(body.body, { min: 3, max: 200, field: 'Message' }));
+    publish('announce', { title, body: text });
+    pushInBackground(announcementPush({ title, body: text }));
+    send(res, 200, { ok: true });
   },
 
   // Déverrouillage de l'espace administrateur : état, saisie du mot de passe admin, verrouillage
@@ -1454,9 +1508,12 @@ export const handleApi = async (req, res, { trustProxy = false } = {}) => {
     if (!handler) throw new HttpError(404, 'Route inconnue');
     const mutating = req.method !== 'GET' && req.method !== 'HEAD';
     if (mutating) checkOrigin(req, { trustProxy });
+    // La déconnexion lit son corps de façon tolérante : un corps invalide ne doit jamais l'empêcher
     const body =
-      mutating && req.method !== 'DELETE' && url.pathname !== '/api/auth/logout'
-        ? await readJson(req)
+      mutating && req.method !== 'DELETE'
+        ? url.pathname === '/api/auth/logout'
+          ? await readJson(req).catch(() => ({}))
+          : await readJson(req)
         : {};
     await handler({ req, res, body, url, ip: clientIp(req, trustProxy), trustProxy });
   } catch (err) {

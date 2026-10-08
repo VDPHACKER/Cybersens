@@ -39,6 +39,7 @@ import { audioService } from '../services/audioService';
 import { useI18n, LanguageSelector } from '../services/i18n';
 import { getPreferences, logoutLearnerAccount } from '../services/persistenceService';
 import { useLiveFeed } from '../services/useLiveFeed';
+import { syncPush } from '../services/pushNotifications';
 import { PWAInstallButton } from './PWAInstallButton';
 import { OfflineIndicator } from './OfflineIndicator';
 import { GlobalSearch } from './GlobalSearch';
@@ -73,7 +74,7 @@ const Layout: React.FC<LayoutProps> = ({
   theme,
   onToggleTheme,
 }) => {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const L = useL();
   const [isMusicOn, setIsMusicOn] = useState(false);
   const [toasts, setToasts] = useState<Notification[]>([]);
@@ -109,6 +110,11 @@ const Layout: React.FC<LayoutProps> = ({
 
   // Notifications en direct (nouveaux posts de la Communauté, nouvelles actualités)
   useLiveFeed();
+
+  // Notifications reçues application fermée : rattache cet appareil au compte connecté (et à sa langue)
+  useEffect(() => {
+    if (prefs.isAuthenticated) void syncPush(language);
+  }, [prefs.isAuthenticated, language]);
 
   const go = useCallback(
     (tab: AppTab) => {

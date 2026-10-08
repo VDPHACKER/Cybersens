@@ -1,6 +1,7 @@
 // Flux temps réel (Server-Sent Events) : notifications de la Communauté et des actualités.
 // Même technique que server/rooms.mjs : une réponse HTTP gardée ouverte, ping périodique.
 import { getNews, onNewArticles } from './news.mjs';
+import { newsPush, pushInBackground } from './push.mjs';
 
 const MAX_STREAMS_PER_USER = 3;
 const PING_MS = 20_000;
@@ -57,12 +58,14 @@ export const publish = (event, data, { exceptUserId } = {}) => {
 
 /** Un seul événement pour toutes les nouvelles actualités, avec au plus 3 titres. */
 export const announceNews = (fresh) => {
-  publish('news', {
+  const data = {
     count: fresh.length,
     items: fresh
       .slice(0, MAX_NEWS_ITEMS)
       .map((a) => ({ id: a.id, title: a.title, source: a.source })),
-  });
+  };
+  publish('news', data);
+  pushInBackground(newsPush(data));
 };
 
 /** Surveille les flux d'actualités : le premier chargement amorce la liste connue sans rien notifier. */

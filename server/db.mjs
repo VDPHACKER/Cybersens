@@ -160,6 +160,19 @@ const MIGRATIONS = [
     updated_at TEXT NOT NULL DEFAULT (${NOW})
   );
   `,
+  // Abonnements Web Push (notifications reçues même application fermée) : un par appareil
+  `
+  CREATE TABLE push_subscriptions (
+    id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    endpoint   TEXT NOT NULL UNIQUE,
+    p256dh     TEXT NOT NULL,
+    auth       TEXT NOT NULL,
+    lang       TEXT NOT NULL DEFAULT 'fr',
+    created_at TEXT NOT NULL DEFAULT (${NOW})
+  );
+  CREATE INDEX idx_push_user ON push_subscriptions(user_id);
+  `,
 ];
 
 // ---------- Pilotes ----------
