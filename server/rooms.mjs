@@ -14,7 +14,7 @@ export const LIMITS = {
   maxRooms: 200,
   minQuestions: 3,
   maxQuestions: QUESTION_BANK.length,
-  minSeconds: 10,
+  minSeconds: 5,
   maxSeconds: 60,
 };
 
@@ -66,6 +66,7 @@ const snapshotFor = (room, userId) => {
     code: room.code,
     phase: room.phase,
     hostId: room.hostId,
+    session: room.session,
     total: room.questions.length,
     seconds: room.seconds,
     index: room.index,
@@ -177,33 +178,54 @@ export const leaveRoom = (userId) => {
   broadcast(room);
 };
 
-export const createRoom = (user, { count, seconds }) => {
-  if (rooms.size >= LIMITS.maxRooms)
-    throw new HttpError(503, 'Trop de salles ouvertes, réessayez dans quelques minutes.');
+const checkSettings = (count, seconds) => {
   if (!Number.isInteger(count) || count < LIMITS.minQuestions || count > LIMITS.maxQuestions)
     throw new HttpError(400, 'Nombre de questions invalide');
   if (!Number.isInteger(seconds) || seconds < LIMITS.minSeconds || seconds > LIMITS.maxSeconds)
     throw new HttpError(400, 'Durée par question invalide');
+};
 
-  leaveRoom(user.id);
-  const questions = shuffle(QUESTION_BANK)
-    .slice(0, count)
-    .map((q) => {
-      const order = shuffle([0, 1, 2, 3]);
+/**
+ * Tire de nouvelles questions. Celles de la partie précédente (avoid) ne reviennent qu'en dernier recours,
+ * quand la banque n'en contient pas assez d'autres : chaque partie est donc différente de la précédente.
+ */
+const drawQuestions = (count, avoid = new Set()) => {
+  const order = shuffle(QUESTION_BANK.map((_, i) => i));
+  const picked = [
+    ...order.filter((i) => !avoid.has(i)),
+    ...order.filter((i) => avoid.has(i)),
+  ].slice(0, count);
+  return {
+    bankIndexes: picked,
+    questions: picked.map((bankIndex) => {
+      const q = QUESTION_BANK[bankIndex];
+      const answers = shuffle([0, 1, 2, 3]);
       // Chaque joueur lit la question dans sa propre langue : les trois versions sont envoyées
       return {
         text: pick(q.question),
-        options: order.map((i) => pick(q.options[i])),
-        correct: order.indexOf(q.answer),
+        options: answers.map((i) => pick(q.options[i])),
+        correct: answers.indexOf(q.answer),
       };
-    });
+    }),
+  };
+};
+
+export const createRoom = (user, { count, seconds }) => {
+  if (rooms.size >= LIMITS.maxRooms)
+    throw new HttpError(503, 'Trop de salles ouvertes, réessayez dans quelques minutes.');
+  checkSettings(count, seconds);
+
+  leaveRoom(user.id);
+  const { questions, bankIndexes } = drawQuestions(count);
 
   const room = {
     code: newCode(),
     hostId: user.id,
     seconds,
     phase: 'lobby',
+    session: 1,
     questions,
+    bankIndexes,
     index: 0,
     counts: [0, 0, 0, 0],
     players: new Map(),
@@ -253,6 +275,43 @@ export const startRoom = (user, code) => {
   if (room.phase !== 'lobby') throw new HttpError(409, 'La partie a déjà commencé.');
   if (room.players.size < 2) throw new HttpError(409, 'Il faut au moins 2 joueurs pour commencer.');
   beginQuestion(room);
+};
+
+/**
+ * Nouvelle partie dans la même salle (même code, mêmes joueurs) : l'hôte peut changer le nombre de questions
+ * et le temps. Les scores repartent à zéro et de nouvelles questions sont tirées.
+ */
+export const restartRoom = (user, code, { count, seconds } = {}) => {
+  const room = requireRoom(code);
+  memberOf(room, user.id);
+  if (room.hostId !== user.id) throw new HttpError(403, 'Seul l’hôte peut relancer la partie.');
+  if (room.phase !== 'finished') throw new HttpError(409, 'La partie n’est pas terminée.');
+  const nextCount = count ?? room.questions.length;
+  const nextSeconds = seconds ?? room.seconds;
+  checkSettings(nextCount, nextSeconds);
+
+  clearTimers(room);
+  // Les joueurs partis pendant ou après la partie ne sont pas reconduits
+  for (const [id, player] of room.players) {
+    if (player.streams.size === 0 && id !== user.id) {
+      room.players.delete(id);
+      if (roomOfUser.get(id) === room.code) roomOfUser.delete(id);
+    }
+  }
+  const { questions, bankIndexes } = drawQuestions(nextCount, new Set(room.bankIndexes));
+  room.questions = questions;
+  room.bankIndexes = bankIndexes;
+  room.seconds = nextSeconds;
+  room.session += 1;
+  room.phase = 'lobby';
+  room.index = 0;
+  room.counts = [0, 0, 0, 0];
+  for (const p of room.players.values()) {
+    p.score = 0;
+    p.choice = null;
+    p.lastPoints = 0;
+  }
+  broadcast(room);
 };
 
 export const answerRoom = (user, code, choice) => {

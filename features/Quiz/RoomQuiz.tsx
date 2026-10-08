@@ -22,6 +22,7 @@ import {
   createRoom,
   joinRoom,
   leaveRoom,
+  restartRoom,
   startRoom,
   watchRoom,
 } from '../../services/roomsApi';
@@ -54,6 +55,9 @@ const RoomQuiz: React.FC<RoomQuizProps> = ({ onExit, initialCode }) => {
   const [joinCode, setJoinCode] = useState(initialCode || '');
   const [count, setCount] = useState(5);
   const [seconds, setSeconds] = useState(20);
+  // Réglages de la prochaine partie (proposés à l'hôte quand la partie est terminée)
+  const [nextCount, setNextCount] = useState(5);
+  const [nextSeconds, setNextSeconds] = useState(20);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
@@ -98,6 +102,13 @@ const RoomQuiz: React.FC<RoomQuizProps> = ({ onExit, initialCode }) => {
     const id = window.setInterval(tick, 100);
     return () => window.clearInterval(id);
   }, [room?.phase, room?.index, room?.deadline]);
+
+  // À la fin d'une partie, les réglages proposés pour la suivante sont ceux de la partie qui vient de finir
+  useEffect(() => {
+    if (room?.phase !== 'finished') return;
+    setNextCount(room.total);
+    setNextSeconds(room.seconds);
+  }, [room?.phase, room?.session, room?.total, room?.seconds]);
 
   const enter = useCallback(async (action: () => Promise<{ code: string }>) => {
     setBusy(true);
@@ -235,41 +246,16 @@ const RoomQuiz: React.FC<RoomQuizProps> = ({ onExit, initialCode }) => {
           </h2>
           <label className="block text-xs font-bold text-slate-600 dark:text-slate-300">
             {L('Nombre de questions', 'Number of questions', 'Número de preguntas')}
-            <div className="mt-1.5 grid grid-cols-3 gap-2">
-              {[5, 10, 15].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setCount(n)}
-                  className={`rounded-xl border py-2 text-sm font-black ${
-                    count === n
-                      ? 'border-sky-500 bg-sky-50 text-sky-800 dark:bg-sky-950/40 dark:text-sky-200'
-                      : 'border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
+            <OptionPicker values={COUNT_CHOICES} value={count} onChange={setCount} />
           </label>
           <label className="block text-xs font-bold text-slate-600 dark:text-slate-300">
             {L('Temps par question', 'Time per question', 'Tiempo por pregunta')}
-            <div className="mt-1.5 grid grid-cols-3 gap-2">
-              {[15, 20, 30].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setSeconds(n)}
-                  className={`rounded-xl border py-2 text-sm font-black ${
-                    seconds === n
-                      ? 'border-sky-500 bg-sky-50 text-sky-800 dark:bg-sky-950/40 dark:text-sky-200'
-                      : 'border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  {n} s
-                </button>
-              ))}
-            </div>
+            <OptionPicker
+              values={SECONDS_CHOICES}
+              value={seconds}
+              onChange={setSeconds}
+              format={(n) => `${n} s`}
+            />
           </label>
           <button
             onClick={() => enter(() => createRoom({ count, seconds }))}
@@ -349,6 +335,12 @@ const RoomQuiz: React.FC<RoomQuizProps> = ({ onExit, initialCode }) => {
             ))}
           </ul>
           <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">
+            {room.session > 1 &&
+              L(
+                `Partie n° ${room.session} • `,
+                `Game #${room.session} • `,
+                `Partida n.º ${room.session} • `,
+              )}
             {L(
               `${room.total} questions • ${room.seconds} s chacune`,
               `${room.total} questions • ${room.seconds} s each`,
@@ -517,12 +509,86 @@ const RoomQuiz: React.FC<RoomQuizProps> = ({ onExit, initialCode }) => {
         </p>
       </div>
       <Scoreboard players={ranking.map((p) => ({ ...p }))} meId={me.id} />
-      <button onClick={leave} className={`${button} w-full bg-sky-700 text-white hover:bg-sky-600`}>
-        {L('Rejouer', 'Play again', 'Jugar de nuevo')}
-      </button>
+      {errorBox}
+      {me.isHost ? (
+        <div className="space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
+          <h2 className="text-sm font-black text-slate-900 dark:text-white">
+            {L('Prochaine partie', 'Next game', 'Próxima partida')}
+          </h2>
+          <label className="block text-xs font-bold text-slate-600 dark:text-slate-300">
+            {L('Nombre de questions', 'Number of questions', 'Número de preguntas')}
+            <OptionPicker values={COUNT_CHOICES} value={nextCount} onChange={setNextCount} />
+          </label>
+          <label className="block text-xs font-bold text-slate-600 dark:text-slate-300">
+            {L('Temps par question', 'Time per question', 'Tiempo por pregunta')}
+            <OptionPicker
+              values={SECONDS_CHOICES}
+              value={nextSeconds}
+              onChange={setNextSeconds}
+              format={(n) => `${n} s`}
+            />
+          </label>
+          <button
+            onClick={() =>
+              run(() => restartRoom(room.code, { count: nextCount, seconds: nextSeconds }))
+            }
+            className={`${button} w-full bg-sky-700 text-white hover:bg-sky-600`}
+          >
+            <Play className="h-4 w-4" aria-hidden="true" />
+            {L(
+              'Rejouer avec le même code',
+              'Play again with the same code',
+              'Jugar con el mismo código',
+            )}
+          </button>
+          <p className="text-center text-[11px] text-slate-500 dark:text-slate-400">
+            {L(
+              'Mêmes joueurs, nouvelles questions : personne ne ressaisit le code.',
+              'Same players, new questions: nobody has to retype the code.',
+              'Mismos jugadores, preguntas nuevas: nadie tiene que volver a escribir el código.',
+            )}
+          </p>
+        </div>
+      ) : (
+        <p className="text-center text-xs font-bold text-slate-500 dark:text-slate-400">
+          {L(
+            'Restez ici : l’hôte peut relancer une partie avec le même code et vous la rejoindrez automatiquement.',
+            'Stay here: the host can start a new game with the same code and you will join automatically.',
+            'Quédate aquí: el anfitrión puede iniciar otra partida con el mismo código y entrarás automáticamente.',
+          )}
+        </p>
+      )}
     </div>
   );
 };
+
+const COUNT_CHOICES = [5, 10, 15];
+const SECONDS_CHOICES = [5, 10, 15, 20, 30];
+
+const OptionPicker: React.FC<{
+  values: number[];
+  value: number;
+  onChange: (n: number) => void;
+  format?: (n: number) => string;
+}> = ({ values, value, onChange, format = String }) => (
+  <div className="mt-1.5 flex flex-wrap gap-2">
+    {values.map((n) => (
+      <button
+        key={n}
+        type="button"
+        onClick={() => onChange(n)}
+        aria-pressed={value === n}
+        className={`min-w-[3.5rem] flex-1 rounded-xl border py-2 text-sm font-black ${
+          value === n
+            ? 'border-sky-500 bg-sky-50 text-sky-800 dark:bg-sky-950/40 dark:text-sky-200'
+            : 'border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300'
+        }`}
+      >
+        {format(n)}
+      </button>
+    ))}
+  </div>
+);
 
 const Scoreboard: React.FC<{
   players: { id: number; name: string; score: number }[];

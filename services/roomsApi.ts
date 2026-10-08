@@ -9,6 +9,8 @@ export type LocalizedText = Record<'fr' | 'en' | 'es', string>;
 export interface RoomState {
   code: string;
   phase: RoomPhase;
+  /** Numéro de la partie dans cette salle (1 à la création, +1 à chaque « Rejouer »). */
+  session: number;
   hostId: number;
   total: number;
   seconds: number;
@@ -33,6 +35,10 @@ export const joinRoom = (code: string) =>
   api<{ code: string }>('POST', '/api/rooms/join', { code });
 
 export const startRoom = (code: string) => api('POST', '/api/rooms/start', { code });
+
+/** Nouvelle partie dans la même salle (hôte, partie terminée) : mêmes joueurs, nouvelles questions. */
+export const restartRoom = (code: string, settings: { count: number; seconds: number }) =>
+  api('POST', '/api/rooms/restart', { code, ...settings });
 
 export const answerRoom = (code: string, choice: number) =>
   api('POST', '/api/rooms/answer', { code, choice });
