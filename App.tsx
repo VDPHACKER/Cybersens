@@ -41,6 +41,17 @@ const initialTab = (): AppTab => {
     window.history.replaceState(null, '', window.location.pathname);
     return AppTab.QUIZ;
   }
+  // Lien d'invitation à une salle de CTF en équipe : /?joinctf=123456
+  const joinCtf = params.get('joinctf');
+  if (joinCtf && /^\d{6}$/.test(joinCtf)) {
+    try {
+      sessionStorage.setItem('cybersens-join-ctf', joinCtf);
+    } catch {
+      /* stockage indisponible : le code se saisit à la main */
+    }
+    window.history.replaceState(null, '', window.location.pathname);
+    return AppTab.CTF;
+  }
   const requested = params.get('tab');
   if (requested) window.history.replaceState(null, '', window.location.pathname);
   return (Object.values(AppTab) as string[]).includes(requested || '')
@@ -58,7 +69,9 @@ const AppShell: React.FC = () => {
   // de passe ou une invitation à une salle de quiz (initialTab() a déjà consommé ce dernier ci-dessus).
   const [authMode, setAuthMode] = useState<'login' | 'register' | null>(() => {
     const hasResetLink = /(?:^|[?&])reset=/.test(window.location.search);
-    const hasRoomInvite = !!sessionStorage.getItem('cybersens-join-room');
+    const hasRoomInvite =
+      !!sessionStorage.getItem('cybersens-join-room') ||
+      !!sessionStorage.getItem('cybersens-join-ctf');
     return hasResetLink || hasRoomInvite ? 'login' : null;
   });
   // État de session : vérifié auprès du serveur au démarrage (cookie HttpOnly)
@@ -241,7 +254,11 @@ const AppShell: React.FC = () => {
               setPrefs(updated);
               // Invitation à une salle reçue avant la connexion : on y retourne au lieu de l'accueil
               setActiveTab(
-                sessionStorage.getItem('cybersens-join-room') ? AppTab.QUIZ : AppTab.HOME,
+                sessionStorage.getItem('cybersens-join-room')
+                  ? AppTab.QUIZ
+                  : sessionStorage.getItem('cybersens-join-ctf')
+                    ? AppTab.CTF
+                    : AppTab.HOME,
               );
               setSession('authenticated');
             }}

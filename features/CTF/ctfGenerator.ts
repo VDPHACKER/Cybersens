@@ -1,4 +1,4 @@
-import { CTFChallenge, Language } from '../../types';
+import type { CTFChallenge, Language } from '../../types';
 
 // Utility random helpers
 const getRandomHex = (length = 4): string => {

@@ -17,7 +17,26 @@ import {
   removeSubscription,
   saveSubscription,
 } from './push.mjs';
-import { answerRoom, createRoom, joinRoom, leaveRoom, openStream, startRoom } from './rooms.mjs';
+import {
+  answerRoom,
+  createRoom,
+  joinRoom,
+  leaveRoom,
+  openStream,
+  restartRoom,
+  startRoom,
+} from './rooms.mjs';
+import {
+  askCtfSandbox,
+  createCtfRoom,
+  finishCtfRoom,
+  joinCtfRoom,
+  leaveCtfRoom,
+  openCtfStream,
+  restartCtfRoom,
+  startCtfRoom,
+  submitCtfFlag,
+} from './ctfRooms.mjs';
 import { verifyGoogleIdToken } from './google.mjs';
 import { mailConfigured, publicUrl, sendMail } from './mail.mjs';
 import { resetUserPassword } from './accountTools.mjs';
@@ -713,6 +732,13 @@ const routes = {
     send(res, 200, { ok: true });
   },
 
+  'POST /api/rooms/restart': async ({ res, req, body }) => {
+    const user = await requireUser(req);
+    rateLimit(`room-restart:${user.id}`, 20, 60_000);
+    restartRoom(user, body.code, { count: body.count, seconds: body.seconds });
+    send(res, 200, { ok: true });
+  },
+
   'POST /api/rooms/answer': async ({ res, req, body }) => {
     const user = await requireUser(req);
     rateLimit(`room-answer:${user.id}`, 120, 60_000);
@@ -730,6 +756,81 @@ const routes = {
     const user = await requireUser(req);
     rateLimit(`room-stream:${user.id}`, 60, 60_000);
     openStream(req, res, user, url.searchParams.get('code'));
+  },
+
+  // ---------- CTF en équipe (salles) ----------
+  'POST /api/ctf/rooms': async ({ res, req, body }) => {
+    const user = await requireUser(req);
+    rateLimit(`ctf-room-create:${user.id}`, 10, 10 * 60_000);
+    send(
+      res,
+      201,
+      createCtfRoom(
+        { id: user.id, displayName: publicName(user.name) },
+        { challengeIds: body.challengeIds, lang: body.lang },
+      ),
+    );
+  },
+
+  'POST /api/ctf/rooms/join': async ({ res, req, body }) => {
+    const user = await requireUser(req);
+    rateLimit(`ctf-room-join:${user.id}`, 30, 60_000);
+    send(res, 200, joinCtfRoom({ id: user.id, displayName: publicName(user.name) }, body.code));
+  },
+
+  'POST /api/ctf/rooms/start': async ({ res, req, body }) => {
+    const user = await requireUser(req);
+    rateLimit(`ctf-room-start:${user.id}`, 20, 60_000);
+    startCtfRoom(user, body.code);
+    send(res, 200, { ok: true });
+  },
+
+  // Vérification d'un drapeau : le serveur seul connaît les bonnes réponses
+  'POST /api/ctf/rooms/submit': async ({ res, req, body }) => {
+    const user = await requireUser(req);
+    rateLimit(`ctf-flag:${user.id}`, 30, 60_000);
+    send(res, 200, submitCtfFlag(user, body.code, body.challengeId, body.flag));
+  },
+
+  'POST /api/ctf/rooms/sandbox': async ({ res, req, body }) => {
+    const user = await requireUser(req);
+    rateLimit(`ctf-sandbox:${user.id}`, 30, 60_000);
+    send(
+      res,
+      200,
+      askCtfSandbox(
+        user,
+        body.code,
+        body.challengeId,
+        body.prompt,
+        ['fr', 'en', 'es'].includes(body.lang) ? body.lang : 'fr',
+      ),
+    );
+  },
+
+  'POST /api/ctf/rooms/finish': async ({ res, req, body }) => {
+    const user = await requireUser(req);
+    rateLimit(`ctf-room-finish:${user.id}`, 20, 60_000);
+    finishCtfRoom(user, body.code);
+    send(res, 200, { ok: true });
+  },
+
+  'POST /api/ctf/rooms/restart': async ({ res, req, body }) => {
+    const user = await requireUser(req);
+    rateLimit(`ctf-room-restart:${user.id}`, 10, 10 * 60_000);
+    restartCtfRoom(user, body.code, { lang: body.lang });
+    send(res, 200, { ok: true });
+  },
+
+  'POST /api/ctf/rooms/leave': async ({ res, req }) => {
+    leaveCtfRoom((await requireUser(req)).id);
+    send(res, 200, { ok: true });
+  },
+
+  'GET /api/ctf/rooms/stream': async ({ req, res, url }) => {
+    const user = await requireUser(req);
+    rateLimit(`ctf-room-stream:${user.id}`, 60, 60_000);
+    openCtfStream(req, res, user, url.searchParams.get('code'));
   },
 
   // Notifications en direct (nouveaux posts de la Communauté, nouvelles actualités)

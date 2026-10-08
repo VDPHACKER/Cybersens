@@ -34,6 +34,8 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/server ./server
 # Données des cours : utilisées par le serveur pour valider la progression et corriger les examens
 COPY --from=build /app/services/coursesData.ts /app/services/advancedCoursesData.ts ./services/
+# Générateur de défis CTF : les défis et leurs drapeaux sont créés par le serveur (CTF en équipe)
+COPY --from=build /app/features/CTF/ctfGenerator.ts ./features/CTF/
 
 # Exécution sans privilèges (utilisateur « node » fourni par l'image officielle)
 RUN mkdir -p /app/data /app/backups && chown -R node:node /app/data /app/backups

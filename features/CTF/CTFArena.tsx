@@ -18,8 +18,10 @@ import {
   Copy,
   Check,
   Lightbulb,
+  Users,
 } from 'lucide-react';
 import { CTFChallenge } from '../../types';
+import CTFRoom from './CTFRoom';
 import { audioService } from '../../services/audioService';
 import { useI18n } from '../../services/i18n';
 import {
@@ -31,9 +33,13 @@ import {
 interface CTFArenaProps {
   onBack: () => void;
   onOpenAIChat?: (initialPrompt: string) => void;
+  /** Ouvre le CTF en équipe (salles multijoueur). */
+  onOpenTeam?: () => void;
 }
 
 const STORAGE_KEY = 'cyberguard_ctf_progress';
+// Code d'une salle CTF reçu par lien d'invitation (/?joinctf=123456), lu par App.tsx puis ici
+const JOIN_CODE_KEY = 'cybersens-join-ctf';
 const STORAGE_CHALLENGES_KEY_PREFIX = 'cyberguard_ctf_challenges_v6_';
 // Doit correspondre au seuil « lg » de Tailwind (1024px), où la liste et l'espace de résolution
 // passent côte à côte : en dessous, l'espace de résolution doit s'intercaler juste après la carte active.
@@ -53,7 +59,7 @@ const useIsDesktop = () => {
   return isDesktop;
 };
 
-export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
+const CTFSolo: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat, onOpenTeam }) => {
   const { t, language } = useI18n();
   const isDesktop = useIsDesktop();
 
@@ -743,6 +749,24 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
 
         {/* Actions & Score */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {onOpenTeam && (
+            <button
+              onClick={onOpenTeam}
+              className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 font-bold text-xs transition-all hover:scale-[1.02] active:scale-95"
+              title={
+                language === 'en'
+                  ? 'Solve the challenges together in a room'
+                  : language === 'es'
+                    ? 'Resolver los retos juntos en una sala'
+                    : 'Résoudre les défis à plusieurs, dans une salle'
+              }
+            >
+              <Users className="w-4 h-4 text-indigo-300" />
+              <span>
+                {language === 'en' ? 'Team' : language === 'es' ? 'En equipo' : 'En équipe'}
+              </span>
+            </button>
+          )}
           <button
             onClick={handleRegenerateAll}
             className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/40 font-bold text-xs transition-all shadow-lg shadow-cyan-950/40 hover:scale-[1.02] active:scale-95"
@@ -873,6 +897,22 @@ export const CTFArena: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat }) => {
       </div>
     </div>
   );
+};
+
+/** Arène CTF : mode solo, ou mode équipe (salle partagée, accessible aussi par lien d'invitation). */
+export const CTFArena: React.FC<CTFArenaProps> = (props) => {
+  const [team, setTeam] = useState<{ code?: string } | null>(() => {
+    try {
+      const code = sessionStorage.getItem(JOIN_CODE_KEY);
+      if (!code) return null;
+      sessionStorage.removeItem(JOIN_CODE_KEY);
+      return { code };
+    } catch {
+      return null;
+    }
+  });
+  if (team) return <CTFRoom onBack={() => setTeam(null)} initialCode={team.code} />;
+  return <CTFSolo {...props} onOpenTeam={() => setTeam({})} />;
 };
 
 export default CTFArena;
