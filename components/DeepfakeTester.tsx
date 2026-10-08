@@ -33,7 +33,10 @@ interface DeepfakeSample {
   previewUrl?: string;
   textContent?: string;
   isDeepfake: boolean;
-  deepfakeScore: number;
+  /** Libellé du fichier audio présenté (cas audio) */
+  audioLabel?: string;
+  /** Description neutre de la séquence présentée (cas vidéo) */
+  videoCaption?: string;
   explanation: string;
   clues: string[];
 }
@@ -46,7 +49,7 @@ const DEEPFAKE_SAMPLES: DeepfakeSample[] = [
     sourceDescription:
       'Fichier audio reçu à 18h30 ordonnant un virement immédiat de 15.000.000 FCFA pour une opportunité confidentielle.',
     isDeepfake: true,
-    deepfakeScore: 96,
+    audioLabel: '« note_vocale_direction.m4a » (0:24)',
     explanation:
       'Deepfake vocal généré par clonage neuronal (RVC/ElevenLabs). L’IA reproduit le timbre exact mais supprime les respirations naturelles et présente une courbe de pitch anormalement plate.',
     clues: [
@@ -65,7 +68,6 @@ const DEEPFAKE_SAMPLES: DeepfakeSample[] = [
     previewUrl:
       'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
     isDeepfake: true,
-    deepfakeScore: 92,
     explanation:
       'Visage synthétique généré par réseau antagoniste génératif (GAN/StyleGAN). Malgré une peau ultra-lisse, les reflets oculaires et les boucles d’oreilles révèlent des asymétries physiques impossibles.',
     clues: [
@@ -82,7 +84,8 @@ const DEEPFAKE_SAMPLES: DeepfakeSample[] = [
     sourceDescription:
       'Courte vidéo de 15 secondes d’un responsable financier circulant sur TikTok et Telegram.',
     isDeepfake: true,
-    deepfakeScore: 89,
+    videoCaption:
+      'Séquence vidéo de 15 secondes. Observez la synchronisation des lèvres, les clignements et le contour du visage.',
     explanation:
       'Deepfake vidéo avec synchronisation labiale synthétique (Wav2Lip). La bouche a été recalculée sur une vidéo réelle préexistante pour lui faire dire un discours paniquant.',
     clues: [
@@ -100,7 +103,6 @@ const DEEPFAKE_SAMPLES: DeepfakeSample[] = [
       'Email prétendant émaner d’un tribunal de commerce avec menace de saisie sous 48 heures.',
     textContent: `Monsieur / Madame,\n\nVeuillez prendre connaissance de l'injonction de payer numéro RG-2026-9938 rendue à votre encontre. Afin d'éviter la saisie conservatoire immédiate de vos actifs bancaires sous 48 heures ouvrées, vous devez obligatoirement procéder à la régularisation de la somme de 485.000 FCFA via le portail judiciaire sécurisé en pièce jointe.\n\nDans l'attente de votre prompt accusé de réception,\nLe Greffe Central.`,
     isDeepfake: true,
-    deepfakeScore: 87,
     explanation:
       'Phishing rédigé par un LLM (Grand Modèle de Langage). Le style est excessivement guindé et use d’un vocabulaire juridique théâtral pour provoquer un réflexe de panique sans aucune référence légale valide.',
     clues: [
@@ -111,6 +113,92 @@ const DEEPFAKE_SAMPLES: DeepfakeSample[] = [
     ],
   },
 ];
+
+const AUTHENTIC_SAMPLES: DeepfakeSample[] = [
+  {
+    id: 'authentic-1',
+    type: 'text',
+    title: 'Email du service informatique : migration de la messagerie',
+    sourceDescription:
+      'Email reçu sur votre adresse professionnelle, d’un expéditeur de votre entreprise.',
+    textContent: `Bonjour Awa,
+
+Comme annoncé lors du point d'équipe de lundi, la migration de la messagerie aura lieu ce samedi de 8h à 12h. Aucune action n'est requise de votre part et nous ne vous demanderons jamais votre mot de passe.
+
+Pour toute question, appelez le support au poste 4120 ou passez au bureau B12.
+
+Cordialement,
+Moussa Diallo, Service informatique`,
+    isDeepfake: false,
+    explanation:
+      'Message authentique. Le ton est formel, mais rien n’est demandé : ni argent, ni identifiants, ni clic. Un style soigné ne suffit pas à rendre un message suspect.',
+    clues: [
+      'Vous êtes appelé par votre prénom et le message renvoie à une réunion que vous connaissez',
+      'Aucune demande de paiement, de mot de passe ni de pièce jointe',
+      'Contact vérifiable en interne (poste 4120, bureau B12)',
+      'Aucune urgence : l’opération est annoncée à l’avance',
+    ],
+  },
+  {
+    id: 'authentic-2',
+    type: 'audio',
+    title: 'Note vocale WhatsApp : le directeur rappelle la réunion de demain',
+    sourceDescription:
+      'Message de 20 secondes reçu du numéro habituel du directeur, déjà enregistré dans vos contacts, demandant d’apporter le bilan trimestriel imprimé.',
+    isDeepfake: false,
+    audioLabel: '« note_vocale_reunion.m4a » (0:20)',
+    explanation:
+      'Note vocale authentique. Elle est imparfaite (hésitations, bruit de fond), ce qui est normal pour un enregistrement spontané. Une mauvaise qualité audio n’est pas un indice de deepfake.',
+    clues: [
+      'Respirations, hésitations (« euh ») et reprises de phrase naturelles',
+      'Bruit ambiant cohérent (bureau, circulation) qui varie pendant le message',
+      'Numéro connu et manière habituelle de s’exprimer',
+      'Demande ordinaire : aucun virement, code ni identifiant réclamé',
+    ],
+  },
+  {
+    id: 'authentic-3',
+    type: 'image',
+    title: 'Photo de profil LinkedIn : contact d’une entreprise partenaire',
+    sourceDescription:
+      'Profil créé il y a six ans, plus de 400 relations communes, recommandations de collègues. Aucune pièce jointe ni lien envoyé.',
+    previewUrl:
+      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80',
+    isDeepfake: false,
+    explanation:
+      'Profil authentique. Pour juger une photo, le contexte compte autant que l’image : ancienneté, historique et recoupement avec des sources fiables. Une photo très soignée n’est pas une preuve de génération par IA.',
+    clues: [
+      'Profil ancien avec historique d’activité et recommandations de vraies personnes',
+      'Même photo retrouvée sur le site officiel de l’entreprise',
+      'Relations communes que vous pouvez contacter pour confirmer',
+      'Aucune demande suspecte (téléchargement, argent, accès)',
+    ],
+  },
+  {
+    id: 'authentic-4',
+    type: 'video',
+    title: 'Visioconférence : le DG annonce un nouveau partenariat',
+    sourceDescription:
+      'Extrait de 15 secondes d’une réunion interne, publié sur l’intranet et confirmé par un email de la direction.',
+    isDeepfake: false,
+    videoCaption:
+      'Séquence vidéo de 15 secondes. Observez la synchronisation des lèvres, les clignements et le contour du visage.',
+    explanation:
+      'Vidéo authentique. Elle vient d’un canal officiel et l’annonce est confirmée ailleurs. Un léger flou dû à la compression d’une visioconférence est normal.',
+    clues: [
+      'Publiée sur le canal officiel (intranet) et confirmée par un second canal',
+      'Clignements irréguliers et mouvements de tête naturels',
+      'Éclairage du visage cohérent quand la tête bouge',
+      'Annonce sans demande d’argent ni d’action urgente',
+    ],
+  },
+];
+
+// Alternance deepfake / authentique pour que « tout est faux » ne soit pas une stratégie gagnante
+const CHALLENGE_SAMPLES: DeepfakeSample[] = DEEPFAKE_SAMPLES.flatMap((fake, i) => [
+  fake,
+  AUTHENTIC_SAMPLES[i],
+]);
 
 export const DeepfakeTester: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'detector' | 'challenge' | 'guide'>('detector');
@@ -132,7 +220,8 @@ export const DeepfakeTester: React.FC = () => {
   const [challengeScore, setChallengeScore] = useState(0);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
-  const currentChallenge = DEEPFAKE_SAMPLES[currentChallengeIdx];
+  const currentChallenge = CHALLENGE_SAMPLES[currentChallengeIdx];
+  const challengeCorrect = (userGuess === 'deepfake') === currentChallenge.isDeepfake;
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -225,7 +314,7 @@ export const DeepfakeTester: React.FC = () => {
     setUserGuess(null);
     setChallengeRevealed(false);
     setIsPlayingAudio(false);
-    setCurrentChallengeIdx((prev) => (prev + 1) % DEEPFAKE_SAMPLES.length);
+    setCurrentChallengeIdx((prev) => (prev + 1) % CHALLENGE_SAMPLES.length);
   };
 
   return (
@@ -563,7 +652,7 @@ export const DeepfakeTester: React.FC = () => {
           <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <span className="text-xs font-bold text-sky-700 dark:text-sky-400">
-                Cas d'Étude {currentChallengeIdx + 1} / {DEEPFAKE_SAMPLES.length}
+                Cas d'Étude {currentChallengeIdx + 1} / {CHALLENGE_SAMPLES.length}
               </span>
               <span className="text-xs font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
                 Type : {currentChallenge.type.toUpperCase()}
@@ -587,7 +676,7 @@ export const DeepfakeTester: React.FC = () => {
                     <Mic className="w-8 h-8" />
                   </div>
                   <div className="text-xs font-mono text-slate-600 dark:text-slate-300">
-                    « Voix_direction_transfert_urgent.m4a » (0:24)
+                    {currentChallenge.audioLabel}
                   </div>
                   <button
                     onClick={() => setIsPlayingAudio(!isPlayingAudio)}
@@ -628,8 +717,7 @@ export const DeepfakeTester: React.FC = () => {
                 <div className="w-full p-6 text-center space-y-2">
                   <Video className="w-10 h-10 text-sky-500 mx-auto" />
                   <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    Séquence vidéo interpolée de 15 secondes avec synchronisation labiale et
-                    clignement d'yeux figé.
+                    {currentChallenge.videoCaption}
                   </p>
                 </div>
               )}
@@ -670,21 +758,25 @@ export const DeepfakeTester: React.FC = () => {
                 {/* Result Message */}
                 <div
                   className={`p-4 rounded-2xl text-xs font-bold flex items-center gap-3 ${
-                    userGuess === 'deepfake'
+                    challengeCorrect
                       ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
                       : 'bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
                   }`}
                 >
-                  {userGuess === 'deepfake' ? (
+                  {challengeCorrect ? (
                     <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0" />
                   ) : (
                     <AlertTriangle className="w-5 h-5 text-rose-700 shrink-0" />
                   )}
                   <div>
                     <div className="text-sm font-black">
-                      {userGuess === 'deepfake'
-                        ? 'Bravo ! Vous avez repéré le Deepfake !'
-                        : 'Piège ! Il s’agissait bien d’un Deepfake synthétique.'}
+                      {currentChallenge.isDeepfake
+                        ? challengeCorrect
+                          ? 'Bravo ! Vous avez repéré le Deepfake !'
+                          : 'Piège ! Il s’agissait bien d’un Deepfake synthétique.'
+                        : challengeCorrect
+                          ? 'Bravo ! Ce contenu est bien authentique.'
+                          : 'Fausse alerte ! Ce contenu était authentique.'}
                     </div>
                     <div className="font-normal opacity-90">{currentChallenge.explanation}</div>
                   </div>
@@ -693,7 +785,9 @@ export const DeepfakeTester: React.FC = () => {
                 {/* Revealed Clues */}
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2 text-xs">
                   <span className="font-bold uppercase tracking-wider text-slate-500 text-[10px]">
-                    Indices Révélateurs Détectés par CyberSens :
+                    {currentChallenge.isDeepfake
+                      ? 'Indices révélateurs :'
+                      : 'Éléments qui confirment l’authenticité :'}
                   </span>
                   <ul className="space-y-1.5 list-disc list-inside text-slate-700 dark:text-slate-300">
                     {currentChallenge.clues.map((clue, cIdx) => (
