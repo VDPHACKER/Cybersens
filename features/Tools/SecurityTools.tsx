@@ -4,8 +4,10 @@ import { analyzeSecurityLog } from '../../services/geminiService';
 import { AuditLogEntry } from '../../types';
 import { useI18n } from '../../services/i18n';
 import { DeepfakeTester } from '../../components/DeepfakeTester';
+import { ImageMetadataTool } from '../../components/ImageMetadataTool';
 import {
   ScanFace,
+  FileSearch,
   ScanSearch,
   Link2,
   MailWarning,
@@ -17,7 +19,7 @@ import {
   Bot,
 } from 'lucide-react';
 
-type ToolTab = 'deepfake' | 'analyzer' | 'links' | 'email' | 'password' | 'audit';
+type ToolTab = 'deepfake' | 'metadata' | 'analyzer' | 'links' | 'email' | 'password' | 'audit';
 
 const humanizeAiText = (raw: string) => {
   if (!raw) return '';
@@ -39,7 +41,15 @@ const SecurityTools: React.FC<SecurityToolsProps> = ({ onBack }) => {
     try {
       const wanted = sessionStorage.getItem('cybersens-open-tool');
       if (wanted) sessionStorage.removeItem('cybersens-open-tool');
-      const valid: ToolTab[] = ['deepfake', 'analyzer', 'links', 'email', 'password', 'audit'];
+      const valid: ToolTab[] = [
+        'deepfake',
+        'metadata',
+        'analyzer',
+        'links',
+        'email',
+        'password',
+        'audit',
+      ];
       return valid.includes(wanted as ToolTab) ? (wanted as ToolTab) : 'deepfake';
     } catch {
       return 'deepfake';
@@ -56,6 +66,16 @@ const SecurityTools: React.FC<SecurityToolsProps> = ({ onBack }) => {
             ? 'Detector de Deepfakes'
             : 'Testeur de Deepfakes IA',
       icon: ScanFace,
+    },
+    {
+      id: 'metadata',
+      label:
+        language === 'en'
+          ? 'Image Forensics'
+          : language === 'es'
+            ? 'Forense de Imagen'
+            : 'Forensics d’Image',
+      icon: FileSearch,
     },
     {
       id: 'analyzer',
@@ -128,6 +148,7 @@ const SecurityTools: React.FC<SecurityToolsProps> = ({ onBack }) => {
 
       <div className="transition-all duration-300">
         {activeTool === 'deepfake' && <DeepfakeTester />}
+        {activeTool === 'metadata' && <ImageMetadataTool />}
         {activeTool === 'analyzer' && <ExpertAIAnalyzer />}
         {activeTool === 'links' && <LinkAnalyzer />}
         {activeTool === 'email' && <EmailAnalyzer />}
