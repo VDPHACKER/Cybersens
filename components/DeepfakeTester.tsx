@@ -64,17 +64,17 @@ const DEEPFAKE_SAMPLES: DeepfakeSample[] = [
     type: 'image',
     title: 'Photo de profil LinkedIn : Prétendue recruteuse Banque',
     sourceDescription:
-      'Profil invitant des ingénieurs à télécharger une fiche de poste compressée en .zip.',
+      'Profil créé il y a trois semaines, 11 relations, poste « Recruteuse senior » sans historique. Il invite des ingénieurs à télécharger une fiche de poste compressée en .zip.',
     previewUrl:
       'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
     isDeepfake: true,
     explanation:
-      'Visage synthétique généré par réseau antagoniste génératif (GAN/StyleGAN). Malgré une peau ultra-lisse, les reflets oculaires et les boucles d’oreilles révèlent des asymétries physiques impossibles.',
+      'Faux profil de recrutement : la photo est une image de banque d’images réutilisée sous une autre identité. Un visage ne se juge pas à l’œil nu ; ce sont le contexte et la recherche d’image inversée qui révèlent la fraude.',
     clues: [
-      'Reflet cornéen discordant : une pupille ronde, l’autre avec un artefact carré',
-      'Boucle d’oreille gauche différente de la boucle d’oreille droite',
-      'Arrière-plan flou avec distorsion texturale typique de l’espace latent GAN',
-      'Dents centrales dupliquées ou fondues sans sillon gingival naturel',
+      'Compte récent (3 semaines), très peu de relations et aucun historique professionnel',
+      'Recherche d’image inversée : la même photo apparaît ailleurs sous un autre nom',
+      'Fichier .zip à télécharger : vecteur classique de logiciel malveillant',
+      'Recrutement « sur invitation » sans offre publiée sur le site officiel de la banque',
     ],
   },
   {
@@ -708,7 +708,7 @@ export const DeepfakeTester: React.FC = () => {
                     />
                   </div>
                   <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Inspectez attentivement les yeux, oreilles et cheveux.
+                    L’image seule ne suffit pas : lisez aussi le contexte indiqué ci-dessus.
                   </span>
                 </div>
               )}
@@ -741,7 +741,7 @@ export const DeepfakeTester: React.FC = () => {
                     className="py-3.5 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30 text-slate-800 dark:text-slate-200 font-bold text-xs transition-all flex items-center justify-center gap-2"
                   >
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span>C'est Authentique (Humain)</span>
+                    <span>C'est authentique</span>
                   </button>
 
                   <button
@@ -749,7 +749,7 @@ export const DeepfakeTester: React.FC = () => {
                     className="py-3.5 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-rose-500 hover:bg-rose-50/50 dark:hover:bg-rose-950/30 text-slate-800 dark:text-slate-200 font-bold text-xs transition-all flex items-center justify-center gap-2"
                   >
                     <ShieldAlert className="w-4 h-4 text-rose-500" />
-                    <span>C'est un Deepfake IA</span>
+                    <span>C'est un faux (IA ou arnaque)</span>
                   </button>
                 </div>
               </div>
