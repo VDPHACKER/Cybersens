@@ -14,22 +14,16 @@ import {
   RefreshCw,
   Play,
   Pause,
-  Volume2,
-  HelpCircle,
   Sliders,
   Cpu,
   Layers,
   ArrowRight,
 } from 'lucide-react';
 import { addPoints } from '../services/persistenceService';
+import { analyzeWithGemini, MAX_MEDIA_BYTES } from '../services/deepfakeAnalysis';
+import type { DeepfakeAnalysis, DeepfakeVerdict } from '../services/deepfakeVerdict';
 
 type MediaType = 'audio' | 'image' | 'video' | 'text';
-
-interface ForensicFlag {
-  name: string;
-  verdict: 'anomaly' | 'suspicious' | 'clean';
-  detail: string;
-}
 
 interface DeepfakeSample {
   id: string;
@@ -126,17 +120,10 @@ export const DeepfakeTester: React.FC = () => {
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [uploadedPreview, setUploadedPreview] = useState<string | null>(null);
   const [textInput, setTextInput] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [scanProgress, setScanProgress] = useState(0);
-  const [analysisResult, setAnalysisResult] = useState<{
-    score: number;
-    verdict: string;
-    level: 'critique' | 'suspect' | 'authentique';
-    confidence: number;
-    flags: ForensicFlag[];
-    spectrogram: string;
-    defenseSteps: string[];
-  } | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<DeepfakeAnalysis | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   // CHALLENGE STATE
   const [currentChallengeIdx, setCurrentChallengeIdx] = useState(0);
@@ -150,6 +137,16 @@ export const DeepfakeTester: React.FC = () => {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setAnalysisResult(null);
+    setAnalysisError(null);
+    if (file.size > MAX_MEDIA_BYTES) {
+      setSelectedFile(null);
+      setUploadedFileName(null);
+      setUploadedPreview(null);
+      setAnalysisError(`Fichier trop volumineux (maximum ${MAX_MEDIA_BYTES / 1024 / 1024} Mo).`);
+      return;
+    }
+    setSelectedFile(file);
     setUploadedFileName(file.name);
     if (file.type.startsWith('image/')) {
       const reader = new FileReader();
@@ -160,142 +157,55 @@ export const DeepfakeTester: React.FC = () => {
     } else {
       setUploadedPreview(null);
     }
-    setAnalysisResult(null);
   };
 
-  const handleRunAnalysis = () => {
-    setIsScanning(true);
-    setScanProgress(0);
+  const handleRunAnalysis = async () => {
     setAnalysisResult(null);
+    setAnalysisError(null);
+    if (mediaType === 'text' ? textInput.trim().length < 20 : !selectedFile) {
+      setAnalysisError(
+        mediaType === 'text'
+          ? 'Collez un message d’au moins 20 caractères.'
+          : 'Chargez d’abord un fichier à analyser.',
+      );
+      return;
+    }
+    setIsScanning(true);
+    try {
+      const result = await analyzeWithGemini(
+        mediaType === 'text'
+          ? { kind: 'text', text: textInput }
+          : { kind: mediaType, file: selectedFile as File },
+      );
+      setAnalysisResult(result);
+      addPoints(25);
+    } catch (err) {
+      setAnalysisError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Analyse impossible pour le moment. Réessayez dans un instant.',
+      );
+    } finally {
+      setIsScanning(false);
+    }
+  };
 
-    const interval = setInterval(() => {
-      setScanProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsScanning(false);
-          addPoints(25);
-
-          if (mediaType === 'text') {
-            const lower = textInput.toLowerCase();
-            const dangerKeywords = [
-              'virement',
-              'urgent',
-              'saisie',
-              'bancaire',
-              'fcfa',
-              'euro',
-              'mot de passe',
-              'tribunal',
-              'gagnant',
-              'colis',
-              'bitcoin',
-              'cryptomonnaie',
-              'justice',
-              'amende',
-              'bloqué',
-              'immédiat',
-              'injonction',
-              'patron',
-              'directeur',
-              'paiement',
-            ];
-            const matches = dangerKeywords.filter((k) => lower.includes(k));
-            const isSuspicious = matches.length > 0 || textInput.length > 15;
-            const score = isSuspicious ? Math.min(96, 65 + matches.length * 10) : 15;
-            const level = score > 75 ? 'critique' : score > 40 ? 'suspect' : 'authentique';
-
-            setAnalysisResult({
-              score,
-              verdict: isSuspicious
-                ? 'Texte ou Message Manipulé par IA (Ingénierie Sociale / Phishing)'
-                : 'Message / Texte Apparemment Authentique et Naturel',
-              level,
-              confidence: isSuspicious ? 95.2 : 90.0,
-              spectrogram: isSuspicious
-                ? 'Perplexité linguistique faible : Régularité statistique caractéristique d’un Grand Modèle de Langage (LLM).'
-                : 'Variabilité sémantique et syntaxique naturelle.',
-              flags: [
-                {
-                  name: 'Analyse des mots-clés d’urgence',
-                  verdict: isSuspicious ? 'anomaly' : 'clean',
-                  detail: isSuspicious
-                    ? `Indicateurs de pression détectés : ${matches.join(', ') || 'ton pressant'}`
-                    : 'Aucune pression artificielle ou menace détectée',
-                },
-                {
-                  name: 'Structure syntaxique & ton',
-                  verdict: isSuspicious ? 'suspicious' : 'clean',
-                  detail: isSuspicious
-                    ? 'Formulations impersonnelles et impersonnification de autorité'
-                    : 'Ton conversationnel fluide et cohérent',
-                },
-              ],
-              defenseSteps: [
-                'Ne jamais céder à l’urgence artificielle ou aux demandes de fonds par message.',
-                'Vérifier l’authenticité en contactant directement l’expéditeur par un canal officiel.',
-              ],
-            });
-          } else {
-            const nameLower = (uploadedFileName || 'echantillon').toLowerCase();
-            const isExplicitlyClean =
-              nameLower.includes('real') ||
-              nameLower.includes('clean') ||
-              nameLower.includes('authentique') ||
-              nameLower.includes('original');
-
-            let score = 93;
-            if (isExplicitlyClean) score = 14;
-
-            const isDeepfake = score > 50;
-            const level = score > 75 ? 'critique' : score > 40 ? 'suspect' : 'authentique';
-
-            setAnalysisResult({
-              score,
-              verdict: isDeepfake
-                ? mediaType === 'audio'
-                  ? 'Deepfake Vocal Hautement Probable (Clonage Neuronal RVC)'
-                  : mediaType === 'image'
-                    ? 'Portrait Synthétique Généré par IA (GAN / Diffusion)'
-                    : 'Deepfake Vidéo / Face-Swap Détecté'
-                : 'Média Apparemment Authentique et Non Manipulé',
-              level,
-              confidence: isDeepfake ? 97.1 : 92.4,
-              spectrogram: isDeepfake
-                ? 'Anomalie spectrale ou spatiale détectée sur le fichier soumis.'
-                : 'Spectrogramme et métadonnées conformes à une capture naturelle.',
-              flags: [
-                {
-                  name:
-                    mediaType === 'audio'
-                      ? 'Fréquence fondamentale & Jitter'
-                      : mediaType === 'image'
-                        ? 'Symétrie cornéenne & pupilles'
-                        : 'Fréquence de clignement & visèmes',
-                  verdict: isDeepfake ? 'anomaly' : 'clean',
-                  detail: isDeepfake
-                    ? `Fichier "${uploadedFileName}" : signature caractéristique d’une génération artificielle.`
-                    : 'Paramètre biologique naturel et cohérent.',
-                },
-                {
-                  name: 'Analyse des artefacts de compression',
-                  verdict: isDeepfake ? 'suspicious' : 'clean',
-                  detail: isDeepfake
-                    ? 'Présence d’artefacts de sur-lissage et de discontinuité spectrale.'
-                    : 'Aucun artefact de manipulation numérique détecté.',
-                },
-              ],
-              defenseSteps: [
-                'Toujours recouper l’information par un second canal de confiance.',
-                'Exiger une confirmation physique ou un mot de passe verbal secret.',
-              ],
-            });
-          }
-
-          return 100;
-        }
-        return prev + 25;
-      });
-    }, 250);
+  const verdictInfo = (v: DeepfakeVerdict) => {
+    const text = mediaType === 'text';
+    if (v === 'synthetique_probable')
+      return {
+        label: text ? 'Arnaque ou manipulation probable' : 'Contenu synthétique probable',
+        tone: 'text-rose-700 dark:text-rose-400',
+      };
+    if (v === 'aucun_indice')
+      return {
+        label: 'Aucun indice détecté',
+        tone: 'text-emerald-700 dark:text-emerald-400',
+      };
+    return {
+      label: 'Indéterminé : impossible de conclure',
+      tone: 'text-amber-700 dark:text-amber-400',
+    };
   };
 
   const handleChallengeAnswer = (answer: 'real' | 'deepfake') => {
@@ -327,7 +237,7 @@ export const DeepfakeTester: React.FC = () => {
           <div className="space-y-1.5">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/20 border border-sky-400/40 text-sky-300 text-xs font-bold uppercase tracking-wider">
               <Cpu className="w-3.5 h-3.5" />
-              <span>Laboratoire d'Analyse Heuristique & IA</span>
+              <span>Analyse assistée par IA (indicative)</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
               <span>Testeur & Détecteur de Deepfakes</span>
@@ -337,15 +247,6 @@ export const DeepfakeTester: React.FC = () => {
               Analysez les anomalies invisibles à l'œil nu : clonage vocal, artefacts GAN cornéens,
               désynchronisation labiale et phishing rédigé par IA.
             </p>
-          </div>
-
-          <div className="flex sm:flex-col items-center sm:items-end gap-2 shrink-0">
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Précision du Moteur
-            </span>
-            <div className="px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-black">
-              98.2% Fiabilité
-            </div>
           </div>
         </div>
 
@@ -512,26 +413,6 @@ export const DeepfakeTester: React.FC = () => {
                         />
                       </div>
                     )}
-
-                    {/* Preloaded Sample Quick Button */}
-                    <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs">
-                      <span className="text-slate-600 dark:text-slate-300 font-medium">
-                        Pas de fichier sous la main ?
-                      </span>
-                      <button
-                        onClick={() => {
-                          setUploadedFileName(`echantillon_${mediaType}_suspect.bin`);
-                          if (mediaType === 'image') {
-                            setUploadedPreview(
-                              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-                            );
-                          }
-                        }}
-                        className="text-sky-700 dark:text-sky-400 font-bold hover:underline"
-                      >
-                        Charger un cas d'école
-                      </button>
-                    </div>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -561,12 +442,12 @@ export const DeepfakeTester: React.FC = () => {
                 {isScanning ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Scan Heuristique en cours ({scanProgress}%)...</span>
+                    <span>Analyse en cours (jusqu’à 30 s)...</span>
                   </>
                 ) : (
                   <>
                     <Activity className="w-4 h-4" />
-                    <span>Lancer l'Analyse Forensique & Détection d'IA</span>
+                    <span>Lancer l'analyse</span>
                   </>
                 )}
               </button>
@@ -575,79 +456,84 @@ export const DeepfakeTester: React.FC = () => {
 
           {/* Results Column */}
           <div className="lg:col-span-6 space-y-4">
+            {analysisError && (
+              <div
+                role="alert"
+                className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-300"
+              >
+                {analysisError}
+              </div>
+            )}
             {analysisResult ? (
               <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-5 shadow-sm animate-in fade-in">
-                {/* Score Header */}
-                <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-rose-500 font-bold flex items-center gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5" />
-                      <span>Indice de Menace Numérique</span>
-                    </span>
-                    <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-                      {analysisResult.verdict}
-                    </h3>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="text-2xl sm:text-3xl font-black text-rose-700 dark:text-rose-400">
-                      {analysisResult.score}%
-                    </div>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                      Probabilité d'IA
-                    </span>
-                  </div>
+                <div className="space-y-1 border-b border-slate-100 dark:border-slate-800 pb-4">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold">
+                    Résultat de l’analyse
+                  </span>
+                  <h3
+                    className={`text-base sm:text-lg font-black ${verdictInfo(analysisResult.verdict).tone}`}
+                  >
+                    {verdictInfo(analysisResult.verdict).label}
+                  </h3>
+                  {analysisResult.downgradeReason && (
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {analysisResult.downgradeReason}.
+                    </p>
+                  )}
                 </div>
 
-                {/* Spectrogram / Technical Signal Note */}
-                <div className="p-3.5 rounded-2xl bg-slate-900 text-sky-400 font-mono text-xs space-y-1 border border-sky-950">
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-bold">
-                    Signature Spectrale / Latente
-                  </div>
-                  <p className="text-[11px] leading-relaxed text-slate-300">
-                    {analysisResult.spectrogram}
-                  </p>
-                </div>
-
-                {/* Flags Breakdown */}
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Points de Contrôle Biométriques & Numériques
-                  </h4>
+                {analysisResult.indicators.length > 0 && (
                   <div className="space-y-2">
-                    {analysisResult.flags.map((flag, idx) => (
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Indices relevés
+                    </h4>
+                    {analysisResult.indicators.map((ind, idx) => (
                       <div
                         key={idx}
                         className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-start gap-2.5 text-xs"
                       >
-                        {flag.verdict === 'anomaly' ? (
+                        {ind.strength === 'forte' ? (
                           <ShieldAlert className="w-4 h-4 text-rose-700 shrink-0 mt-0.5" />
                         ) : (
                           <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                         )}
                         <div className="space-y-0.5 flex-1">
                           <div className="font-bold text-slate-800 dark:text-slate-200">
-                            {flag.name}
+                            {ind.name}{' '}
+                            <span className="font-normal text-slate-500">({ind.strength})</span>
                           </div>
                           <div className="text-slate-500 dark:text-slate-400 text-[11px]">
-                            {flag.detail}
+                            {ind.observation}
                           </div>
                         </div>
                       </div>
                     ))}
                   </div>
-                </div>
+                )}
 
-                {/* Defensive Action Steps */}
+                {analysisResult.limitations && (
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    <strong>Limites :</strong> {analysisResult.limitations}
+                  </p>
+                )}
+
                 <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 space-y-2">
                   <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-bold text-xs">
                     <ShieldCheck className="w-4 h-4" />
-                    <span>Protocole de Riposte Recommandé</span>
+                    <span>À retenir</span>
                   </div>
                   <ul className="space-y-1 text-xs text-slate-700 dark:text-slate-300 list-disc list-inside">
-                    {analysisResult.defenseSteps.map((step, sIdx) => (
-                      <li key={sIdx}>{step}</li>
-                    ))}
+                    <li>
+                      Cette analyse est un indice, pas une preuve : aucun détecteur n’est
+                      infaillible.
+                    </li>
+                    <li>
+                      « Aucun indice » ne garantit pas l’authenticité. Recoupez par un second canal
+                      de confiance.
+                    </li>
+                    <li>
+                      Pour une demande d’argent ou d’accès, exigez une confirmation hors-bande.
+                    </li>
                   </ul>
                 </div>
               </div>
@@ -661,8 +547,8 @@ export const DeepfakeTester: React.FC = () => {
                     En attente de soumission
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Sélectionnez un média suspect à gauche et lancez l'analyse pour révéler les
-                    artefacts de synthèse IA.
+                    Chargez un fichier (5 Mo max) ou collez un message, puis lancez l’analyse. En
+                    cas de doute, le résultat sera « indéterminé » plutôt qu’une accusation.
                   </p>
                 </div>
               </div>

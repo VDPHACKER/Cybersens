@@ -6,7 +6,7 @@ import { Question } from '../types';
  * Les requêtes passent par le relais /api/gemini du serveur, qui ajoute la vraie clé :
  * aucune clé API n'est présente dans le code envoyé au navigateur.
  */
-const getAI = () => {
+export const getAI = () => {
   return new GoogleGenAI({
     apiKey: 'relais-serveur', // valeur factice exigée par le SDK, remplacée côté serveur
     httpOptions: {
