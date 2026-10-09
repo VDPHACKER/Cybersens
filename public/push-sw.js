@@ -1,5 +1,6 @@
 // Notifications Web Push : importé par le service worker généré par Vite PWA (workbox.importScripts).
-// Affiche la notification reçue du serveur et ouvre l'application au clic.
+// Affiche la notification reçue du serveur dans le centre de notifications du système (comme WhatsApp)
+// et ouvre l'application au clic. Le même gestionnaire de clic sert aux notifications affichées par la page.
 
 const text = (value, max) => (typeof value === 'string' ? value.slice(0, max) : '');
 
@@ -21,19 +22,25 @@ self.addEventListener('push', (event) => {
     data = {};
   }
   const title = text(data.title, 100) || 'CyberSens';
+  const tag = text(data.tag, 40) || undefined;
   const options = {
     body: text(data.body, 240),
     icon: '/pwa-192x192.png',
     badge: '/pwa-64x64.png',
-    tag: text(data.tag, 40) || undefined,
+    tag,
+    // Chaque nouveau message alerte de nouveau, même s'il remplace le précédent de même étiquette
+    renotify: !!tag,
+    vibrate: [120, 60, 120],
+    timestamp: Date.now(),
     data: { url: safeTarget(data.url) },
   };
 
   event.waitUntil(
     (async () => {
-      // Application visible à l'écran : l'avis s'affiche déjà dans l'application (flux en direct)
+      // On ne masque la notification que si l'utilisateur regarde déjà l'application : fenêtre visible ET au
+      // premier plan (le message s'affiche alors dans l'application). Fenêtre cachée derrière une autre : on notifie.
       const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-      if (windows.some((w) => w.visibilityState === 'visible')) return;
+      if (windows.some((w) => w.visibilityState === 'visible' && w.focused)) return;
       await self.registration.showNotification(title, options);
     })(),
   );

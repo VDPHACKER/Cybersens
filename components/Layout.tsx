@@ -40,6 +40,7 @@ import { useI18n, LanguageSelector } from '../services/i18n';
 import { getPreferences, logoutLearnerAccount } from '../services/persistenceService';
 import { useLiveFeed } from '../services/useLiveFeed';
 import { syncPush } from '../services/pushNotifications';
+import { NotificationPrompt } from './NotificationPrompt';
 import { PWAInstallButton } from './PWAInstallButton';
 import { OfflineIndicator } from './OfflineIndicator';
 import { GlobalSearch } from './GlobalSearch';
@@ -268,6 +269,7 @@ const Layout: React.FC<LayoutProps> = ({
         {L('Aller au contenu', 'Skip to content', 'Ir al contenido')}
       </a>
       <OfflineIndicator />
+      {prefs.isAuthenticated && <NotificationPrompt />}
 
       {/* Toasts */}
       <div

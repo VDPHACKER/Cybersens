@@ -48,3 +48,9 @@ export function liveMessage(
     `${n.count} nuevas noticias de ciberseguridad`,
   );
 }
+
+/** Titre de la notification système (la ligne en gras), dans la langue de l'utilisateur. */
+export const liveTitle = (event: 'community_post' | 'news', lang: Lang): string =>
+  event === 'community_post'
+    ? pick(lang, 'Communauté CyberSens', 'CyberSens Community', 'Comunidad CyberSens')
+    : pick(lang, 'Actualité cyber', 'Cyber news', 'Noticias de ciberseguridad');

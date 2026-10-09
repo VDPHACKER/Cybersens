@@ -13,6 +13,7 @@ import {
   type PushState,
 } from '../services/pushNotifications';
 import { useI18n } from '../services/i18n';
+import { showSystemNotification } from '../services/systemNotification';
 import { Card, useL } from './ui';
 
 const Switch: React.FC<{
@@ -156,6 +157,30 @@ export const LiveNotificationsCard: React.FC = () => {
               'Recibe una alerta en este dispositivo por publicaciones de la Comunidad, noticias y novedades sin abrir CyberSens. Se detienen al cerrar sesión.',
             )}
           </p>
+          {pushState === 'on' && (
+            <button
+              type="button"
+              onClick={() =>
+                void showSystemNotification({
+                  title: 'CyberSens',
+                  body: L(
+                    'Test : si vous voyez ceci sur votre écran, les notifications fonctionnent.',
+                    'Test: if you can see this on your screen, notifications work.',
+                    'Prueba: si ves esto en tu pantalla, las notificaciones funcionan.',
+                  ),
+                  tag: 'test',
+                  force: true,
+                })
+              }
+              className="mt-1.5 text-xs font-bold text-sky-700 underline underline-offset-2 hover:text-sky-600 dark:text-sky-400"
+            >
+              {L(
+                'Envoyer une notification de test',
+                'Send a test notification',
+                'Enviar una notificación de prueba',
+              )}
+            </button>
+          )}
           {message && (
             <p
               role={pushError ? 'alert' : undefined}

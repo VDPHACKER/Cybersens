@@ -67,12 +67,34 @@ test('push : affiche la notification reçue quand l’application n’est pas vi
   assert.equal(calls.shown[0].options.data.url, ORIGIN + '/?tab=community');
 });
 
-test('push : rien n’est affiché si l’application est visible (le toast interne suffit)', async () => {
+test('push : rien n’est affiché si l’application est visible ET au premier plan (le toast interne suffit)', async () => {
   const { handlers, calls } = loadWorker({
-    windows: [{ url: ORIGIN + '/', visibilityState: 'visible' }],
+    windows: [{ url: ORIGIN + '/', visibilityState: 'visible', focused: true }],
   });
   await run(handlers.push, pushEvent({ title: 'X', body: 'Y' }));
   assert.equal(calls.shown.length, 0);
+});
+
+test('push : fenêtre visible mais cachée derrière une autre appli (sans focus) : la notification s’affiche', async () => {
+  const { handlers, calls } = loadWorker({
+    windows: [{ url: ORIGIN + '/', visibilityState: 'visible', focused: false }],
+  });
+  await run(
+    handlers.push,
+    pushEvent({ title: 'Communauté', body: 'Nouveau message', tag: 'community' }),
+  );
+  assert.equal(calls.shown.length, 1);
+  // Comme WhatsApp : chaque nouveau message alerte de nouveau, sans empiler de doublons
+  assert.equal(calls.shown[0].options.renotify, true);
+  assert.deepEqual([...calls.shown[0].options.vibrate], [120, 60, 120]);
+  assert.equal(typeof calls.shown[0].options.timestamp, 'number');
+});
+
+test('push : sans étiquette, pas de « renotify » (le navigateur refuserait la notification)', async () => {
+  const { handlers, calls } = loadWorker();
+  await run(handlers.push, pushEvent({ title: 'X', body: 'Y' }));
+  assert.equal(calls.shown[0].options.tag, undefined);
+  assert.equal(calls.shown[0].options.renotify, false);
 });
 
 test('push : charge utile absente ou invalide, textes bornés, adresse étrangère neutralisée', async () => {
