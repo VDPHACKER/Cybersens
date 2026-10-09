@@ -22,6 +22,7 @@ import { audioService } from '../../services/audioService';
 import type { CTFChallenge, Language } from '../../types';
 import {
   askCtfSandbox,
+  CTF_DURATIONS_H,
   createCtfRoom,
   finishCtfRoom,
   joinCtfRoom,
@@ -36,9 +37,9 @@ import {
 import { CHALLENGE_FACTORIES } from './ctfGenerator';
 
 /*
- * CTF en équipe : un joueur crée la salle en choisissant les défis, partage le code à 6 chiffres, puis tout le
- * monde résout ensemble la même liste. Un défi résolu par un joueur l'est pour l'équipe ; le serveur garde les
- * drapeaux et vérifie chaque soumission.
+ * CTF multijoueur : un joueur crée la salle en choisissant les défis, partage le code à 6 chiffres, puis tout le
+ * monde résout la même liste, chacun de son côté (données et drapeaux propres à chaque joueur, points
+ * indépendants, classement en direct). Le serveur garde les drapeaux et vérifie chaque soumission.
  */
 
 interface CTFRoomProps {
@@ -49,7 +50,7 @@ interface CTFRoomProps {
 type Feedback = { type: 'success' | 'error'; message: string };
 type ChatLine = { role: 'user' | 'bot'; text: string };
 
-const MAX_CHALLENGES = 12;
+const MAX_CHALLENGES = 16;
 const DEFAULT_SELECTION = 6;
 
 const button =
@@ -68,8 +69,11 @@ const difficultyStyle = (difficulty: string) =>
 
 const clock = (ms: number) => {
   const total = Math.max(0, Math.floor(ms / 1000));
-  const m = Math.floor(total / 60);
-  return `${String(m).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const mm = String(m).padStart(2, '0');
+  const ss = String(total % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 };
 
 const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
@@ -80,6 +84,7 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
   const [joinCode, setJoinCode] = useState(initialCode || '');
   // Liste affichée pour choisir : les défis réels sont générés par le serveur à la création de la salle
   const [pool] = useState<CTFChallenge[]>(() => buildPool(language));
+  const [durationHours, setDurationHours] = useState<number>(24);
   const [selected, setSelected] = useState<string[]>(() =>
     Object.keys(CHALLENGE_FACTORIES)
       .sort(() => Math.random() - 0.5)
@@ -91,7 +96,6 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
   const [activeId, setActiveId] = useState('');
   const [elapsed, setElapsed] = useState(0);
   const offset = useRef(0); // décalage entre l'horloge du serveur et celle de l'appareil
-  const knownSolved = useRef<Set<string> | null>(null);
 
   // États par défi, conservés quand on change de défi
   const [flagInputs, setFlagInputs] = useState<Record<string, string>>({});
@@ -142,33 +146,8 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
     setFeedback({});
     setHints({});
     setChats({});
-    knownSolved.current = null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.session, room?.code]);
-
-  // Prévient quand un coéquipier valide un défi (le premier état reçu sert de point de départ)
-  useEffect(() => {
-    if (!room) return;
-    const ids = new Set(Object.keys(room.solved));
-    if (knownSolved.current) {
-      for (const id of ids) {
-        const info = room.solved[id];
-        if (knownSolved.current.has(id) || info.byId === room.you.id) continue;
-        const title = room.challenges.find((c) => c.id === id)?.title ?? id;
-        notify(
-          L(
-            `${info.by} a validé « ${title} » pour l’équipe !`,
-            `${info.by} solved “${title}” for the team!`,
-            `¡${info.by} resolvió «${title}» para el equipo!`,
-          ),
-          'success',
-        );
-        audioService.playSuccess();
-      }
-    }
-    knownSolved.current = ids;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.solved]);
 
   // Chronomètre de la partie
   useEffect(() => {
@@ -248,7 +227,7 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
     );
 
   // Le serveur génère les défis et garde les drapeaux : on ne lui envoie que les identifiants choisis
-  const create = () => enter(() => createCtfRoom(selected, language));
+  const create = () => enter(() => createCtfRoom(selected, language, durationHours));
 
   // Nouvelle partie : mêmes défis, drapeaux et données régénérés par le serveur
   const replay = () => run(() => restartCtfRoom(room?.code ?? '', language));
@@ -272,9 +251,9 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
         setMsg({
           type: 'success',
           message: L(
-            `DRAPEAU VALIDÉ ! +${result.points} points pour l’équipe.`,
-            `FLAG ACCEPTED! +${result.points} points for the team.`,
-            `¡BANDERA ACEPTADA! +${result.points} puntos para el equipo.`,
+            `DRAPEAU VALIDÉ ! +${result.points} points.`,
+            `FLAG ACCEPTED! +${result.points} points.`,
+            `¡BANDERA ACEPTADA! +${result.points} puntos.`,
           ),
         });
       } else {
@@ -282,9 +261,9 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
         setMsg({
           type: 'error',
           message: L(
-            'Drapeau incorrect. Inspectez attentivement les données ou utilisez les indices.',
-            'Incorrect flag. Carefully inspect the data or use the hints.',
-            'Bandera incorrecta. Revisa los datos o consulta las pistas.',
+            `Drapeau incorrect. Il vous reste ${result.attemptsLeft ?? 0} essai(s) sur ce défi.`,
+            `Incorrect flag. You have ${result.attemptsLeft ?? 0} attempt(s) left on this challenge.`,
+            `Bandera incorrecta. Te quedan ${result.attemptsLeft ?? 0} intento(s) en este reto.`,
           ),
         });
       }
@@ -350,13 +329,13 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
         {header}
         <div>
           <h1 className="text-2xl font-extrabold">
-            {L('CTF en équipe', 'Team CTF', 'CTF en equipo')}
+            {L('CTF multijoueur', 'Multiplayer CTF', 'CTF multijugador')}
           </h1>
           <p className="mt-1 text-xs text-slate-400">
             {L(
-              'Résolvez les défis à plusieurs : un défi validé par un joueur l’est pour toute l’équipe. Créez une salle et partagez le code, ou rejoignez celle d’un ami.',
-              'Solve challenges together: a challenge solved by one player counts for the whole team. Create a room and share the code, or join a friend’s room.',
-              'Resuelvan los retos juntos: un reto resuelto por un jugador cuenta para todo el equipo. Crea una sala y comparte el código, o únete a la de un amigo.',
+              'Tout le monde reçoit les mêmes défis et les résout de son côté : vos points sont à vous et le classement se met à jour en direct. Créez une salle et partagez le code, ou rejoignez celle d’un ami.',
+              'Everyone gets the same challenges and solves them on their own: your points are yours and the ranking updates live. Create a room and share the code, or join a friend’s room.',
+              'Todos reciben los mismos retos y los resuelven por su cuenta: tus puntos son tuyos y la clasificación se actualiza en directo. Crea una sala y comparte el código, o únete a la de un amigo.',
             )}
           </p>
         </div>
@@ -406,9 +385,9 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
           </div>
           <p className="text-xs text-slate-400">
             {L(
-              'Choisissez les défis que l’équipe devra résoudre. Le serveur les génère au moment de la création, dans votre langue : les données et les drapeaux sont tirés au sort et personne, vous compris, ne peut les connaître à l’avance.',
-              'Choose the challenges the team must solve. The server generates them when the room is created, in your language: data and flags are drawn at random and nobody, including you, can know them in advance.',
-              'Elige los retos que el equipo debe resolver. El servidor los genera al crear la sala, en tu idioma: los datos y las banderas se sortean y nadie, tú incluido, puede conocerlos de antemano.',
+              'Choisissez les défis que tous les joueurs devront résoudre. Le serveur génère pour chacun ses propres données et drapeaux, tirés au sort : personne, vous compris, ne peut les connaître à l’avance ni les copier chez un autre.',
+              'Choose the challenges every player must solve. The server generates each player’s own data and flags, drawn at random: nobody, including you, can know them in advance or copy them from another player.',
+              'Elige los retos que todos los jugadores deben resolver. El servidor genera para cada uno sus propios datos y banderas, sorteados: nadie, tú incluido, puede conocerlos de antemano ni copiarlos de otro jugador.',
             )}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -417,7 +396,7 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
               onClick={() => setSelected(pool.slice(0, MAX_CHALLENGES).map((c) => c.id))}
               className="rounded-xl border border-slate-700 px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-slate-800"
             >
-              {L('Les 12 premiers', 'First 12', 'Los 12 primeros')}
+              {L('Les 16 premiers', 'First 16', 'Los 16 primeros')}
             </button>
             <button
               type="button"
@@ -462,6 +441,35 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
               );
             })}
           </ul>
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-bold text-slate-300">
+              {L('Durée de la partie', 'Game duration', 'Duración de la partida')}
+            </legend>
+            <div className="flex flex-wrap gap-2">
+              {CTF_DURATIONS_H.map((h) => (
+                <button
+                  key={h}
+                  type="button"
+                  aria-pressed={durationHours === h}
+                  onClick={() => setDurationHours(h)}
+                  className={`rounded-xl border px-3 py-1.5 text-xs font-bold ${
+                    durationHours === h
+                      ? 'border-cyan-500 bg-cyan-950/60 text-cyan-100'
+                      : 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  {h} h
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-slate-400">
+              {L(
+                'Chaque joueur a 5 essais par défi. Après 5 drapeaux ratés, le défi est verrouillé pour lui pendant 10 % de la durée choisie, puis il retrouve ses 5 essais.',
+                'Each player gets 5 attempts per challenge. After 5 wrong flags, the challenge is locked for them for 10% of the chosen duration, then they get their 5 attempts back.',
+                'Cada jugador tiene 5 intentos por reto. Tras 5 banderas falladas, el reto queda bloqueado para él durante el 10 % de la duración elegida y luego recupera sus 5 intentos.',
+              )}
+            </p>
+          </fieldset>
           <button
             onClick={create}
             disabled={busy || selected.length === 0}
@@ -479,7 +487,7 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
   const me = room.you;
   const playersSorted = [...room.players].sort((a, b) => b.score - a.score || b.solves - a.solves);
   const solvedCount = Object.keys(room.solved).length;
-  const percent = room.totalPoints ? Math.round((room.teamScore / room.totalPoints) * 100) : 0;
+  const percent = room.totalPoints ? Math.round((room.score / room.totalPoints) * 100) : 0;
 
   const challengeList = (
     <ul className="space-y-2">
@@ -516,8 +524,7 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
               </span>
               {info && (
                 <span className="mt-1.5 block text-[11px] font-semibold text-emerald-300">
-                  {L(`Résolu par ${info.by}`, `Solved by ${info.by}`, `Resuelto por ${info.by}`)} ·
-                  +{c.points}
+                  {L('Résolu', 'Solved', 'Resuelto')} · +{c.points}
                 </span>
               )}
             </button>
@@ -561,7 +568,7 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
         <div className="grid gap-5 md:grid-cols-2">
           <div className={panel}>
             <h2 className="mb-3 flex items-center justify-between text-sm font-black">
-              <span>{L('Équipe', 'Team', 'Equipo')}</span>
+              <span>{L('Joueurs', 'Players', 'Jugadores')}</span>
               <span className="text-xs font-bold text-slate-400">{room.players.length}</span>
             </h2>
             <ul className="space-y-2">
@@ -599,6 +606,11 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
             {challengeList}
           </div>
         </div>
+
+        <p className="text-center text-xs font-bold text-slate-300">
+          {L('Durée de la partie', 'Game duration', 'Duración de la partida')} :{' '}
+          {Math.round(room.durationMs / 3_600_000)} h
+        </p>
 
         {me.isHost ? (
           <button
@@ -644,9 +656,9 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
           </h1>
           <p className="mt-1 text-sm text-slate-300">
             {L(
-              `${solvedCount} défi(s) sur ${room.challenges.length} • ${room.teamScore} / ${room.totalPoints} pts • ${clock(elapsed)}`,
-              `${solvedCount} of ${room.challenges.length} challenge(s) • ${room.teamScore} / ${room.totalPoints} pts • ${clock(elapsed)}`,
-              `${solvedCount} de ${room.challenges.length} reto(s) • ${room.teamScore} / ${room.totalPoints} pts • ${clock(elapsed)}`,
+              `${solvedCount} défi(s) sur ${room.challenges.length} • ${room.score} / ${room.totalPoints} pts • ${clock(elapsed)}`,
+              `${solvedCount} of ${room.challenges.length} challenge(s) • ${room.score} / ${room.totalPoints} pts • ${clock(elapsed)}`,
+              `${solvedCount} de ${room.challenges.length} reto(s) • ${room.score} / ${room.totalPoints} pts • ${clock(elapsed)}`,
             )}
           </p>
         </div>
@@ -654,11 +666,7 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
         <div className="grid gap-5 md:grid-cols-2">
           <div className={panel}>
             <h2 className="mb-3 text-sm font-black">
-              {L(
-                'Contribution de chacun',
-                'Each player’s contribution',
-                'Contribución de cada uno',
-              )}
+              {L('Classement final', 'Final ranking', 'Clasificación final')}
             </h2>
             <ol className="space-y-1.5">
               {playersSorted.map((p, i) => (
@@ -722,6 +730,11 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
   /* ---------- Partie en cours ---------- */
   const active = room.challenges.find((c) => c.id === activeId) ?? room.challenges[0];
   const activeSolved = active ? room.solved[active.id] : undefined;
+  const nowMs = Date.now() + offset.current;
+  const tries = active ? room.attempts[active.id] : undefined;
+  const lockLeft = tries?.lockedUntil && tries.lockedUntil > nowMs ? tries.lockedUntil - nowMs : 0;
+  const attemptsLeft = !tries || tries.lockedUntil ? room.maxAttempts : tries.left;
+  const blocked = !!activeSolved || lockLeft > 0;
   const revealed = (active && hints[active.id]) || [];
   const chat = (active && chats[active.id]) || [];
 
@@ -738,15 +751,19 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
       <div className={`${panel} space-y-3`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-black text-cyan-400">{room.teamScore}</span>
+            <span className="text-3xl font-black text-cyan-400">{room.score}</span>
             <span className="text-xs text-slate-400">
               / {room.totalPoints} pts · {solvedCount} / {room.challenges.length}{' '}
               {L('validés', 'solved', 'resueltos')}
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="font-mono text-lg font-black tabular-nums" aria-label="Timer">
-              {clock(elapsed)}
+            <span
+              className="font-mono text-lg font-black tabular-nums"
+              aria-label={L('Temps restant', 'Time left', 'Tiempo restante')}
+              title={L('Temps restant', 'Time left', 'Tiempo restante')}
+            >
+              {clock(room.durationMs - elapsed)}
             </span>
             {me.isHost && (
               <button
@@ -787,6 +804,9 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
                 <Crown className="h-3 w-3 text-amber-400" aria-label="Host" />
               )}
               <span className="text-cyan-300">{p.score}</span>
+              <span className="font-normal text-slate-400">
+                {p.solves}/{room.challenges.length}
+              </span>
             </li>
           ))}
         </ul>
@@ -810,9 +830,9 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
                 <p className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
                   <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                   {L(
-                    `Déjà résolu par ${activeSolved.by} : un autre défi vous attend !`,
-                    `Already solved by ${activeSolved.by}: pick another challenge!`,
-                    `Ya resuelto por ${activeSolved.by}: ¡elige otro reto!`,
+                    'Défi résolu : un autre vous attend !',
+                    'Challenge solved: another one awaits you!',
+                    '¡Reto resuelto: te espera otro!',
                   )}
                 </p>
               )}
@@ -948,19 +968,36 @@ const CTFRoom: React.FC<CTFRoomProps> = ({ onBack, initialCode }) => {
                   value={flagInputs[active.id] || ''}
                   onChange={(e) => setFlagInputs({ ...flagInputs, [active.id]: e.target.value })}
                   onKeyDown={(e) => e.key === 'Enter' && void submitFlag(active)}
-                  disabled={!!activeSolved}
+                  disabled={blocked}
                   maxLength={300}
                   placeholder="FLAG{...}"
                   className="min-w-0 flex-1 rounded-xl border border-slate-800 bg-slate-900 px-4 py-2.5 font-mono text-sm text-cyan-300 outline-none placeholder:text-slate-600 focus:border-cyan-500 disabled:opacity-50"
                 />
                 <button
                   onClick={() => void submitFlag(active)}
-                  disabled={!!activeSolved}
+                  disabled={blocked}
                   className="rounded-xl bg-cyan-700 px-6 py-2.5 text-xs font-bold uppercase tracking-wider hover:bg-cyan-600 disabled:opacity-50"
                 >
                   {L('Valider', 'Submit', 'Validar')}
                 </button>
               </div>
+              {!activeSolved && (
+                <p
+                  className={`text-[11px] font-bold ${lockLeft > 0 ? 'text-amber-300' : 'text-slate-400'}`}
+                >
+                  {lockLeft > 0
+                    ? L(
+                        `Défi verrouillé : il se rouvre dans ${clock(lockLeft)} avec ${room.maxAttempts} nouveaux essais.`,
+                        `Challenge locked: it reopens in ${clock(lockLeft)} with ${room.maxAttempts} new attempts.`,
+                        `Reto bloqueado: se reabre en ${clock(lockLeft)} con ${room.maxAttempts} intentos nuevos.`,
+                      )
+                    : L(
+                        `Essais restants : ${attemptsLeft} / ${room.maxAttempts}`,
+                        `Attempts left: ${attemptsLeft} / ${room.maxAttempts}`,
+                        `Intentos restantes: ${attemptsLeft} / ${room.maxAttempts}`,
+                      )}
+                </p>
+              )}
               {feedback[active.id] && (
                 <p
                   role="status"

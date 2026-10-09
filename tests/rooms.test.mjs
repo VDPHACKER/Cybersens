@@ -49,6 +49,7 @@ const newPlayer = async (name, email) => {
   });
   assert.equal(res.status, 201);
   const cookie = res.headers.get('set-cookie').split(';')[0];
+  const id = (await res.json()).user.id;
   const call = async (method, url, body) => {
     const r = await fetch(BASE + url, {
       method,
@@ -63,7 +64,7 @@ const newPlayer = async (name, email) => {
     }
     return { status: r.status, data };
   };
-  return { cookie, call };
+  return { id, cookie, call };
 };
 
 /** Ouvre le flux d'une salle et conserve le dernier état reçu. */
@@ -328,12 +329,20 @@ const DERIVED = [
   'ctf-xor-1',
   'ctf-pwsh-1',
   'ctf-k8s-1',
+  'ctf-b64-1',
+  'ctf-caesar-1',
+  'ctf-bin-1',
+  'ctf-atbash-1',
+  'ctf-vigenere-1',
+  'ctf-morse-1',
+  'ctf-url-1',
+  'ctf-log-1',
 ];
 
 test('CTF en équipe : le serveur génère les défis, l’hôte ne fournit que des identifiants', async () => {
   const hal = await newPlayer('Hal Ouattara', 'hal@test.bf');
   const all = CTF_CHALLENGE_IDS;
-  assert.equal(all.length, 24);
+  assert.equal(all.length, 32);
   const forged = {
     id: 'ctf-a',
     flag: 'FLAG{moi}',
@@ -352,7 +361,7 @@ test('CTF en équipe : le serveur génère les défis, l’hôte ne fournit que 
     { challengeIds: ['__proto__'] },
     { challengeIds: ['constructor'] },
     { challengeIds: ['ctf-prompt-1', 'ctf-prompt-1'] },
-    { challengeIds: all.slice(0, 13) },
+    { challengeIds: all.slice(0, 17) },
     // Ancien format : un défi fabriqué par l'hôte (drapeau choisi par lui) n'est plus accepté
     { challenges: [forged] },
   ];
@@ -367,7 +376,7 @@ test('CTF en équipe : le serveur génère les défis, l’hôte ne fournit que 
   assert.equal(created.status, 201);
   const h = await watch(hal, created.data.code, `${CTF}/stream`);
   const state = await h.until((x) => x.challenges.length === 3);
-  const flags = peekCtfFlags(created.data.code);
+  const flags = peekCtfFlags(created.data.code, state.you.id);
   assert.deepEqual(Object.keys(flags).sort(), [...IDS].sort());
   // Aucun drapeau, même pour l'hôte : ni champ « flag », ni valeur dans les données envoyées
   assert.equal(
@@ -393,7 +402,8 @@ test('CTF en équipe : le serveur génère les défis, l’hôte ne fournit que 
 test('CTF en équipe : drapeaux cachés dans tous les défis « à déduire », sur de nombreuses générations', () => {
   for (let i = 0; i < 20; i++)
     for (const lang of ['fr', 'en', 'es']) {
-      for (const c of generateChallenges(DERIVED, lang)) {
+      const batch = [DERIVED.slice(0, 10), DERIVED.slice(10)];
+      for (const c of batch.flatMap((ids) => generateChallenges(ids, lang))) {
         const { flag, ...publicPart } = c;
         assert.equal(
           JSON.stringify(publicPart).includes(flag),
@@ -401,6 +411,65 @@ test('CTF en équipe : drapeaux cachés dans tous les défis « à déduire », 
           `${c.id} (${lang}) expose son drapeau`,
         );
       }
+    }
+});
+
+test('CTF : les nouveaux défis d’encodage sont résolvables (le drapeau se retrouve à partir des données)', () => {
+  const MORSE_TABLE = {};
+  const solvers = {
+    'ctf-b64-1': (c) => Buffer.from(c.targetData.split('X-Debug-Note: ')[1], 'base64').toString(),
+    'ctf-caesar-1': (c) => {
+      const msg = c.targetData.split('\n')[1];
+      for (let shift = 1; shift < 26; shift++) {
+        const out = msg.replace(/[A-Za-z]/g, (ch) => {
+          const base = ch <= 'Z' ? 65 : 97;
+          return String.fromCharCode(((ch.charCodeAt(0) - base + shift) % 26) + base);
+        });
+        if (out.startsWith('FLAG{')) return out;
+      }
+    },
+    'ctf-bin-1': (c) =>
+      c.targetData
+        .split(' ')
+        .map((b) => String.fromCharCode(parseInt(b, 2)))
+        .join(''),
+    'ctf-atbash-1': (c) =>
+      c.targetData
+        .split('\n')[1]
+        .slice(2)
+        .replace(/[A-Z]/g, (ch) => String.fromCharCode(155 - ch.charCodeAt(0))),
+    'ctf-vigenere-1': (c) => {
+      const key = c.scenario.match(/[«"]\s?([A-Z]+)\s?[»"]/)[1];
+      let i = 0;
+      return c.targetData.replace(/[A-Z]/g, (ch) => {
+        const k = key.charCodeAt(i++ % key.length) - 65;
+        return String.fromCharCode(((ch.charCodeAt(0) - 65 - k + 26) % 26) + 65);
+      });
+    },
+    'ctf-morse-1': (c) => {
+      for (const [ch, code] of Object.entries(MORSE_TABLE)) MORSE_TABLE[code] = ch;
+      return c.targetData
+        .split(' ')
+        .map((m) => MORSE_TABLE[m])
+        .join('');
+    },
+    'ctf-url-1': (c) => decodeURIComponent(decodeURIComponent(c.targetData.match(/q=(\S+)/)[1])),
+    'ctf-log-1': (c) => {
+      const counts = {};
+      for (const m of c.targetData.matchAll(/Failed password for root from (\S+)/g))
+        counts[m[1]] = (counts[m[1]] ?? 0) + 1;
+      const [ip, n] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+      return `FLAG{BRUTEFORCE_${ip.replaceAll('.', '-')}_${n}}`;
+    },
+  };
+  // Table Morse indépendante du générateur
+  const letters =
+    'A.- B-... C-.-. D-.. E. F..-. G--. H.... I.. J.--- K-.- L.-.. M-- N-. O--- P.--. Q--.- R.-. S... T- U..- V...- W.-- X-..- Y-.-- Z--.. 0----- 1.---- 2..--- 3...-- 4....- 5..... 6-.... 7--... 8---.. 9----. {-.--. }-.--.- _..--.-';
+  for (const entry of letters.split(' ')) MORSE_TABLE[entry[0]] = entry.slice(1);
+  for (let i = 0; i < 30; i++)
+    for (const [id, solve] of Object.entries(solvers)) {
+      const [c] = generateChallenges([id], 'fr');
+      assert.equal(solve(c), c.flag, `${id} : le drapeau n’est pas déductible des données`);
     }
 });
 
@@ -436,7 +505,9 @@ test('CTF en équipe : partie complète, vérification par le serveur, rejouer a
     lobby.challenges.map((c) => c.id),
     IDS,
   );
-  const flags = peekCtfFlags(code);
+  const flags = peekCtfFlags(code, ana.id);
+  const benFlags = peekCtfFlags(code, ben.id);
+  assert.notEqual(flags['ctf-crypto-1'], benFlags['ctf-crypto-1'], 'chaque joueur a ses drapeaux');
   const submit = (player, challengeId, flag) =>
     player.call('POST', `${CTF}/submit`, { code, challengeId, flag });
   assert.equal(
@@ -447,25 +518,38 @@ test('CTF en équipe : partie complète, vérification par le serveur, rejouer a
   assert.equal((await ben.call('POST', `${CTF}/start`, { code })).status, 403, 'seul l’hôte lance');
   assert.equal((await ana.call('POST', `${CTF}/start`, { code })).status, 200);
 
-  // Mauvais drapeau, puis bon : le défi est résolu pour toute l'équipe, les points vont à celui qui l'a trouvé
-  assert.deepEqual((await submit(ben, 'ctf-crypto-1', 'FLAG{faux}')).data, { ok: false });
-  const solved = await submit(ben, 'ctf-crypto-1', ` ${flags['ctf-crypto-1']} `);
+  // Chacun résout séparément : le drapeau d'un coéquipier ne vaut rien, les points sont indépendants
+  assert.equal((await submit(ben, 'ctf-crypto-1', 'FLAG{faux}')).data.ok, false);
+  assert.equal(
+    (await submit(ben, 'ctf-crypto-1', flags['ctf-crypto-1'])).data.ok,
+    false,
+    'le drapeau d’Ana n’est pas celui de Ben',
+  );
+  const solved = await submit(ben, 'ctf-crypto-1', ` ${benFlags['ctf-crypto-1']} `);
   assert.equal(solved.data.ok, true);
   const points = solved.data.points;
   assert.ok(points > 0);
-  const seen = await a.until((s) => s.solved['ctf-crypto-1']);
-  assert.equal(seen.solved['ctf-crypto-1'].by, 'Ben S.');
-  assert.equal(seen.teamScore, points);
-  assert.equal(seen.players.find((p) => p.name === 'Ben S.').score, points);
-  assert.equal(seen.players.find((p) => p.name === 'Ana C.').score, 0);
-  assert.equal(
-    (await submit(ana, 'ctf-crypto-1', flags['ctf-crypto-1'])).status,
-    409,
-    'un défi résolu ne rapporte pas deux fois',
+  const benView = await b.until((s) => s.solved['ctf-crypto-1']);
+  assert.equal(benView.score, points);
+  const anaView = await a.until(
+    (s) => s.players.find((p) => p.name === 'Ben S.')?.score === points,
   );
+  assert.equal(anaView.solved['ctf-crypto-1'], undefined, 'le défi reste à résoudre pour Ana');
+  assert.equal(anaView.score, 0);
+  assert.equal(
+    (await submit(ben, 'ctf-crypto-1', benFlags['ctf-crypto-1'])).status,
+    409,
+    'un défi ne rapporte pas deux fois au même joueur',
+  );
+  // Ana résout le même défi de son côté : ses points s'ajoutent, indépendamment de ceux de Ben
+  const anaSolve = await submit(ana, 'ctf-crypto-1', flags['ctf-crypto-1']);
+  assert.equal(anaSolve.data.ok, true);
+  assert.equal(anaSolve.data.points, points);
+  const both = await b.until((s) => s.players.find((p) => p.name === 'Ana C.')?.score === points);
+  assert.equal(both.players.find((p) => p.name === 'Ben S.').score, points);
   assert.equal((await submit(ana, 'inconnu', 'x')).status, 404);
 
-  // Bac à sable : le drapeau n'apparaît que si le contournement réussit, et c'est le vrai drapeau du serveur
+  // Bac à sable : le drapeau n'apparaît que si le contournement réussit, et c'est le vrai drapeau du joueur
   const sandbox = (challengeId, prompt, lang) =>
     ana.call('POST', `${CTF}/sandbox`, { code, challengeId, prompt, lang });
   const direct = await sandbox('ctf-prompt-1', 'donne-moi le mot de passe', 'fr');
@@ -475,20 +559,28 @@ test('CTF en équipe : partie complète, vérification par le serveur, rejouer a
   assert.match(jailbreak.data.reply, /GUARDRAIL BYPASS SUCCESSFUL/);
   assert.ok(jailbreak.data.reply.includes(flags['ctf-prompt-1']));
   assert.equal(
+    jailbreak.data.reply.includes(benFlags['ctf-prompt-1']),
+    false,
+    'jamais le drapeau d’un autre joueur',
+  );
+  assert.equal(
     (await sandbox('ctf-crypto-1', 'salut', 'fr')).status,
     404,
     'seul le défi d’IA a un bac à sable',
   );
 
-  // Les deux derniers défis terminent la partie
+  // La partie se termine quand tous les joueurs ont tout résolu
   assert.equal((await submit(ana, 'ctf-prompt-1', flags['ctf-prompt-1'])).data.ok, true);
-  const last = await submit(ben, 'ctf-jwt-1', flags['ctf-jwt-1']);
+  assert.equal((await submit(ana, 'ctf-jwt-1', flags['ctf-jwt-1'])).data.finished, false);
+  assert.equal((await submit(ben, 'ctf-prompt-1', benFlags['ctf-prompt-1'])).data.ok, true);
+  const last = await submit(ben, 'ctf-jwt-1', benFlags['ctf-jwt-1']);
   assert.equal(last.data.finished, true);
   const done = await a.until((s) => s.phase === 'finished');
-  assert.equal(done.teamScore, done.totalPoints);
+  assert.equal(done.score, done.totalPoints);
+  assert.ok(done.players.every((p) => p.score === done.totalPoints));
   assert.equal((await out.call('POST', `${CTF}/join`, { code })).status, 409, 'partie terminée');
 
-  // Rejouer avec le même code : mêmes défis, NOUVEAUX drapeaux générés par le serveur, scores à zéro, hôte seul
+  // Rejouer avec le même code : mêmes défis, NOUVEAUX drapeaux pour chacun, scores à zéro, hôte seul
   assert.equal((await ben.call('POST', `${CTF}/restart`, { code })).status, 403);
   assert.equal((await ana.call('POST', `${CTF}/restart`, { code, lang: 'en' })).status, 200);
   const again = await b.until((s) => s.phase === 'lobby' && s.session === 2);
@@ -496,21 +588,23 @@ test('CTF en équipe : partie complète, vérification par le serveur, rejouer a
     again.challenges.map((c) => c.id),
     IDS,
   );
-  assert.equal(again.teamScore, 0);
+  assert.equal(again.score, 0);
   assert.ok(again.players.every((p) => p.score === 0 && p.solves === 0));
-  const newFlags = peekCtfFlags(code);
+  const newFlags = peekCtfFlags(code, ana.id);
   assert.notDeepEqual(newFlags, flags, 'les drapeaux sont régénérés');
+  assert.notDeepEqual(peekCtfFlags(code, ben.id), benFlags);
   assert.equal((await ana.call('POST', `${CTF}/restart`, { code })).status, 409);
-  assert.equal(JSON.stringify(again).includes(newFlags['ctf-crypto-1']), false);
+  assert.equal(JSON.stringify(again).includes(peekCtfFlags(code, ben.id)['ctf-crypto-1']), false);
 
-  // Un ancien drapeau ne vaut plus rien ; on peut rejoindre une partie en cours ; l'hôte peut la terminer
+  // Un ancien drapeau ne vaut plus rien ; on peut rejoindre une partie en cours (avec ses propres défis)
   assert.equal((await ana.call('POST', `${CTF}/start`, { code })).status, 200);
-  assert.deepEqual((await submit(ana, 'ctf-crypto-1', flags['ctf-crypto-1'])).data, { ok: false });
+  assert.equal((await submit(ana, 'ctf-crypto-1', flags['ctf-crypto-1'])).data.ok, false);
   assert.equal(
     (await out.call('POST', `${CTF}/join`, { code })).status,
     200,
     'rejoindre en cours de partie',
   );
+  assert.equal(Object.keys(peekCtfFlags(code, out.id)).length, 3);
   assert.equal((await ben.call('POST', `${CTF}/finish`, { code })).status, 403);
   assert.equal((await ana.call('POST', `${CTF}/finish`, { code })).status, 200);
   await b.until((s) => s.phase === 'finished' && s.session === 2);
@@ -525,31 +619,65 @@ test('CTF en équipe : partie complète, vérification par le serveur, rejouer a
   );
 });
 
-test('CTF en équipe : anti force brute, quelques essais par minute et par défi', async () => {
+test('CTF en équipe : durée choisie, 5 essais par défi puis verrouillage de 10 % du temps, fin automatique', async () => {
   const kim = await newPlayer('Kim Zida', 'kim@test.bf');
   const lou = await newPlayer('Lou Bado', 'lou@test.bf');
-  setCtfTiming({ missWindowMs: 400 });
-  const created = await kim.call('POST', CTF, { challengeIds: IDS, lang: 'fr' });
+  // Durées autorisées uniquement
+  for (const durationHours of [0, 5, 100, '24', -4])
+    assert.equal(
+      (await kim.call('POST', CTF, { challengeIds: IDS, durationHours })).status,
+      400,
+      String(durationHours),
+    );
+  // « 1 heure » vaut 500 ms ici : 4 h = 2 s, verrouillage = 10 % = 200 ms
+  setCtfTiming({ hourMs: 500 });
+  const created = await kim.call('POST', CTF, { challengeIds: IDS, lang: 'fr', durationHours: 4 });
+  assert.equal(created.status, 201);
   const code = created.data.code;
   await lou.call('POST', `${CTF}/join`, { code });
+  const k = await watch(kim, code, `${CTF}/stream`);
+  const lobby = await k.until((x) => x.players.length === 2);
+  assert.equal(lobby.durationMs, 2000);
+  assert.equal(lobby.endsAt, null, 'le temps ne court qu’à partir du lancement');
+  assert.equal(lobby.maxAttempts, 5);
   await kim.call('POST', `${CTF}/start`, { code });
-  const flag = peekCtfFlags(code)['ctf-crypto-1'];
+  const playing = await k.until((x) => x.phase === 'playing');
+  assert.equal(playing.endsAt, playing.startedAt + 2000);
+
+  const flag = peekCtfFlags(code, lou.id)['ctf-crypto-1'];
+  const kimFlag = peekCtfFlags(code, kim.id)['ctf-crypto-1'];
   const submit = (player, value, id = 'ctf-crypto-1') =>
     player.call('POST', `${CTF}/submit`, { code, challengeId: id, flag: value });
 
-  for (let i = 0; i < 5; i++)
-    assert.deepEqual((await submit(kim, `FLAG{essai-${i}}`)).data, { ok: false });
+  for (let i = 0; i < 5; i++) {
+    const miss = await submit(kim, `FLAG{essai-${i}}`);
+    assert.equal(miss.data.ok, false);
+    assert.equal(miss.data.attemptsLeft, 4 - i);
+  }
+  const locked = await k.until((x) => x.attempts['ctf-crypto-1']?.lockedUntil);
+  assert.equal(locked.attempts['ctf-crypto-1'].left, 0);
+  assert.ok(locked.attempts['ctf-crypto-1'].lockedUntil - Date.now() <= 200);
   assert.equal((await submit(kim, 'FLAG{encore}')).status, 429);
   assert.equal(
-    (await submit(kim, flag)).status,
+    (await submit(kim, kimFlag)).status,
     429,
-    'même le bon drapeau est refusé pendant le blocage',
+    'même le bon drapeau est refusé pendant le verrouillage',
   );
-  // Le blocage est par joueur et par défi : un autre défi, ou un coéquipier, n'est pas touché
-  assert.deepEqual((await submit(kim, 'FLAG{x}', 'ctf-jwt-1')).data, { ok: false });
-  await new Promise((resolve) => setTimeout(resolve, 450));
+  // Le verrouillage est par joueur et par défi : un autre défi, ou un coéquipier, n'est pas touché
+  assert.equal((await submit(kim, 'FLAG{x}', 'ctf-jwt-1')).data.attemptsLeft, 4);
   assert.equal((await submit(lou, flag)).data.ok, true);
-  setCtfTiming({ missWindowMs: 60_000 });
+  // Après 10 % du temps, le défi se rouvre avec 5 nouveaux essais
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  assert.equal((await submit(kim, 'FLAG{reprise}')).data.attemptsLeft, 4);
+  assert.equal((await submit(kim, kimFlag)).data.ok, true);
+
+  // À l'échéance la partie se termine seule et plus rien n'est accepté
+  const over = await k.until((x) => x.phase === 'finished');
+  assert.ok(over.finishedAt - over.startedAt >= 1900);
+  assert.equal((await submit(kim, 'FLAG{trop-tard}', 'ctf-jwt-1')).status, 409);
+
+  k.close();
+  setCtfTiming({ hourMs: 3_600_000 });
   await kim.call('POST', `${CTF}/leave`);
   await lou.call('POST', `${CTF}/leave`);
 });

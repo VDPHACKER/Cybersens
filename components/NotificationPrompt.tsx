@@ -27,7 +27,7 @@ const writeSnooze = (until: number) => {
 };
 
 /**
- * Invitation à recevoir les notifications sur l'appareil (centre de notifications du système, comme WhatsApp),
+ * Invitation à recevoir les notifications sur l'appareil (centre de notifications du système),
  * même application fermée. Affichée une fois la session ouverte ; « Plus tard » la repousse d'une semaine.
  */
 export const NotificationPrompt: React.FC = () => {
@@ -107,17 +107,13 @@ export const NotificationPrompt: React.FC = () => {
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-black text-slate-900 dark:text-white">
-            {L(
-              'Recevoir les notifications sur cet appareil ?',
-              'Get notifications on this device?',
-              '¿Recibir notificaciones en este dispositivo?',
-            )}
+            {L('Activer les notifications', 'Turn on notifications', 'Activar las notificaciones')}
           </p>
           <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
             {L(
-              'Comme sur WhatsApp : une alerte s’affiche sur votre écran, même application fermée, pour les nouveaux messages de la Communauté, les actualités et les nouveautés.',
-              'Like WhatsApp: an alert appears on your screen, even when the app is closed, for new Community posts, news and new features.',
-              'Como en WhatsApp: aparece una alerta en tu pantalla, incluso con la app cerrada, para nuevas publicaciones de la Comunidad, noticias y novedades.',
+              'Activez les notifications pour être prévenu des nouveaux messages de la Communauté, des actualités et des nouveautés. Sur mobile, une autorisation vous sera demandée.',
+              'Turn on notifications to be alerted about new Community posts, news and new features. On mobile, you will be asked for permission.',
+              'Activa las notificaciones para recibir avisos de nuevas publicaciones de la Comunidad, noticias y novedades. En el móvil se te pedirá una autorización.',
             )}
           </p>
           {failed && (

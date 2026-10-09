@@ -17,17 +17,36 @@ export interface CtfRoomState {
   now: number;
   startedAt: number | null;
   finishedAt: number | null;
+  /** Durée choisie par l'hôte (ms) ; `endsAt` est fixé au lancement de la partie. */
+  durationMs: number;
+  endsAt: number | null;
+  /** Essais autorisés par défi ; `attempts` ne liste que vos défis déjà tentés (essais restants, verrou éventuel). */
+  maxAttempts: number;
+  attempts: Record<string, { left: number; lockedUntil: number | null }>;
   challenges: PublicChallenge[];
-  solved: Record<string, { byId: number; by: string; at: number }>;
-  teamScore: number;
+  /** Vos défis résolus (chaque joueur résout les siens, indépendamment des autres). */
+  solved: Record<string, { at: number; points: number }>;
+  /** Votre score. */
+  score: number;
+  /** Total de points possibles pour un joueur. */
   totalPoints: number;
-  players: { id: number; name: string; score: number; solves: number; connected: boolean }[];
+  players: {
+    id: number;
+    name: string;
+    score: number;
+    solves: number;
+    lastSolveAt: number | null;
+    connected: boolean;
+  }[];
   you: { id: number; isHost: boolean };
 }
 
+/** Durées de partie proposées à l'hôte, en heures. */
+export const CTF_DURATIONS_H = [4, 8, 12, 24, 48, 72] as const;
+
 /** Le serveur génère lui-même les défis (et garde les drapeaux) : on lui envoie seulement les identifiants. */
-export const createCtfRoom = (challengeIds: string[], lang: Language) =>
-  api<{ code: string }>('POST', '/api/ctf/rooms', { challengeIds, lang });
+export const createCtfRoom = (challengeIds: string[], lang: Language, durationHours: number) =>
+  api<{ code: string }>('POST', '/api/ctf/rooms', { challengeIds, lang, durationHours });
 
 export const joinCtfRoom = (code: string) =>
   api<{ code: string }>('POST', '/api/ctf/rooms/join', { code });
@@ -41,7 +60,13 @@ export const restartCtfRoom = (code: string, lang: Language) =>
   api('POST', '/api/ctf/rooms/restart', { code, lang });
 
 export const submitCtfFlag = (code: string, challengeId: string, flag: string) =>
-  api<{ ok: boolean; points?: number; finished?: boolean }>('POST', '/api/ctf/rooms/submit', {
+  api<{
+    ok: boolean;
+    points?: number;
+    finished?: boolean;
+    attemptsLeft?: number;
+    lockedUntil?: number | null;
+  }>('POST', '/api/ctf/rooms/submit', {
     code,
     challengeId,
     flag,

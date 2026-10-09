@@ -767,7 +767,7 @@ const routes = {
       201,
       createCtfRoom(
         { id: user.id, displayName: publicName(user.name) },
-        { challengeIds: body.challengeIds, lang: body.lang },
+        { challengeIds: body.challengeIds, lang: body.lang, durationHours: body.durationHours },
       ),
     );
   },

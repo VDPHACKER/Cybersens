@@ -1517,6 +1517,424 @@ data:
 };
 
 // Fabriques par identifiant (utilisées pour régénérer un défi précis)
+// ---------- Défis d'encodage et de journaux (à décoder à la main ou avec un outil) ----------
+const caesar = (s: string, shift: number): string =>
+  s.replace(/[A-Za-z]/g, (c) => {
+    const base = c <= 'Z' ? 65 : 97;
+    return String.fromCharCode(((c.charCodeAt(0) - base + shift + 26) % 26) + base);
+  });
+
+const MORSE: Record<string, string> = {
+  A: '.-',
+  B: '-...',
+  C: '-.-.',
+  D: '-..',
+  E: '.',
+  F: '..-.',
+  G: '--.',
+  H: '....',
+  I: '..',
+  J: '.---',
+  K: '-.-',
+  L: '.-..',
+  M: '--',
+  N: '-.',
+  O: '---',
+  P: '.--.',
+  Q: '--.-',
+  R: '.-.',
+  S: '...',
+  T: '-',
+  U: '..-',
+  V: '...-',
+  W: '.--',
+  X: '-..-',
+  Y: '-.--',
+  Z: '--..',
+  '0': '-----',
+  '1': '.----',
+  '2': '..---',
+  '3': '...--',
+  '4': '....-',
+  '5': '.....',
+  '6': '-....',
+  '7': '--...',
+  '8': '---..',
+  '9': '----.',
+  '{': '-.--.',
+  '}': '-.--.-',
+  _: '..--.-',
+};
+
+// 25. Base64
+export const generateBase64Challenge = (lang: Language = 'fr'): CTFChallenge => {
+  const word = getRandomItem(['TOKEN', 'SESSION', 'COOKIE', 'BEARER', 'APIKEY']);
+  const flag = `FLAG{B64_${word}_${getRandomHex(4)}}`;
+  return {
+    id: 'ctf-b64-1',
+    title: tr(
+      lang,
+      `En-tête encodé (${word})`,
+      `Encoded header (${word})`,
+      `Cabecera codificada (${word})`,
+    ),
+    category: 'Crypto & Obfuscation',
+    difficulty: 'Facile',
+    points: 100,
+    description: tr(
+      lang,
+      'Une application « cache » une valeur sensible dans un en-tête HTTP en la passant simplement en Base64.',
+      'An application "hides" a sensitive value in an HTTP header by simply Base64-encoding it.',
+      'Una aplicación «oculta» un valor sensible en una cabecera HTTP simplemente pasándolo a Base64.',
+    ),
+    scenario: tr(
+      lang,
+      'Cette capture réseau contient une valeur encodée. Décodez-la pour retrouver le drapeau :',
+      'This network capture contains an encoded value. Decode it to recover the flag:',
+      'Esta captura de red contiene un valor codificado. Decodifícalo para recuperar la bandera:',
+    ),
+    targetData: `GET /api/profile HTTP/1.1\nHost: intranet.local\nX-Debug-Note: ${safeBtoa(flag)}`,
+    hints: [
+      tr(
+        lang,
+        'Des lettres, des chiffres et parfois « = » à la fin : c’est la signature du Base64.',
+        'Letters, digits and sometimes a trailing "=": that is the Base64 signature.',
+        'Letras, dígitos y a veces un «=» final: es la firma de Base64.',
+      ),
+      tr(
+        lang,
+        'Décodez avec atob() dans la console du navigateur ou avec un décodeur Base64.',
+        'Decode it with atob() in the browser console or with a Base64 decoder.',
+        'Decodifica con atob() en la consola del navegador o con un decodificador Base64.',
+      ),
+    ],
+    flag,
+  };
+};
+
+// 26. César à décalage inconnu
+export const generateCaesarChallenge = (lang: Language = 'fr'): CTFChallenge => {
+  const word = getRandomItem(['PIVOT', 'EXFIL', 'BEACON', 'PAYLOAD', 'TUNNEL']);
+  const shift = getRandomInt(3, 23);
+  const flag = `FLAG{CAESAR_${word}_${getRandomHex(3)}}`;
+  return {
+    id: 'ctf-caesar-1',
+    title: tr(lang, 'Chiffre de César', 'Caesar cipher', 'Cifrado César'),
+    category: 'Crypto & Obfuscation',
+    difficulty: 'Moyen',
+    points: 150,
+    description: tr(
+      lang,
+      'Un attaquant décale chaque lettre de son message d’un nombre fixe de rangs, que vous ne connaissez pas.',
+      'An attacker shifts every letter of their message by a fixed number of places, which you do not know.',
+      'Un atacante desplaza cada letra de su mensaje un número fijo de posiciones que no conoces.',
+    ),
+    scenario: tr(
+      lang,
+      'Message intercepté. Il y a 25 décalages possibles : retrouvez le bon et lisez le drapeau.',
+      'Intercepted message. There are 25 possible shifts: find the right one and read the flag.',
+      'Mensaje interceptado. Hay 25 desplazamientos posibles: encuentra el correcto y lee la bandera.',
+    ),
+    targetData: `msg.txt :\n${caesar(flag, shift)}`,
+    hints: [
+      tr(
+        lang,
+        'Seules les lettres sont décalées ; chiffres, accolades et « _ » restent identiques.',
+        'Only letters are shifted; digits, braces and "_" stay the same.',
+        'Solo se desplazan las letras; dígitos, llaves y «_» no cambian.',
+      ),
+      tr(
+        lang,
+        'Le drapeau commence par « FLAG » : comparez avec le début du message pour déduire le décalage.',
+        'The flag starts with "FLAG": compare it with the start of the message to deduce the shift.',
+        'La bandera empieza por «FLAG»: compárala con el inicio del mensaje para deducir el desplazamiento.',
+      ),
+    ],
+    flag,
+  };
+};
+
+// 27. Binaire
+export const generateBinaryChallenge = (lang: Language = 'fr'): CTFChallenge => {
+  const word = getRandomItem(['BITS', 'BYTES', 'ASCII', 'OCTET', 'LOGIC']);
+  const flag = `FLAG{BIN_${word}_${getRandomHex(2)}}`;
+  const bits = Array.from(flag)
+    .map((c) => c.charCodeAt(0).toString(2).padStart(8, '0'))
+    .join(' ');
+  return {
+    id: 'ctf-bin-1',
+    title: tr(lang, 'Message binaire', 'Binary message', 'Mensaje binario'),
+    category: 'Forensic & Reverse',
+    difficulty: 'Facile',
+    points: 100,
+    description: tr(
+      lang,
+      'Un implant transmet son identifiant sous forme de suites de 0 et de 1.',
+      'An implant sends its identifier as strings of 0s and 1s.',
+      'Un implante transmite su identificador como cadenas de 0 y 1.',
+    ),
+    scenario: tr(
+      lang,
+      'Chaque groupe de 8 bits représente un caractère ASCII. Retrouvez le texte :',
+      'Each group of 8 bits is one ASCII character. Recover the text:',
+      'Cada grupo de 8 bits es un carácter ASCII. Recupera el texto:',
+    ),
+    targetData: bits,
+    hints: [
+      tr(
+        lang,
+        'Convertissez chaque octet en nombre décimal, puis en caractère (ex. 01000110 = 70 = « F »).',
+        'Convert each byte to a decimal number, then to a character (e.g. 01000110 = 70 = "F").',
+        'Convierte cada byte a decimal y luego a carácter (p. ej. 01000110 = 70 = «F»).',
+      ),
+    ],
+    flag,
+  };
+};
+
+// 28. Atbash
+export const generateAtbashChallenge = (lang: Language = 'fr'): CTFChallenge => {
+  const word = getRandomItem(['MIRROR', 'REVERSE', 'ALPHA', 'CIPHER', 'VAULT']);
+  const flag = `FLAG{ATBASH_${word}_${getRandomHex(3)}}`;
+  const mirrored = flag.replace(/[A-Z]/g, (c) => String.fromCharCode(155 - c.charCodeAt(0)));
+  return {
+    id: 'ctf-atbash-1',
+    title: tr(lang, 'Alphabet en miroir', 'Mirrored alphabet', 'Alfabeto en espejo'),
+    category: 'Crypto & Obfuscation',
+    difficulty: 'Moyen',
+    points: 150,
+    description: tr(
+      lang,
+      'Ce chiffrement antique remplace A par Z, B par Y, C par X… sans aucune clé.',
+      'This ancient cipher replaces A with Z, B with Y, C with X... with no key at all.',
+      'Este cifrado antiguo sustituye A por Z, B por Y, C por X… sin ninguna clave.',
+    ),
+    scenario: tr(
+      lang,
+      'Un message laissé dans un dépôt de code. Retrouvez le texte clair :',
+      'A message left in a code repository. Recover the plaintext:',
+      'Un mensaje dejado en un repositorio de código. Recupera el texto plano:',
+    ),
+    targetData: `# TODO remove before release\n# ${mirrored}`,
+    hints: [
+      tr(
+        lang,
+        'Le chiffrement est son propre inverse : appliquez la même substitution pour revenir au clair.',
+        'The cipher is its own inverse: apply the same substitution to get back to plaintext.',
+        'El cifrado es su propio inverso: aplica la misma sustitución para volver al texto claro.',
+      ),
+      tr(
+        lang,
+        '« FLAG » devient « UOZT » : A↔Z, B↔Y, C↔X…',
+        '"FLAG" becomes "UOZT": A↔Z, B↔Y, C↔X...',
+        '«FLAG» se convierte en «UOZT»: A↔Z, B↔Y, C↔X…',
+      ),
+    ],
+    flag,
+  };
+};
+
+// 29. Vigenère (clé fournie)
+export const generateVigenereChallenge = (lang: Language = 'fr'): CTFChallenge => {
+  const key = getRandomItem(['CYBER', 'SHIELD', 'PATCH', 'AUDIT', 'ROUTER']);
+  const word = getRandomItem(['SECRET', 'CIPHER', 'ACCESS', 'ORACLE']);
+  const flag = `FLAG{VIG_${word}_${getRandomHex(3)}}`;
+  let i = 0;
+  const cipher = flag.replace(/[A-Z]/g, (c) => {
+    const k = key.charCodeAt(i++ % key.length) - 65;
+    return String.fromCharCode(((c.charCodeAt(0) - 65 + k) % 26) + 65);
+  });
+  return {
+    id: 'ctf-vigenere-1',
+    title: tr(lang, 'Chiffre de Vigenère', 'Vigenère cipher', 'Cifrado de Vigenère'),
+    category: 'Crypto & Obfuscation',
+    difficulty: 'Difficile',
+    points: 250,
+    description: tr(
+      lang,
+      'Un chiffrement polyalphabétique : chaque lettre est décalée selon la lettre correspondante d’un mot-clé répété.',
+      'A polyalphabetic cipher: each letter is shifted by the matching letter of a repeated keyword.',
+      'Un cifrado polialfabético: cada letra se desplaza según la letra correspondiente de una palabra clave repetida.',
+    ),
+    scenario: tr(
+      lang,
+      `Le mot-clé est « ${key} ». Seules les lettres majuscules comptent (les autres caractères ne consomment pas la clé). Déchiffrez :`,
+      `The keyword is "${key}". Only uppercase letters count (other characters do not consume the key). Decrypt:`,
+      `La palabra clave es «${key}». Solo cuentan las mayúsculas (los demás caracteres no consumen la clave). Descifra:`,
+    ),
+    targetData: cipher,
+    hints: [
+      tr(
+        lang,
+        'Pour chaque lettre chiffrée, reculez dans l’alphabet du rang de la lettre de la clé (A = 0, B = 1…).',
+        'For each encrypted letter, go back in the alphabet by the rank of the key letter (A = 0, B = 1...).',
+        'Para cada letra cifrada, retrocede en el alfabeto el rango de la letra de la clave (A = 0, B = 1…).',
+      ),
+      tr(
+        lang,
+        'La clé se répète : 1re lettre avec 1re lettre de la clé, 2e avec 2e, et retour au début une fois la clé épuisée.',
+        'The key repeats: letter 1 with key letter 1, then 2 with 2, back to the start once exhausted.',
+        'La clave se repite: letra 1 con letra 1 de la clave, 2 con 2, y vuelta al inicio al agotarse.',
+      ),
+    ],
+    flag,
+  };
+};
+
+// 30. Code Morse
+export const generateMorseChallenge = (lang: Language = 'fr'): CTFChallenge => {
+  const word = getRandomItem(['RADIO', 'SIGNAL', 'TAP', 'WIRE', 'PULSE']);
+  const flag = `FLAG{MORSE_${word}_${getRandomInt(10, 99)}}`;
+  const morse = Array.from(flag)
+    .map((c) => MORSE[c])
+    .join(' ');
+  return {
+    id: 'ctf-morse-1',
+    title: tr(lang, 'Signal intercepté', 'Intercepted signal', 'Señal interceptada'),
+    category: 'Forensic & Reverse',
+    difficulty: 'Facile',
+    points: 120,
+    description: tr(
+      lang,
+      'Un canal caché transmet des impulsions courtes et longues. Un analyste les a notées par des points et des tirets.',
+      'A covert channel sends short and long pulses. An analyst noted them as dots and dashes.',
+      'Un canal encubierto envía pulsos cortos y largos. Un analista los anotó con puntos y rayas.',
+    ),
+    scenario: tr(
+      lang,
+      'Les caractères sont séparés par une espace. Traduisez du Morse :',
+      'Characters are separated by a space. Translate from Morse:',
+      'Los caracteres están separados por un espacio. Traduce del Morse:',
+    ),
+    targetData: morse,
+    hints: [
+      tr(
+        lang,
+        'Un point seul = E, un tiret seul = T. Utilisez une table Morse internationale.',
+        'A single dot = E, a single dash = T. Use an international Morse table.',
+        'Un punto solo = E, una raya sola = T. Usa una tabla Morse internacional.',
+      ),
+      tr(
+        lang,
+        'Les accolades « { } » et le « _ » existent aussi en Morse : -.--. / -.--.- / ..--.-',
+        'Braces "{ }" and "_" also exist in Morse: -.--. / -.--.- / ..--.-',
+        'Las llaves «{ }» y el «_» también existen en Morse: -.--. / -.--.- / ..--.-',
+      ),
+    ],
+    flag,
+  };
+};
+
+// 31. Double encodage d'URL
+export const generateUrlEncodingChallenge = (lang: Language = 'fr'): CTFChallenge => {
+  const word = getRandomItem(['REDIRECT', 'BYPASS', 'FILTER', 'WAF', 'PARAM']);
+  const flag = `FLAG{URL_${word}_${getRandomHex(4)}}`;
+  const once = Array.from(flag)
+    .map((c) => '%' + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'))
+    .join('');
+  const twice = once.replace(/%/g, '%25');
+  return {
+    id: 'ctf-url-1',
+    title: tr(
+      lang,
+      'Paramètre encodé deux fois',
+      'Double-encoded parameter',
+      'Parámetro codificado dos veces',
+    ),
+    category: 'Web & Injection',
+    difficulty: 'Moyen',
+    points: 150,
+    description: tr(
+      lang,
+      'Pour contourner un filtre, un attaquant encode deux fois sa charge utile dans l’URL (« % » devient « %25 »).',
+      'To bypass a filter, an attacker URL-encodes their payload twice ("%" becomes "%25").',
+      'Para eludir un filtro, un atacante codifica dos veces su carga en la URL («%» se convierte en «%25»).',
+    ),
+    scenario: tr(
+      lang,
+      'Ligne extraite des journaux d’un serveur web. Décodez le paramètre « q » :',
+      'Line taken from a web server log. Decode the "q" parameter:',
+      'Línea extraída de los registros de un servidor web. Decodifica el parámetro «q»:',
+    ),
+    targetData: `203.0.113.7 - - "GET /search?q=${twice} HTTP/1.1" 200 512`,
+    hints: [
+      tr(
+        lang,
+        'Un premier décodage donne une suite de « %46%4C… », il faut donc décoder une seconde fois.',
+        'A first decode gives a string of "%46%4C...", so you must decode a second time.',
+        'Una primera decodificación da una cadena «%46%4C…», así que hay que decodificar una segunda vez.',
+      ),
+      tr(
+        lang,
+        'decodeURIComponent() dans la console du navigateur, deux fois de suite.',
+        'decodeURIComponent() in the browser console, twice in a row.',
+        'decodeURIComponent() en la consola del navegador, dos veces seguidas.',
+      ),
+    ],
+    flag,
+  };
+};
+
+// 32. Analyse de journaux : force brute SSH
+export const generateLogAnalysisChallenge = (lang: Language = 'fr'): CTFChallenge => {
+  const attacker = `185.${getRandomInt(10, 240)}.${getRandomInt(10, 240)}.${getRandomInt(2, 250)}`;
+  const failures = getRandomInt(7, 14);
+  const noise = [
+    `10.0.0.${getRandomInt(2, 50)}`,
+    `10.0.0.${getRandomInt(51, 99)}`,
+    `192.168.1.${getRandomInt(2, 90)}`,
+  ];
+  const lines: string[] = [];
+  for (let i = 0; i < failures; i++)
+    lines.push(`Failed password for root from ${attacker} port ${getRandomInt(30000, 60000)} ssh2`);
+  for (const ip of noise) {
+    lines.push(`Failed password for admin from ${ip} port ${getRandomInt(30000, 60000)} ssh2`);
+    lines.push(`Accepted publickey for deploy from ${ip} port ${getRandomInt(30000, 60000)} ssh2`);
+  }
+  lines.sort(() => Math.random() - 0.5);
+  const flag = `FLAG{BRUTEFORCE_${attacker.replace(/\./g, '-')}_${failures}}`;
+  return {
+    id: 'ctf-log-1',
+    title: tr(
+      lang,
+      'Qui attaque le serveur ?',
+      'Who is attacking the server?',
+      '¿Quién ataca el servidor?',
+    ),
+    category: 'Système',
+    difficulty: 'Moyen',
+    points: 200,
+    description: tr(
+      lang,
+      'Le journal d’authentification SSH d’un serveur montre des échecs en rafale. Une seule adresse externe mène une attaque par force brute.',
+      'A server’s SSH authentication log shows bursts of failures. Only one external address is running a brute-force attack.',
+      'El registro de autenticación SSH de un servidor muestra fallos en ráfaga. Solo una dirección externa realiza un ataque de fuerza bruta.',
+    ),
+    scenario: tr(
+      lang,
+      'Trouvez l’adresse qui totalise le plus d’échecs « Failed password for root ». Le drapeau est FLAG{BRUTEFORCE_<adresse avec des tirets à la place des points>_<nombre d’échecs>}.',
+      'Find the address with the most "Failed password for root" entries. The flag is FLAG{BRUTEFORCE_<address with dashes instead of dots>_<number of failures>}.',
+      'Encuentra la dirección con más «Failed password for root». La bandera es FLAG{BRUTEFORCE_<dirección con guiones en lugar de puntos>_<número de fallos>}.',
+    ),
+    targetData: lines.join('\n'),
+    hints: [
+      tr(
+        lang,
+        'Filtrez sur « for root » : une adresse externe (hors 10.x et 192.168.x) revient bien plus souvent que les autres.',
+        'Filter on "for root": one external address (not 10.x or 192.168.x) appears far more often than the others.',
+        'Filtra por «for root»: una dirección externa (no 10.x ni 192.168.x) aparece mucho más que las demás.',
+      ),
+      tr(
+        lang,
+        'Comptez ses lignes « Failed password » : c’est le nombre d’échecs à mettre à la fin du drapeau.',
+        'Count its "Failed password" lines: that is the number of failures at the end of the flag.',
+        'Cuenta sus líneas «Failed password»: es el número de fallos al final de la bandera.',
+      ),
+    ],
+    flag,
+  };
+};
+
 export const CHALLENGE_FACTORIES: Record<string, (lang: Language) => CTFChallenge> = {
   'ctf-prompt-1': generatePromptInjectionChallenge,
   'ctf-crypto-1': generateCryptoChallenge,
@@ -1542,6 +1960,14 @@ export const CHALLENGE_FACTORIES: Record<string, (lang: Language) => CTFChalleng
   'ctf-pwsh-1': generatePowershellChallenge,
   'ctf-docker-1': generateDockerSecretChallenge,
   'ctf-k8s-1': generateK8sSecretChallenge,
+  'ctf-b64-1': generateBase64Challenge,
+  'ctf-caesar-1': generateCaesarChallenge,
+  'ctf-bin-1': generateBinaryChallenge,
+  'ctf-atbash-1': generateAtbashChallenge,
+  'ctf-vigenere-1': generateVigenereChallenge,
+  'ctf-morse-1': generateMorseChallenge,
+  'ctf-url-1': generateUrlEncodingChallenge,
+  'ctf-log-1': generateLogAnalysisChallenge,
 };
 
 // Main generator returning a randomized set of challenges

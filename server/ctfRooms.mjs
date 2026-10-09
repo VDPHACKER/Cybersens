@@ -5,7 +5,8 @@
 // - les défis sont générés ICI (générateurs de features/CTF, exécutés par le serveur) : les drapeaux n'existent
 //   que dans ce processus, jamais dans un navigateur, hôte compris. Le serveur les vérifie à chaque soumission,
 //   limite les essais et attribue lui-même les points ;
-// - un défi résolu par un joueur l'est pour toute l'équipe, les points reviennent à celui qui l'a résolu ;
+// - chaque joueur a SES propres exemplaires des défis (mêmes énoncés, données et drapeaux tirés au sort pour lui) :
+//   il les résout séparément, ses points sont indépendants, et un drapeau trouvé par un autre ne lui sert à rien ;
 // - le temps réel passe par Server-Sent Events (GET /api/ctf/rooms/stream).
 import crypto from 'node:crypto';
 import { HttpError } from './httpError.mjs';
@@ -15,16 +16,21 @@ export const CTF_LIMITS = {
   maxPlayers: 12,
   maxRooms: 100,
   minChallenges: 1,
-  maxChallenges: 12,
+  maxChallenges: 16,
 };
+
+/** Durées de partie proposées à l'hôte, en heures. */
+export const CTF_DURATIONS_H = [4, 8, 12, 24, 48, 72];
+export const CTF_DEFAULT_DURATION_H = 24;
+/** Essais par joueur et par défi avant verrouillage. */
+export const CTF_MAX_ATTEMPTS = 5;
+/** Le verrouillage dure cette part de la durée choisie. */
+const LOCK_FRACTION = 0.1;
 
 const timing = {
   idleMs: 3 * 3_600_000, // salle inactive supprimée
-  missWindowMs: 60_000, // fenêtre de comptage des mauvais drapeaux
+  hourMs: 3_600_000, // valeur d'une « heure » de durée de partie (réduite dans les tests)
 };
-
-// Mauvais drapeaux tolérés par joueur et par défi dans la fenêtre : au-delà, il faut patienter (anti force brute)
-const MAX_MISSES = 5;
 
 /** Réservé aux tests. */
 export const setCtfTiming = (overrides) => Object.assign(timing, overrides);
@@ -83,16 +89,22 @@ const playerList = (room) =>
     name: p.name,
     score: p.score,
     solves: p.solves,
+    lastSolveAt: p.lastSolveAt ?? null,
     connected: p.streams.size > 0,
   }));
 
+/** Essais restants et verrouillage éventuel du joueur, par défi (seuls les défis déjà tentés y figurent). */
+const attemptsOf = (player) => {
+  const out = {};
+  for (const [id, m] of player.misses)
+    out[id] = { left: Math.max(0, CTF_MAX_ATTEMPTS - m.count), lockedUntil: m.lockedUntil ?? null };
+  return out;
+};
+
 const snapshotFor = (room, userId) => {
+  const me = room.players.get(userId);
   const solved = {};
-  let teamScore = 0;
-  for (const [challengeId, s] of room.solved) {
-    solved[challengeId] = { byId: s.byId, by: s.by, at: s.at };
-    teamScore += s.points;
-  }
+  for (const [challengeId, s] of me.solved) solved[challengeId] = { at: s.at, points: s.points };
   return {
     code: room.code,
     phase: room.phase,
@@ -101,10 +113,14 @@ const snapshotFor = (room, userId) => {
     now: Date.now(),
     startedAt: room.startedAt ?? null,
     finishedAt: room.finishedAt ?? null,
-    challenges: room.challenges.map(publicChallenge),
+    durationMs: room.durationMs,
+    endsAt: room.endsAt ?? null,
+    maxAttempts: CTF_MAX_ATTEMPTS,
+    attempts: attemptsOf(me),
+    challenges: me.challenges.map(publicChallenge),
     solved,
-    teamScore,
-    totalPoints: room.challenges.reduce((n, c) => n + c.points, 0),
+    score: me.score,
+    totalPoints: me.challenges.reduce((n, c) => n + c.points, 0),
     players: playerList(room),
     you: { id: userId, isHost: userId === room.hostId },
   };
@@ -122,6 +138,7 @@ const broadcast = (room) => {
 
 // ---------- Actions ----------
 const destroyRoom = (room) => {
+  clearTimeout(room.timer);
   for (const player of room.players.values()) {
     for (const res of player.streams) res.end();
     if (roomOfUser.get(player.id) === room.code) roomOfUser.delete(player.id);
@@ -146,11 +163,14 @@ const requireHost = (room, user) => {
   if (room.hostId !== user.id) throw new HttpError(403, 'Seul l’hôte peut faire cela.');
 };
 
-const newPlayer = (user) => ({
+const newPlayer = (user, challengeIds, lang) => ({
   id: user.id,
   name: user.displayName,
+  challenges: generateChallenges(challengeIds, lang), // exemplaires personnels, drapeaux compris
+  solved: new Map(), // challengeId -> { at, points }
   score: 0,
   solves: 0,
+  lastSolveAt: undefined,
   streams: new Set(),
   misses: new Map(), // challengeId -> { count, resetAt }
 });
@@ -169,10 +189,13 @@ export const leaveCtfRoom = (userId) => {
   broadcast(room);
 };
 
-export const createCtfRoom = (user, { challengeIds, lang }) => {
+export const createCtfRoom = (user, { challengeIds, lang, durationHours }) => {
+  const hours = durationHours ?? CTF_DEFAULT_DURATION_H;
+  if (!CTF_DURATIONS_H.includes(hours))
+    throw new HttpError(400, `Durée invalide : choisissez ${CTF_DURATIONS_H.join(', ')} heures.`);
   if (rooms.size >= CTF_LIMITS.maxRooms)
     throw new HttpError(503, 'Trop de salles ouvertes, réessayez dans quelques minutes.');
-  const challenges = generateChallenges(challengeIds, lang);
+  const player = newPlayer(user, challengeIds, lang); // valide aussi la liste de défis
   leaveCtfRoom(user.id);
   const room = {
     code: newCode(),
@@ -180,9 +203,9 @@ export const createCtfRoom = (user, { challengeIds, lang }) => {
     phase: 'lobby',
     session: 1,
     lang: LANGS.has(lang) ? lang : 'fr',
-    challenges,
-    solved: new Map(),
-    players: new Map([[user.id, newPlayer(user)]]),
+    challengeIds: [...challengeIds],
+    durationMs: hours * timing.hourMs,
+    players: new Map([[user.id, player]]),
     createdAt: Date.now(),
     lastActivity: Date.now(),
   };
@@ -202,7 +225,7 @@ export const joinCtfRoom = (user, code) => {
     throw new HttpError(409, 'La partie est terminée : attendez que l’hôte en relance une.');
   if (room.players.size >= CTF_LIMITS.maxPlayers) throw new HttpError(409, 'La salle est pleine.');
   leaveCtfRoom(user.id);
-  room.players.set(user.id, newPlayer(user));
+  room.players.set(user.id, newPlayer(user, room.challengeIds, room.lang));
   roomOfUser.set(user.id, room.code);
   broadcast(room);
   return { code: room.code };
@@ -215,10 +238,15 @@ export const startCtfRoom = (user, code) => {
   if (room.players.size < 2) throw new HttpError(409, 'Il faut au moins 2 joueurs pour commencer.');
   room.phase = 'playing';
   room.startedAt = Date.now();
+  room.endsAt = room.startedAt + room.durationMs;
+  // À l'échéance, la partie se termine d'elle-même
+  room.timer = setTimeout(() => room.phase === 'playing' && finish(room), room.durationMs);
+  room.timer.unref();
   broadcast(room);
 };
 
 const finish = (room) => {
+  clearTimeout(room.timer);
   room.phase = 'finished';
   room.finishedAt = Date.now();
   broadcast(room);
@@ -241,39 +269,52 @@ export const submitCtfFlag = (user, code, challengeId, flag) => {
   const room = requireRoom(code);
   const player = memberOf(room, user.id);
   if (room.phase !== 'playing') throw new HttpError(409, 'La partie n’est pas en cours.');
-  const challenge = room.challenges.find((c) => c.id === challengeId);
+  const challenge = player.challenges.find((c) => c.id === challengeId);
   if (!challenge) throw new HttpError(404, 'Défi introuvable.');
   if (typeof flag !== 'string' || flag.length > 300) throw new HttpError(400, 'Drapeau invalide');
-  const already = room.solved.get(challenge.id);
-  if (already) throw new HttpError(409, `Déjà résolu par ${already.by}.`);
+  if (player.solved.has(challenge.id)) throw new HttpError(409, 'Vous avez déjà résolu ce défi.');
 
-  // Anti force brute : quelques mauvais drapeaux par minute et par défi, puis il faut patienter
+  // Essais limités : après CTF_MAX_ATTEMPTS mauvais drapeaux, le défi est verrouillé pour ce joueur pendant
+  // 10 % de la durée choisie, puis ses essais lui sont rendus
   const now = Date.now();
-  let misses = player.misses.get(challenge.id);
-  if (!misses || now >= misses.resetAt) {
-    misses = { count: 0, resetAt: now + timing.missWindowMs };
-    player.misses.set(challenge.id, misses);
+  if (room.endsAt && now >= room.endsAt) {
+    finish(room);
+    throw new HttpError(409, 'Le temps est écoulé.');
   }
-  if (misses.count >= MAX_MISSES)
+  let tries = player.misses.get(challenge.id);
+  if (tries?.lockedUntil && now >= tries.lockedUntil) {
+    player.misses.delete(challenge.id);
+    tries = undefined;
+  }
+  if (tries?.lockedUntil) {
+    const minutes = Math.ceil((tries.lockedUntil - now) / 60_000);
     throw new HttpError(
       429,
-      'Trop d’essais sur ce défi : patientez une minute avant de réessayer.',
+      `Défi verrouillé après ${CTF_MAX_ATTEMPTS} essais ratés : il se rouvre dans ${minutes} min.`,
     );
-
-  if (!sameFlag(flag.trim(), challenge.flag)) {
-    misses.count += 1;
-    return { ok: false };
   }
 
-  room.solved.set(challenge.id, {
-    byId: user.id,
-    by: player.name,
-    at: Date.now(),
-    points: challenge.points,
-  });
+  if (!sameFlag(flag.trim(), challenge.flag)) {
+    tries ??= { count: 0 };
+    player.misses.set(challenge.id, tries);
+    tries.count += 1;
+    if (tries.count >= CTF_MAX_ATTEMPTS)
+      tries.lockedUntil = now + Math.round(room.durationMs * LOCK_FRACTION);
+    writeState(room, player);
+    return {
+      ok: false,
+      attemptsLeft: Math.max(0, CTF_MAX_ATTEMPTS - tries.count),
+      lockedUntil: tries.lockedUntil ?? null,
+    };
+  }
+
+  player.misses.delete(challenge.id);
+  player.solved.set(challenge.id, { at: now, points: challenge.points });
   player.score += challenge.points;
   player.solves += 1;
-  const done = room.solved.size === room.challenges.length;
+  player.lastSolveAt = now;
+  // La partie s'arrête d'elle-même quand tous les joueurs présents ont tout résolu
+  const done = [...room.players.values()].every((p) => p.solved.size === p.challenges.length);
   if (done) finish(room);
   else broadcast(room);
   return { ok: true, points: challenge.points, finished: done };
@@ -338,9 +379,9 @@ export const sandboxReply = (challenge, prompt, lang) => {
 
 export const askCtfSandbox = (user, code, challengeId, prompt, lang) => {
   const room = requireRoom(code);
-  memberOf(room, user.id);
+  const player = memberOf(room, user.id);
   if (room.phase !== 'playing') throw new HttpError(409, 'La partie n’est pas en cours.');
-  const challenge = room.challenges.find((c) => c.id === challengeId);
+  const challenge = player.challenges.find((c) => c.id === challengeId);
   if (!challenge || challenge.interactiveType !== 'interactive_llm')
     throw new HttpError(404, 'Défi introuvable.');
   if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 500)
@@ -357,26 +398,24 @@ export const restartCtfRoom = (user, code, { lang } = {}) => {
   requireHost(room, user);
   if (room.phase !== 'finished') throw new HttpError(409, 'La partie n’est pas terminée.');
   const nextLang = LANGS.has(lang) ? lang : room.lang;
-  const challenges = generateChallenges(
-    room.challenges.map((c) => c.id),
-    nextLang,
-  );
   for (const [id, player] of room.players) {
     if (player.streams.size === 0 && id !== user.id) {
       room.players.delete(id);
       if (roomOfUser.get(id) === room.code) roomOfUser.delete(id);
     }
   }
-  room.challenges = challenges;
   room.lang = nextLang;
-  room.solved = new Map();
   room.session += 1;
   room.phase = 'lobby';
   room.startedAt = undefined;
   room.finishedAt = undefined;
+  room.endsAt = undefined;
   for (const p of room.players.values()) {
+    p.challenges = generateChallenges(room.challengeIds, nextLang); // nouveaux drapeaux pour chacun
+    p.solved = new Map();
     p.score = 0;
     p.solves = 0;
+    p.lastSolveAt = undefined;
     p.misses.clear();
   }
   broadcast(room);
@@ -413,9 +452,11 @@ setInterval(() => {
   }
 }, 60_000).unref();
 
-/** Réservé aux tests : les drapeaux de la salle (ils ne sont jamais envoyés aux joueurs). */
-export const peekCtfFlags = (code) =>
-  Object.fromEntries((rooms.get(String(code))?.challenges ?? []).map((c) => [c.id, c.flag]));
+/** Réservé aux tests : les drapeaux d'un joueur (ils ne sont jamais envoyés aux joueurs). */
+export const peekCtfFlags = (code, userId) =>
+  Object.fromEntries(
+    (rooms.get(String(code))?.players.get(userId)?.challenges ?? []).map((c) => [c.id, c.flag]),
+  );
 
 /** Réservé aux tests. */
 export const resetCtfRooms = () => {
