@@ -1,9 +1,25 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Trophy, Medal, Award, RefreshCw, Eye, EyeOff, Star } from 'lucide-react';
+import {
+  Trophy,
+  Medal,
+  Award,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  Star,
+  Brain,
+  Flag,
+  BookOpen,
+  Gamepad2,
+  ScanFace,
+  FlaskConical,
+  ShieldCheck,
+} from 'lucide-react';
 import { Card, PageHeader, StateBox, Avatar, useL } from '../components/ui';
 import {
   fetchLeaderboard,
   setLeaderboardVisibility,
+  LeaderboardBoard,
   LeaderboardResponse,
   LeaderboardEntry,
 } from '../services/communityApi';
@@ -23,16 +39,218 @@ export const Leaderboard: React.FC<LeaderboardProps> = () => {
   const [data, setData] = useState<LeaderboardResponse | null>(null);
   const [state, setState] = useState<'loading' | 'error' | 'ready'>('loading');
   const [saving, setSaving] = useState(false);
+  const [board, setBoard] = useState<LeaderboardBoard>('xp');
+
+  const BOARDS: Record<
+    LeaderboardBoard,
+    {
+      label: string;
+      icon: React.ReactNode;
+      unit: string;
+      detail?: (n: number) => string;
+      subtitle: string;
+      empty: string;
+    }
+  > = {
+    xp: {
+      label: L('Général', 'Overall', 'General'),
+      icon: <Star className="h-4 w-4" />,
+      unit: 'XP',
+      subtitle: L(
+        'Les membres qui ont cumulé le plus de points d’expérience.',
+        'Members who earned the most experience points.',
+        'Los miembros con más puntos de experiencia.',
+      ),
+      empty: L(
+        'Terminez une leçon, un quiz ou un défi CTF pour gagner vos premiers points.',
+        'Finish a lesson, a quiz or a CTF challenge to earn your first points.',
+        'Termina una lección, un quiz o un reto CTF para ganar tus primeros puntos.',
+      ),
+    },
+    courses: {
+      label: L('Cours', 'Courses', 'Cursos'),
+      icon: <BookOpen className="h-4 w-4" />,
+      unit: L('pts', 'pts', 'pts'),
+      detail: (n) => L(`${n} leçons`, `${n} lessons`, `${n} lecciones`),
+      subtitle: L(
+        'Points gagnés en terminant des leçons et en réussissant des examens.',
+        'Points earned by finishing lessons and passing exams.',
+        'Puntos ganados al terminar lecciones y aprobar exámenes.',
+      ),
+      empty: L(
+        'Terminez une leçon pour apparaître ici.',
+        'Finish a lesson to appear here.',
+        'Termina una lección para aparecer aquí.',
+      ),
+    },
+    quizSolo: {
+      label: L('Quiz solo', 'Solo quiz', 'Quiz solo'),
+      icon: <Brain className="h-4 w-4" />,
+      unit: L('bonnes rép.', 'correct', 'aciertos'),
+      detail: (n) => L(`${n} parties`, `${n} games`, `${n} partidas`),
+      subtitle: L(
+        'Les membres avec le plus de bonnes réponses en quiz solo.',
+        'Members with the most correct answers in solo quizzes.',
+        'Los miembros con más respuestas correctas en quiz solo.',
+      ),
+      empty: L(
+        'Jouez un quiz pour apparaître ici.',
+        'Play a quiz to appear here.',
+        'Juega un quiz para aparecer aquí.',
+      ),
+    },
+    quizMulti: {
+      label: L('Quiz multi', 'Multiplayer quiz', 'Quiz multijugador'),
+      icon: <Brain className="h-4 w-4" />,
+      unit: L('bonnes rép.', 'correct', 'aciertos'),
+      detail: (n) => L(`${n} parties`, `${n} games`, `${n} partidas`),
+      subtitle: L(
+        'Les membres avec le plus de bonnes réponses en quiz multijoueur.',
+        'Members with the most correct answers in multiplayer quizzes.',
+        'Los miembros con más respuestas correctas en quiz multijugador.',
+      ),
+      empty: L(
+        'Terminez un quiz multijoueur pour apparaître ici.',
+        'Finish a multiplayer quiz to appear here.',
+        'Termina un quiz multijugador para aparecer aquí.',
+      ),
+    },
+    games: {
+      label: L('Jeux', 'Games', 'Juegos'),
+      icon: <Gamepad2 className="h-4 w-4" />,
+      unit: 'XP',
+      subtitle: L(
+        'Les points d’expérience gagnés dans les mini-jeux.',
+        'Experience points earned in the mini-games.',
+        'Puntos de experiencia ganados en los minijuegos.',
+      ),
+      empty: L(
+        'Terminez un mini-jeu pour apparaître ici.',
+        'Finish a mini-game to appear here.',
+        'Termina un minijuego para aparecer aquí.',
+      ),
+    },
+    deepfake: {
+      label: 'Deepfake',
+      icon: <ScanFace className="h-4 w-4" />,
+      unit: 'XP',
+      subtitle: L(
+        'Les points gagnés au détecteur et au défi deepfake.',
+        'Points earned in the deepfake detector and challenge.',
+        'Puntos ganados en el detector y el reto deepfake.',
+      ),
+      empty: L(
+        'Relevez un défi deepfake pour apparaître ici.',
+        'Take a deepfake challenge to appear here.',
+        'Acepta un reto deepfake para aparecer aquí.',
+      ),
+    },
+    lab: {
+      label: L('Labo', 'Lab', 'Laboratorio'),
+      icon: <FlaskConical className="h-4 w-4" />,
+      unit: 'XP',
+      subtitle: L(
+        'Les points gagnés dans les laboratoires pratiques.',
+        'Points earned in the hands-on labs.',
+        'Puntos ganados en los laboratorios prácticos.',
+      ),
+      empty: L(
+        'Terminez un laboratoire pour apparaître ici.',
+        'Complete a lab to appear here.',
+        'Completa un laboratorio para aparecer aquí.',
+      ),
+    },
+    practices: {
+      label: L('Bonnes pratiques', 'Best practices', 'Buenas prácticas'),
+      icon: <ShieldCheck className="h-4 w-4" />,
+      unit: 'XP',
+      subtitle: L(
+        'Les points gagnés avec les bonnes pratiques de sécurité.',
+        'Points earned with security best practices.',
+        'Puntos ganados con las buenas prácticas de seguridad.',
+      ),
+      empty: L(
+        'Validez une bonne pratique pour apparaître ici.',
+        'Check off a best practice to appear here.',
+        'Marca una buena práctica para aparecer aquí.',
+      ),
+    },
+    ctfSolo: {
+      label: 'CTF solo',
+      icon: <Flag className="h-4 w-4" />,
+      unit: L('pts', 'pts', 'pts'),
+      detail: (n) => L(`${n} défis`, `${n} challenges`, `${n} retos`),
+      subtitle: L(
+        'Les points des défis résolus dans l’arène CTF solo.',
+        'Points from challenges solved in the solo CTF arena.',
+        'Puntos de los retos resueltos en la arena CTF solo.',
+      ),
+      empty: L(
+        'Résolvez un défi dans l’arène CTF solo pour apparaître ici.',
+        'Solve a challenge in the solo CTF arena to appear here.',
+        'Resuelve un reto en la arena CTF solo para aparecer aquí.',
+      ),
+    },
+    ctfMulti: {
+      label: L('CTF multi', 'Multiplayer CTF', 'CTF multijugador'),
+      icon: <Flag className="h-4 w-4" />,
+      unit: L('pts', 'pts', 'pts'),
+      detail: (n) => L(`${n} défis`, `${n} challenges`, `${n} retos`),
+      subtitle: L(
+        'Les membres qui ont marqué le plus de points sur les défis CTF en salle.',
+        'Members who scored the most points on room CTF challenges.',
+        'Los miembros con más puntos en los retos CTF en sala.',
+      ),
+      empty: L(
+        'Résolvez un défi dans une salle CTF multijoueur pour apparaître ici.',
+        'Solve a challenge in a multiplayer CTF room to appear here.',
+        'Resuelve un reto en una sala CTF multijugador para aparecer aquí.',
+      ),
+    },
+  };
+  const cfg = BOARDS[board];
+  const unit = cfg.unit;
+  const subtitle = cfg.subtitle;
+  const emptyHint = cfg.empty;
+  const detailLabel = (n: number) => cfg.detail?.(n) ?? '';
+  // Onglets principaux : Quiz et CTF regroupent leurs classements solo et multijoueur (choix en dessous)
+  const GROUPS: { id: string; label: string; icon: React.ReactNode; boards: LeaderboardBoard[] }[] =
+    [
+      { id: 'xp', boards: ['xp'] },
+      { id: 'courses', boards: ['courses'] },
+      { id: 'quiz', boards: ['quizSolo', 'quizMulti'] },
+      { id: 'ctf', boards: ['ctfSolo', 'ctfMulti'] },
+      { id: 'games', boards: ['games'] },
+      { id: 'deepfake', boards: ['deepfake'] },
+      { id: 'lab', boards: ['lab'] },
+      { id: 'practices', boards: ['practices'] },
+    ].map((g) => ({
+      ...g,
+      boards: g.boards as LeaderboardBoard[],
+      label:
+        g.id === 'quiz'
+          ? 'Quiz'
+          : g.id === 'ctf'
+            ? 'CTF'
+            : BOARDS[g.boards[0] as LeaderboardBoard].label,
+      icon: BOARDS[g.boards[0] as LeaderboardBoard].icon,
+    }));
+  const group = GROUPS.find((g) => g.boards.includes(board)) ?? GROUPS[0];
+  const switchBoard = (next: LeaderboardBoard) => {
+    if (next === board) return;
+    setData(null);
+    setBoard(next);
+  };
 
   const load = useCallback(async () => {
     setState('loading');
     try {
-      setData(await fetchLeaderboard());
+      setData(await fetchLeaderboard(board));
       setState('ready');
     } catch {
       setState('error');
     }
-  }, []);
+  }, [board]);
 
   useEffect(() => {
     void load();
@@ -58,11 +276,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = () => {
       <PageHeader
         icon={<Trophy className="h-5 w-5" aria-hidden="true" />}
         title={L('Classements', 'Leaderboard', 'Clasificaciones')}
-        subtitle={L(
-          'Les membres qui ont cumulé le plus de points d’expérience.',
-          'Members who earned the most experience points.',
-          'Los miembros con más puntos de experiencia.',
-        )}
+        subtitle={subtitle}
         actions={
           <button
             onClick={() => void load()}
@@ -77,6 +291,55 @@ export const Leaderboard: React.FC<LeaderboardProps> = () => {
           </button>
         }
       />
+
+      <div
+        role="tablist"
+        aria-label={L('Type de classement', 'Leaderboard type', 'Tipo de clasificación')}
+        className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1 dark:border-white/10 dark:bg-ink-800"
+      >
+        {GROUPS.map((g) => (
+          <button
+            key={g.id}
+            role="tab"
+            aria-selected={group.id === g.id}
+            onClick={() => switchBoard(g.boards[0])}
+            className={`inline-flex shrink-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+              group.id === g.id
+                ? 'bg-brand text-white'
+                : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-ink-700'
+            }`}
+          >
+            <span aria-hidden="true">{g.icon}</span>
+            {g.label}
+          </button>
+        ))}
+      </div>
+
+      {group.boards.length > 1 && (
+        <div
+          role="tablist"
+          aria-label={L('Mode de jeu', 'Game mode', 'Modo de juego')}
+          className="flex gap-2"
+        >
+          {group.boards.map((id, i) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={board === id}
+              onClick={() => switchBoard(id)}
+              className={`rounded-full border px-4 py-1.5 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                board === id
+                  ? 'border-brand bg-brand/10 text-brand dark:text-brand-light'
+                  : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-ink-700'
+              }`}
+            >
+              {i === 0
+                ? L('Solo', 'Solo', 'Solo')
+                : L('Multijoueur', 'Multiplayer', 'Multijugador')}
+            </button>
+          ))}
+        </div>
+      )}
 
       {state === 'loading' && !data && (
         <StateBox
@@ -130,7 +393,14 @@ export const Leaderboard: React.FC<LeaderboardProps> = () => {
                       : L('Vous êtes masqué', 'You are hidden', 'Estás oculto')}
                 </p>
                 <p className="text-xs text-white/80">
-                  {data.me.points} XP · {L('Niveau', 'Level', 'Nivel')} {data.me.level}
+                  {[
+                    `${data.me.points} ${unit}`,
+                    board === 'xp'
+                      ? `${L('Niveau', 'Level', 'Nivel')} ${data.me.level}`
+                      : detailLabel(data.me.detail),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
                 </p>
               </div>
             </div>
@@ -167,11 +437,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = () => {
                 'The leaderboard is empty for now',
                 'La clasificación está vacía por ahora',
               )}
-              hint={L(
-                'Terminez une leçon, un quiz ou un défi CTF pour gagner vos premiers points.',
-                'Finish a lesson, a quiz or a CTF challenge to earn your first points.',
-                'Termina una lección, un quiz o un reto CTF para ganar tus primeros puntos.',
-              )}
+              hint={emptyHint}
             />
           ) : (
             <>
@@ -205,10 +471,12 @@ export const Leaderboard: React.FC<LeaderboardProps> = () => {
                           )}
                         </p>
                         <p className="text-sm font-black text-brand dark:text-brand-light">
-                          {e.points} XP
+                          {e.points} {unit}
                         </p>
                         <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                          {L('Niveau', 'Level', 'Nivel')} {e.level}
+                          {board === 'xp'
+                            ? `${L('Niveau', 'Level', 'Nivel')} ${e.level}`
+                            : detailLabel(e.detail)}
                         </p>
                       </Card>
                     );
@@ -261,8 +529,9 @@ export const Leaderboard: React.FC<LeaderboardProps> = () => {
                         <Star className="h-3 w-3" aria-hidden="true" />
                         {e.level}
                       </div>
-                      <p className="w-20 text-right text-sm font-black tabular-nums text-slate-900 dark:text-white">
-                        {e.points} <span className="text-[10px] font-bold text-slate-400">XP</span>
+                      <p className="w-24 text-right text-sm font-black tabular-nums text-slate-900 dark:text-white">
+                        {e.points}{' '}
+                        <span className="text-[10px] font-bold text-slate-400">{unit}</span>
                       </p>
                     </li>
                   ))}

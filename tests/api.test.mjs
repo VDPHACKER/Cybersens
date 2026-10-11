@@ -15,6 +15,7 @@ const { handleApi, getSessionUser, resetRateLimits } = await import('../server/a
 const { handleGeminiProxy } = await import('../server/geminiProxy.mjs');
 const { checkOrigin } = await import('../server/csrf.mjs');
 const { closeDb, db } = await import('../server/db.mjs');
+const { peekSoloFlags } = await import('../server/ctfSolo.mjs');
 const { COMPREHENSIVE_COURSE_MODULES } = await import('../services/coursesData.ts');
 
 let server;
@@ -737,6 +738,7 @@ test('classement et communauté : confidentialité, droits et limites', async ()
     password: PASSWORD,
   });
   assert.equal(login.status, 200);
+  const mineId = login.data.user.id;
   await call('POST', '/api/me/points', { delta: 50 });
 
   // Classement : nom abrégé, jamais d'e-mail
@@ -758,6 +760,86 @@ test('classement et communauté : confidentialité, droits et limites', async ()
   assert.equal(hidden.data.me.visible, false);
   assert.equal(hidden.data.me.rank, null);
   await call('PATCH', '/api/me', { settings: { showInLeaderboard: true } });
+
+  // Classements par catégorie : quiz (bonnes réponses cumulées) et CTF (vide tant qu'aucun défi résolu)
+  assert.equal((await call('GET', '/api/leaderboard?board=nope')).status, 400);
+  const quizEmpty = await call('GET', '/api/leaderboard?board=quizSolo');
+  assert.equal(
+    quizEmpty.data.entries.some((e) => e.isMe),
+    false,
+    'sans partie : absent du quiz',
+  );
+  assert.equal(
+    (await call('POST', '/api/quiz-results', { score: 7, total: 10, mode: 'Solo' })).status,
+    201,
+  );
+  const quizBoard = await call('GET', '/api/leaderboard?board=quizSolo');
+  assert.equal(quizBoard.data.board, 'quizSolo');
+  const quizMine = quizBoard.data.entries.find((e) => e.isMe);
+  assert.equal(quizMine?.points, 7);
+  assert.equal(quizMine?.detail, 1);
+  assert.equal(quizBoard.data.me.rank, quizMine.rank);
+  const ctfBoard = await call('GET', '/api/leaderboard?board=ctfMulti');
+  assert.equal(ctfBoard.status, 200);
+  assert.equal(ctfBoard.data.me.rank, null);
+
+  // CTF solo : défis et drapeaux restent sur le serveur, qui vérifie chaque drapeau (aucun point déclaré par le navigateur)
+  assert.equal(
+    (await call('POST', '/api/ctf/solo', { challengeIds: ['ctf-crypto-1'] })).status,
+    404,
+  );
+  assert.equal((await call('GET', '/api/ctf/solo', undefined, { jar: false })).status, 401);
+  const soloState = await call('GET', '/api/ctf/solo?lang=fr');
+  assert.equal(soloState.status, 200);
+  assert.ok(soloState.data.challenges.length >= 10);
+  assert.equal(
+    JSON.stringify(soloState.data).includes('"flag"'),
+    false,
+    'jamais de drapeau envoyé',
+  );
+  const target = soloState.data.challenges.find((c) => c.id === 'ctf-crypto-1');
+  const wrong = await call('POST', '/api/ctf/solo/submit', {
+    challengeId: target.id,
+    flag: 'FLAG{faux}',
+  });
+  assert.equal(wrong.data.ok, false);
+  assert.equal(wrong.data.attemptsLeft, 4);
+  assert.equal(
+    (await call('POST', '/api/ctf/solo/submit', { challengeId: 'inconnu', flag: 'x' })).status,
+    404,
+  );
+  const good = await call('POST', '/api/ctf/solo/submit', {
+    challengeId: target.id,
+    flag: peekSoloFlags(mineId)[target.id],
+  });
+  assert.equal(good.data.ok, true);
+  assert.equal(good.data.firstTime, true);
+  const again = await call('POST', '/api/ctf/solo/submit', {
+    challengeId: target.id,
+    flag: peekSoloFlags(mineId)[target.id],
+  });
+  assert.equal(again.data.ok, true);
+  assert.equal(again.data.firstTime, false, 'les points ne sont versés qu’une fois');
+  assert.equal(
+    (await call('GET', '/api/ctf/solo?lang=fr')).data.solved[target.id].points,
+    target.points,
+  );
+  const ctfSolo = await call('GET', '/api/leaderboard?board=ctfSolo');
+  const soloMine = ctfSolo.data.entries.find((e) => e.isMe);
+  assert.ok(soloMine && soloMine.points === target.points && soloMine.detail === 1);
+  assert.equal((await call('GET', '/api/leaderboard?board=ctfMulti')).data.me.rank, null);
+
+  // Points par activité : l'onglet ne compte que les points de son activité (source inconnue ignorée)
+  await call('POST', '/api/me/points', { delta: 12, source: 'game' });
+  await call('POST', '/api/me/points', { delta: 30, source: 'deepfake' });
+  await call('POST', '/api/me/points', { delta: 99, source: 'inconnue' });
+  const games = await call('GET', '/api/leaderboard?board=games');
+  assert.equal(games.data.entries.find((e) => e.isMe)?.points, 12);
+  const deepfake = await call('GET', '/api/leaderboard?board=deepfake');
+  assert.equal(deepfake.data.entries.find((e) => e.isMe)?.points, 30);
+  assert.equal((await call('GET', '/api/leaderboard?board=lab')).data.me.rank, null);
+  assert.equal((await call('GET', '/api/leaderboard?board=courses')).status, 200);
+  assert.equal((await call('GET', '/api/leaderboard?board=practices')).status, 200);
 
   // Communauté : validation
   const tooShort = await call('POST', '/api/community/posts', { body: 'a' });

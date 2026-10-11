@@ -53,7 +53,7 @@ export const BestPractices: React.FC<BestPracticesProps> = () => {
     const next = !checkedMap[key];
     setCheckedMap((prev) => ({ ...prev, [key]: next }));
     if (next) {
-      addPoints(10);
+      addPoints(10, 'practice');
     }
   };
 

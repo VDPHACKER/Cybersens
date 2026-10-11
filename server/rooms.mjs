@@ -24,6 +24,12 @@ const timing = {
   idleMs: 2 * 3_600_000, // salle inactive supprimée
 };
 
+let finishListener = null;
+/** Appelé à la fin de chaque partie : ({ userId, correct, total }[]). Sert à conserver les résultats en base. */
+export const setRoomFinishListener = (fn) => {
+  finishListener = fn;
+};
+
 /** Réservé aux tests : accélère les temps d'attente. */
 export const setRoomTiming = (overrides) => Object.assign(timing, overrides);
 
@@ -144,6 +150,13 @@ const reveal = (room) => {
       beginQuestion(room);
     } else {
       room.phase = 'finished';
+      finishListener?.(
+        [...room.players.values()].map((p) => ({
+          userId: p.id,
+          correct: p.correct,
+          total: room.questions.length,
+        })),
+      );
       broadcast(room);
     }
   }, timing.revealMs);
@@ -236,6 +249,7 @@ export const createRoom = (user, { count, seconds }) => {
     id: user.id,
     name: user.displayName,
     score: 0,
+    correct: 0,
     choice: null,
     lastPoints: 0,
     streams: new Set(),
@@ -259,6 +273,7 @@ export const joinRoom = (user, code) => {
     id: user.id,
     name: user.displayName,
     score: 0,
+    correct: 0,
     choice: null,
     lastPoints: 0,
     streams: new Set(),
@@ -308,6 +323,7 @@ export const restartRoom = (user, code, { count, seconds } = {}) => {
   room.counts = [0, 0, 0, 0];
   for (const p of room.players.values()) {
     p.score = 0;
+    p.correct = 0;
     p.choice = null;
     p.lastPoints = 0;
   }
@@ -330,6 +346,7 @@ export const answerRoom = (user, code, choice) => {
     const elapsed = Math.min(now - room.startedAt, room.seconds * 1000);
     player.lastPoints = 1000 - Math.round((500 * elapsed) / (room.seconds * 1000));
     player.score += player.lastPoints;
+    player.correct += 1;
   }
   if ([...room.players.values()].every((p) => p.choice !== null)) reveal(room);
   else broadcast(room);

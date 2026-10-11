@@ -173,6 +173,31 @@ const MIGRATIONS = [
   );
   CREATE INDEX idx_push_user ON push_subscriptions(user_id);
   `,
+  // Défis CTF résolus en salle (classement CTF) : les salles vivent en mémoire, les résultats sont conservés ici
+  `
+  CREATE TABLE ctf_solves (
+    id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    challenge_id TEXT NOT NULL,
+    points       INTEGER NOT NULL,
+    solved_at    TEXT NOT NULL DEFAULT (${NOW})
+  );
+  CREATE INDEX idx_ctf_solves_user ON ctf_solves(user_id);
+  `,
+  // Points gagnés par activité (jeux, deepfake, labo, bonnes pratiques) : un classement par onglet
+  `
+  CREATE TABLE points_by_source (
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    source  TEXT NOT NULL,
+    total   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, source)
+  );
+  `,
+  // CTF : on distingue l'arène solo (déclarée par le navigateur, une fois par défi) des salles multijoueur
+  `
+  ALTER TABLE ctf_solves ADD COLUMN mode TEXT NOT NULL DEFAULT 'multi';
+  CREATE UNIQUE INDEX idx_ctf_solves_solo ON ctf_solves(user_id, challenge_id) WHERE mode = 'solo';
+  `,
 ];
 
 // ---------- Pilotes ----------
@@ -311,6 +336,8 @@ const EXPORT_TABLES = [
   'lesson_progress',
   'certificates',
   'quiz_results',
+  'ctf_solves',
+  'points_by_source',
   'posts',
   'post_comments',
   'post_likes',

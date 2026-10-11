@@ -20,7 +20,7 @@ const KEYS = {
   CACHE_OWNER: 'cybersens_cache_owner',
 };
 
-const isLoggedIn = () => getPreferences().isAuthenticated === true;
+export const isLoggedIn = () => getPreferences().isAuthenticated === true;
 
 // Lecture tolérante : une donnée corrompue ou modifiée à la main ne doit pas faire planter l'application
 const readJson = <T>(key: string, fallback: T): T => {
@@ -238,7 +238,10 @@ export const setLocalPoints = (points: number) => {
   savePreferences({ ...prefs, points, level: levelFor(points) });
 };
 
-export const addPoints = (pts: number) => {
+/** Activité d'origine des points : alimente l'onglet correspondant du classement. */
+export type PointSource = 'game' | 'deepfake' | 'lab' | 'practice';
+
+export const addPoints = (pts: number, source?: PointSource) => {
   const prefs = getPreferences();
   const currentPts = (prefs.points || 0) + pts;
   savePreferences({
@@ -248,11 +251,12 @@ export const addPoints = (pts: number) => {
   });
   // Mise à jour optimiste, puis alignement sur le total enregistré en base
   if (prefs.isAuthenticated && pts > 0) {
-    apiInBackground('POST', '/api/me/points', { delta: Math.min(Math.round(pts), 200) }).then(
-      (res) => {
-        if (res && typeof (res as any).points === 'number') setLocalPoints((res as any).points);
-      },
-    );
+    apiInBackground('POST', '/api/me/points', {
+      delta: Math.min(Math.round(pts), 200),
+      source,
+    }).then((res) => {
+      if (res && typeof (res as any).points === 'number') setLocalPoints((res as any).points);
+    });
   }
 };
 

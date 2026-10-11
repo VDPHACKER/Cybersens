@@ -309,7 +309,7 @@ export const CyberSensLabRunner: React.FC<CyberSensLabRunnerProps> = ({
   const checkCompletion = () => {
     if (!labCompleted) {
       setLabCompleted(true);
-      addPoints(30);
+      addPoints(30, 'lab');
       if (onLabCompleted) onLabCompleted();
     }
   };

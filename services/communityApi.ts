@@ -8,14 +8,30 @@ export interface LeaderboardEntry {
   name: string;
   title: string;
   level: number;
+  /** Valeur classée : XP, bonnes réponses au quiz ou points CTF selon le classement. */
   points: number;
+  /** Parties de quiz jouées ou défis CTF résolus (0 pour le classement XP). */
+  detail: number;
   certificates: number;
   isMe: boolean;
 }
 
+export type LeaderboardBoard =
+  | 'xp'
+  | 'courses'
+  | 'quizSolo'
+  | 'quizMulti'
+  | 'games'
+  | 'deepfake'
+  | 'lab'
+  | 'practices'
+  | 'ctfSolo'
+  | 'ctfMulti';
+
 export interface LeaderboardResponse {
+  board: LeaderboardBoard;
   entries: LeaderboardEntry[];
-  me: { rank: number | null; points: number; level: number; visible: boolean };
+  me: { rank: number | null; points: number; detail: number; level: number; visible: boolean };
 }
 
 export interface CommunityComment {
@@ -43,7 +59,8 @@ export interface CommunityPost {
   comments: CommunityComment[];
 }
 
-export const fetchLeaderboard = () => api<LeaderboardResponse>('GET', '/api/leaderboard');
+export const fetchLeaderboard = (board: LeaderboardBoard = 'xp') =>
+  api<LeaderboardResponse>('GET', `/api/leaderboard?board=${board}`);
 
 export const setLeaderboardVisibility = (visible: boolean) =>
   api('PATCH', '/api/me', { settings: { showInLeaderboard: visible } });

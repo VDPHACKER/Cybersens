@@ -100,7 +100,7 @@ export const GameResult: React.FC<ResultProps> = ({
   useEffect(() => {
     if (awarded.current) return;
     awarded.current = true;
-    if (gain > 0) addPoints(gain);
+    if (gain > 0) addPoints(gain, 'game');
   }, [gain]);
 
   return (

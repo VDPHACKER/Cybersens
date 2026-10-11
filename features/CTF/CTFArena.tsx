@@ -23,6 +23,8 @@ import {
 import { CTFChallenge } from '../../types';
 import CTFRoom from './CTFRoom';
 import { audioService } from '../../services/audioService';
+import { isLoggedIn } from '../../services/persistenceService';
+import * as soloApi from '../../services/ctfSoloApi';
 import { useI18n } from '../../services/i18n';
 import {
   generateAllRandomizedChallenges,
@@ -62,9 +64,15 @@ const useIsDesktop = () => {
 const CTFSolo: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat, onOpenTeam }) => {
   const { t, language } = useI18n();
   const isDesktop = useIsDesktop();
+  // Membre connecté : défis et drapeaux viennent du serveur (qui vérifie les drapeaux). Invité : tout reste local.
+  const [serverMode] = useState(() => isLoggedIn());
+  const [serverStatus, setServerStatus] = useState<'loading' | 'ready' | 'error'>(
+    serverMode ? 'loading' : 'ready',
+  );
 
   // Initialize with saved challenges for current language or generate fresh
   const [challenges, setChallenges] = useState<CTFChallenge[]>(() => {
+    if (serverMode) return [];
     try {
       const saved = localStorage.getItem(`${STORAGE_CHALLENGES_KEY_PREFIX}${language}`);
       if (saved) {
@@ -101,7 +109,33 @@ const CTFSolo: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat, onOpenTeam }) 
   const [isLlmThinking, setIsLlmThinking] = useState(false);
 
   // When language switches, load or generate challenges in that language
+  const applyServerState = (state: soloApi.SoloState) => {
+    // Le serveur ne renvoie jamais les drapeaux : le champ n'existe pas côté navigateur
+    const list = state.challenges.map((c) => ({ ...c, flag: '' }));
+    setChallenges(list);
+    setSolvedIds(Object.keys(state.solved));
+    setActiveChallengeId((current) => (list.some((c) => c.id === current) ? current : list[0]?.id));
+  };
+
   useEffect(() => {
+    if (!serverMode) return;
+    let cancelled = false;
+    setServerStatus('loading');
+    soloApi
+      .fetchSoloState(language)
+      .then((state) => {
+        if (cancelled) return;
+        applyServerState(state);
+        setServerStatus('ready');
+      })
+      .catch(() => !cancelled && setServerStatus('error'));
+    return () => {
+      cancelled = true;
+    };
+  }, [language, serverMode]);
+
+  useEffect(() => {
+    if (serverMode) return;
     try {
       const saved = localStorage.getItem(`${STORAGE_CHALLENGES_KEY_PREFIX}${language}`);
       if (saved) {
@@ -117,7 +151,7 @@ const CTFSolo: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat, onOpenTeam }) 
     try {
       localStorage.setItem(`${STORAGE_CHALLENGES_KEY_PREFIX}${language}`, JSON.stringify(fresh));
     } catch (e) {}
-  }, [language]);
+  }, [language, serverMode]);
 
   // Initialize or update LLM chat greeting when challenges or active challenge change
   useEffect(() => {
@@ -138,8 +172,9 @@ const CTFSolo: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat, onOpenTeam }) 
     setLlmChatLog([{ role: 'bot', text: greeting }]);
   }, [challenges, language]);
 
-  // Load solved progress from localStorage
+  // Load solved progress from localStorage (invités : les membres connectés lisent le serveur)
   useEffect(() => {
+    if (serverMode) return;
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -151,7 +186,7 @@ const CTFSolo: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat, onOpenTeam }) 
     } catch (e) {
       console.error('Error loading CTF progress', e);
     }
-  }, []);
+  }, [serverMode]);
 
   // Save progress
   const saveSolved = (newSolved: string[]) => {
@@ -181,12 +216,24 @@ const CTFSolo: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat, onOpenTeam }) 
     filterCategory === 'all' ? challenges : challenges.filter((c) => c.category === filterCategory);
 
   // Regenerate all challenges with fresh random flags and scenarios
-  const handleRegenerateAll = () => {
-    const fresh = generateAllRandomizedChallenges(language);
-    setChallenges(fresh);
-    try {
-      localStorage.setItem(`${STORAGE_CHALLENGES_KEY_PREFIX}${language}`, JSON.stringify(fresh));
-    } catch (e) {}
+  const handleRegenerateAll = async () => {
+    let fresh: CTFChallenge[];
+    if (serverMode) {
+      try {
+        const state = await soloApi.regenerateSolo(language);
+        fresh = state.challenges.map((c) => ({ ...c, flag: '' }));
+        setSolvedIds(Object.keys(state.solved));
+      } catch {
+        return;
+      }
+      setChallenges(fresh);
+    } else {
+      fresh = generateAllRandomizedChallenges(language);
+      setChallenges(fresh);
+      try {
+        localStorage.setItem(`${STORAGE_CHALLENGES_KEY_PREFIX}${language}`, JSON.stringify(fresh));
+      } catch (e) {}
+    }
     setActiveChallengeId(fresh[0].id);
     setFlagInputs({});
     setFeedback({});
@@ -208,15 +255,29 @@ const CTFSolo: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat, onOpenTeam }) 
   };
 
   // Regenerate a single specific challenge
-  const handleRegenerateSingle = (challengeId: string) => {
-    const newChallenge =
-      CHALLENGE_FACTORIES[challengeId]?.(language) ?? generatePromptInjectionChallenge(language);
-
-    const updated = challenges.map((c) => (c.id === challengeId ? newChallenge : c));
-    setChallenges(updated);
-    try {
-      localStorage.setItem(`${STORAGE_CHALLENGES_KEY_PREFIX}${language}`, JSON.stringify(updated));
-    } catch (e) {}
+  const handleRegenerateSingle = async (challengeId: string) => {
+    let newChallenge: CTFChallenge;
+    if (serverMode) {
+      try {
+        const state = await soloApi.regenerateSolo(language, challengeId);
+        const list = state.challenges.map((c) => ({ ...c, flag: '' }));
+        setChallenges(list);
+        newChallenge = list.find((c) => c.id === challengeId) ?? list[0];
+      } catch {
+        return;
+      }
+    } else {
+      newChallenge =
+        CHALLENGE_FACTORIES[challengeId]?.(language) ?? generatePromptInjectionChallenge(language);
+      const updated = challenges.map((c) => (c.id === challengeId ? newChallenge : c));
+      setChallenges(updated);
+      try {
+        localStorage.setItem(
+          `${STORAGE_CHALLENGES_KEY_PREFIX}${language}`,
+          JSON.stringify(updated),
+        );
+      } catch (e) {}
+    }
 
     // Reset this challenge inputs
     setFlagInputs((prev) => ({ ...prev, [challengeId]: '' }));
@@ -254,7 +315,7 @@ const CTFSolo: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat, onOpenTeam }) 
     audioService.playClick();
   };
 
-  const handleFlagSubmit = (challenge: CTFChallenge) => {
+  const handleFlagSubmit = async (challenge: CTFChallenge) => {
     const input = (flagInputs[challenge.id] || '').trim();
 
     if (!input) {
@@ -274,7 +335,34 @@ const CTFSolo: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat, onOpenTeam }) 
       return;
     }
 
-    if (input === challenge.flag) {
+    let accepted: boolean;
+    let serverMessage: string | undefined;
+    if (serverMode) {
+      try {
+        const result = await soloApi.submitSoloFlag(challenge.id, input, language);
+        accepted = result.ok;
+        if (!result.ok) {
+          const left = result.attemptsLeft ?? 0;
+          serverMessage =
+            language === 'en'
+              ? `Incorrect flag. You have ${left} attempt(s) left on this challenge.`
+              : language === 'es'
+                ? `Bandera incorrecta. Te quedan ${left} intento(s) en este reto.`
+                : `Drapeau incorrect. Il vous reste ${left} essai(s) sur ce défi.`;
+        }
+      } catch (err) {
+        audioService.playError();
+        setFeedback((prev) => ({
+          ...prev,
+          [challenge.id]: { type: 'error', message: (err as Error).message },
+        }));
+        return;
+      }
+    } else {
+      accepted = input === challenge.flag;
+    }
+
+    if (accepted) {
       audioService.playSuccess();
       const successMsg =
         language === 'en'
@@ -293,7 +381,8 @@ const CTFSolo: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat, onOpenTeam }) 
 
       if (!isChallengeSolved(challenge.id)) {
         const nextSolved = [...solvedIds, challenge.id];
-        saveSolved(nextSolved);
+        if (serverMode) setSolvedIds(nextSolved);
+        else saveSolved(nextSolved);
 
         window.dispatchEvent(
           new CustomEvent('cyber-notify', {
@@ -312,11 +401,12 @@ const CTFSolo: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat, onOpenTeam }) 
     } else {
       audioService.playError();
       const errorMsg =
-        language === 'en'
+        serverMessage ??
+        (language === 'en'
           ? 'Incorrect Flag. Carefully inspect target data or use the pedagogical hints.'
           : language === 'es'
             ? 'Bandera incorrecta. Revisa los datos o consulta las pistas.'
-            : 'Drapeau incorrect. Inspectez attentivement les données ou utilisez les indices.';
+            : 'Drapeau incorrect. Inspectez attentivement les données ou utilisez les indices.');
 
       setFeedback({
         ...feedback,
@@ -348,6 +438,19 @@ const CTFSolo: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat, onOpenTeam }) 
     setLlmChatLog((prev) => [...prev, { role: 'user', text: userText }]);
     setIsLlmThinking(true);
     audioService.playClick();
+
+    if (serverMode) {
+      const target =
+        challenges.find((c) => c.interactiveType === 'interactive_llm') || activeChallenge;
+      soloApi
+        .askSoloSandbox(target.id, userText, language)
+        .then(({ reply }) => setLlmChatLog((prev) => [...prev, { role: 'bot', text: reply }]))
+        .catch((err) =>
+          setLlmChatLog((prev) => [...prev, { role: 'bot', text: (err as Error).message }]),
+        )
+        .finally(() => setIsLlmThinking(false));
+      return;
+    }
 
     setTimeout(() => {
       const promptChallenge =
@@ -716,6 +819,34 @@ const CTFSolo: React.FC<CTFArenaProps> = ({ onBack, onOpenAIChat, onOpenTeam }) 
       )}
     </div>
   );
+
+  // Membre connecté : tant que le serveur n'a pas fourni les défis, rien à afficher
+  if (serverMode && serverStatus !== 'ready') {
+    return (
+      <div className="max-w-6xl mx-auto space-y-4 pb-16 text-center text-slate-300" role="status">
+        <button
+          onClick={onBack}
+          className="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition-colors"
+          title={t('common.back', 'Retour')}
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <p className="text-sm">
+          {serverStatus === 'loading'
+            ? language === 'en'
+              ? 'Loading challenges…'
+              : language === 'es'
+                ? 'Cargando retos…'
+                : 'Chargement des défis…'
+            : language === 'en'
+              ? 'Could not load the challenges. Check your connection and try again.'
+              : language === 'es'
+                ? 'No se pudieron cargar los retos. Comprueba tu conexión e inténtalo de nuevo.'
+                : 'Impossible de charger les défis. Vérifiez votre connexion et réessayez.'}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500 pb-16">

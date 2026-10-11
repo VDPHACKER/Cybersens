@@ -32,6 +32,12 @@ const timing = {
   hourMs: 3_600_000, // valeur d'une « heure » de durée de partie (réduite dans les tests)
 };
 
+let solveListener = null;
+/** Appelé à chaque défi résolu : (userId, challengeId, points). Sert à conserver les scores en base. */
+export const setCtfSolveListener = (fn) => {
+  solveListener = fn;
+};
+
 /** Réservé aux tests. */
 export const setCtfTiming = (overrides) => Object.assign(timing, overrides);
 
@@ -76,8 +82,12 @@ export const generateChallenges = (ids, lang) => {
   return ids.map((id) => CHALLENGE_FACTORIES[id](language));
 };
 
+/** Tous les défis de l'arène (arène solo), dans la langue demandée. */
+export const generateAllChallenges = (lang) =>
+  CTF_CHALLENGE_IDS.map((id) => CHALLENGE_FACTORIES[id](LANGS.has(lang) ? lang : 'fr'));
+
 // ---------- Représentation envoyée aux joueurs ----------
-const publicChallenge = (c) => {
+export const publicChallenge = (c) => {
   const copy = { ...c };
   delete copy.flag; // le drapeau ne quitte jamais le serveur
   return copy;
@@ -259,7 +269,7 @@ export const finishCtfRoom = (user, code) => {
   finish(room);
 };
 
-const sameFlag = (a, b) => {
+export const sameFlag = (a, b) => {
   const hash = (s) => crypto.createHash('sha256').update(s).digest();
   return crypto.timingSafeEqual(hash(a), hash(b));
 };
@@ -313,6 +323,7 @@ export const submitCtfFlag = (user, code, challengeId, flag) => {
   player.score += challenge.points;
   player.solves += 1;
   player.lastSolveAt = now;
+  solveListener?.(user.id, challenge.id, challenge.points);
   // La partie s'arrête d'elle-même quand tous les joueurs présents ont tout résolu
   const done = [...room.players.values()].every((p) => p.solved.size === p.challenges.length);
   if (done) finish(room);

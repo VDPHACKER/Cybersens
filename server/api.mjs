@@ -24,6 +24,7 @@ import {
   leaveRoom,
   openStream,
   restartRoom,
+  setRoomFinishListener,
   startRoom,
 } from './rooms.mjs';
 import {
@@ -34,9 +35,11 @@ import {
   leaveCtfRoom,
   openCtfStream,
   restartCtfRoom,
+  setCtfSolveListener,
   startCtfRoom,
   submitCtfFlag,
 } from './ctfRooms.mjs';
+import { askSoloSandbox, regenerateSolo, soloState, submitSoloFlag } from './ctfSolo.mjs';
 import { verifyGoogleIdToken } from './google.mjs';
 import { mailConfigured, publicUrl, sendMail } from './mail.mjs';
 import { resetUserPassword } from './accountTools.mjs';
@@ -63,6 +66,57 @@ const QUIZ_MODES = new Set(['Solo', 'Multi']);
 const TOPICS = new Set(['general', 'question', 'astuce', 'alerte']);
 // Points qu'un membre peut déclarer par jour via l'API (quiz, jeux, leçons). Les examens créditent leurs points côté serveur.
 const DAILY_POINTS_CAP = 1500;
+
+// Les salles (CTF et quiz) vivent en mémoire : leurs résultats sont conservés en base pour les classements
+setCtfSolveListener((userId, challengeId, points) => {
+  db.prepare(
+    "INSERT INTO ctf_solves (user_id, challenge_id, points, mode) VALUES (?, ?, ?, 'multi')",
+  )
+    .run(userId, challengeId, points)
+    .catch((err) => console.error('[ctf] Résolution non enregistrée :', err.message));
+});
+
+setRoomFinishListener((results) => {
+  for (const { userId, correct, total } of results)
+    db.prepare(
+      "INSERT INTO quiz_results (user_id, score, total, mode, difficulty) VALUES (?, ?, ?, 'Multi', NULL)",
+    )
+      .run(userId, correct, total)
+      .catch((err) => console.error('[quiz] Résultat non enregistré :', err.message));
+});
+
+// Activités dont les points sont classés à part (déclarés par le navigateur avec le plafond quotidien)
+const POINT_SOURCES = new Set(['game', 'deepfake', 'lab', 'practice']);
+const bySource = (source) =>
+  `(SELECT COALESCE(SUM(p.total), 0) FROM points_by_source p WHERE p.user_id = u.id AND p.source = '${source}')`;
+
+const quizBoard = (mode) => ({
+  value: `(SELECT COALESCE(SUM(q.score), 0) FROM quiz_results q WHERE q.user_id = u.id AND q.mode = '${mode}')`,
+  detail: `(SELECT COUNT(*) FROM quiz_results q WHERE q.user_id = u.id AND q.mode = '${mode}')`,
+});
+const ctfBoard = (mode) => ({
+  value: `(SELECT COALESCE(SUM(s.points), 0) FROM ctf_solves s WHERE s.user_id = u.id AND s.mode = '${mode}')`,
+  detail: `(SELECT COUNT(*) FROM ctf_solves s WHERE s.user_id = u.id AND s.mode = '${mode}')`,
+});
+
+// Classements : valeur classée et détail affiché, calculés par membre (u = users)
+const LEADERBOARDS = {
+  xp: { value: 'u.points', detail: '0' },
+  // Reconstitué depuis la progression : 25 points par leçon, 150 par examen réussi (certificat)
+  courses: {
+    value:
+      '((SELECT COUNT(*) FROM lesson_progress l WHERE l.user_id = u.id) * 25 + (SELECT COUNT(*) FROM certificates c WHERE c.user_id = u.id) * 150)',
+    detail: '(SELECT COUNT(*) FROM lesson_progress l WHERE l.user_id = u.id)',
+  },
+  games: { value: bySource('game'), detail: '0' },
+  deepfake: { value: bySource('deepfake'), detail: '0' },
+  lab: { value: bySource('lab'), detail: '0' },
+  practices: { value: bySource('practice'), detail: '0' },
+  quizSolo: quizBoard('Solo'),
+  quizMulti: quizBoard('Multi'),
+  ctfSolo: ctfBoard('solo'),
+  ctfMulti: ctfBoard('multi'),
+};
 
 const RESET_MESSAGES = {
   fr: (link) => ({
@@ -935,7 +989,40 @@ const routes = {
            ON CONFLICT(user_id, day) DO UPDATE SET total = points_daily.total + excluded.total`,
         )
         .run(user.id, day, granted);
+    // Activité d'origine (classement par onglet) : seules les valeurs connues sont retenues
+    if (granted > 0 && POINT_SOURCES.has(body.source))
+      await db
+        .prepare(
+          `INSERT INTO points_by_source (user_id, source, total) VALUES (?, ?, ?)
+           ON CONFLICT(user_id, source) DO UPDATE SET total = points_by_source.total + excluded.total`,
+        )
+        .run(user.id, body.source, granted);
     send(res, 200, { points: await addPoints(user.id, granted), granted });
+  },
+
+  // CTF solo : défis et drapeaux générés par le serveur, drapeaux vérifiés ici (comme pour les salles)
+  'GET /api/ctf/solo': async ({ req, res, url }) => {
+    const user = await requireUser(req);
+    rateLimit(`ctf-solo-read:${user.id}`, 60, 60_000);
+    send(res, 200, await soloState(user, url.searchParams.get('lang')));
+  },
+
+  'POST /api/ctf/solo/submit': async ({ req, res, body }) => {
+    const user = await requireUser(req);
+    rateLimit(`ctf-solo-flag:${user.id}`, 30, 60_000);
+    send(res, 200, await submitSoloFlag(user, body.challengeId, body.flag, body.lang));
+  },
+
+  'POST /api/ctf/solo/regenerate': async ({ req, res, body }) => {
+    const user = await requireUser(req);
+    rateLimit(`ctf-solo-regen:${user.id}`, 20, 60_000);
+    send(res, 200, await regenerateSolo(user, body.challengeId, body.lang));
+  },
+
+  'POST /api/ctf/solo/sandbox': async ({ req, res, body }) => {
+    const user = await requireUser(req);
+    rateLimit(`ctf-solo-sandbox:${user.id}`, 30, 60_000);
+    send(res, 200, askSoloSandbox(user, body.challengeId, body.prompt, body.lang));
   },
 
   'POST /api/progress': async ({ req, res, body }) => {
@@ -1109,40 +1196,58 @@ const routes = {
   },
 
   // Classement général : membres visibles (option désactivable dans les réglages), triés par points
-  'GET /api/leaderboard': async ({ req, res }) => {
+  // ?board=xp (défaut) | quiz (bonnes réponses cumulées) | ctf (points des défis résolus en salle)
+  'GET /api/leaderboard': async ({ req, res, url }) => {
     const user = await requireUser(req);
     rateLimit(`leaderboard:${user.id}`, 60, 60_000);
+    const boardName = url.searchParams.get('board') ?? 'xp';
+    if (!Object.hasOwn(LEADERBOARDS, boardName)) throw new HttpError(400, 'Classement inconnu');
+    const { value, detail } = LEADERBOARDS[boardName];
     const visible = "COALESCE((u.settings::jsonb) ->> 'showInLeaderboard', 'true') <> 'false'";
     const rows = await db
       .prepare(
-        `SELECT u.id, u.name, u.title, u.points,
-                (SELECT COUNT(*) FROM certificates c WHERE c.user_id = u.id) AS certificates
-         FROM users u WHERE u.points > 0 AND ${visible}
-         ORDER BY u.points DESC, u.id ASC LIMIT 50`,
+        `SELECT * FROM (
+           SELECT u.id, u.name, u.title, u.points AS xp, ${value} AS value, ${detail} AS detail,
+                  (SELECT COUNT(*) FROM certificates c WHERE c.user_id = u.id) AS certificates
+           FROM users u WHERE ${visible}
+         ) t WHERE value > 0 ORDER BY value DESC, id ASC LIMIT 50`,
       )
       .all();
     const myVisible =
       (await db.prepare(`SELECT 1 FROM users u WHERE u.id = ? AND ${visible}`).get(user.id)) !==
       undefined;
+    const myValue = (await db
+      .prepare(`SELECT ${value} AS value, ${detail} AS detail FROM users u WHERE u.id = ?`)
+      .get(user.id)) ?? { value: 0, detail: 0 };
     const myRank =
-      myVisible && user.points > 0
+      myVisible && myValue.value > 0
         ? (
             await db
-              .prepare(`SELECT COUNT(*) + 1 AS rank FROM users u WHERE u.points > ? AND ${visible}`)
-              .get(user.points)
+              .prepare(
+                `SELECT COUNT(*) + 1 AS rank FROM (SELECT ${value} AS value FROM users u WHERE ${visible}) t WHERE value > ?`,
+              )
+              .get(myValue.value)
           ).rank
         : null;
     send(res, 200, {
+      board: boardName,
       entries: rows.map((r, i) => ({
         rank: i + 1,
         name: publicName(r.name),
         title: r.title || '',
-        level: levelFor(r.points),
-        points: r.points,
+        level: levelFor(r.xp),
+        points: r.value,
+        detail: r.detail,
         certificates: r.certificates,
         isMe: r.id === user.id,
       })),
-      me: { rank: myRank, points: user.points, level: levelFor(user.points), visible: myVisible },
+      me: {
+        rank: myRank,
+        points: myValue.value,
+        detail: myValue.detail,
+        level: levelFor(user.points),
+        visible: myVisible,
+      },
     });
   },
 

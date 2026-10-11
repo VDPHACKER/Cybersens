@@ -11,7 +11,7 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cybersens-rooms-'));
 process.env.DB_PATH = path.join(tmpDir, 'pglite');
 
 const { handleApi } = await import('../server/api.mjs');
-const { closeDb } = await import('../server/db.mjs');
+const { closeDb, db } = await import('../server/db.mjs');
 const { setRoomTiming, resetRooms } = await import('../server/rooms.mjs');
 const { peekCtfFlags, setCtfTiming, generateChallenges, CTF_CHALLENGE_IDS } =
   await import('../server/ctfRooms.mjs');
@@ -122,6 +122,17 @@ const watch = async (player, code, streamPath = '/api/rooms/stream') => {
   };
 };
 
+/** Attend que les résultats (écrits en arrière-plan) apparaissent dans un classement. */
+const myBoard = async (player, board, ready) => {
+  for (let i = 0; i < 40; i++) {
+    const r = await player.call('GET', `/api/leaderboard?board=${board}`);
+    const mine = r.data.entries.find((e) => e.isMe);
+    if (ready(mine)) return mine;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return undefined;
+};
+
 test('salle : créer, rejoindre, jouer une partie complète à deux téléphones', async () => {
   const alice = await newPlayer('Alice Martin', 'alice@test.bf');
   const bob = await newPlayer('Bob Durand', 'bob@test.bf');
@@ -196,6 +207,16 @@ test('salle : créer, rejoindre, jouer une partie complète à deux téléphones
 
   // Partie terminée : plus de nouvelle arrivée
   assert.equal((await eve.call('POST', '/api/rooms/join', { code })).status, 409);
+
+  // Résultat conservé (une ligne par joueur) pour le classement « Quiz multi », jamais pour « Quiz solo »
+  let saved = [];
+  for (let i = 0; i < 40 && saved.length < 2; i++) {
+    saved = await db.prepare("SELECT user_id, total FROM quiz_results WHERE mode = 'Multi'").all();
+    if (saved.length < 2) await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.deepEqual(saved.map((r) => r.user_id).sort(), [alice.id, bob.id].sort());
+  assert.ok(saved.every((r) => r.total === 3));
+  assert.equal((await alice.call('GET', '/api/leaderboard?board=quizSolo')).data.me.rank, null);
 
   a.close();
   b.close();
@@ -579,6 +600,11 @@ test('CTF en équipe : partie complète, vérification par le serveur, rejouer a
   assert.equal(done.score, done.totalPoints);
   assert.ok(done.players.every((p) => p.score === done.totalPoints));
   assert.equal((await out.call('POST', `${CTF}/join`, { code })).status, 409, 'partie terminée');
+
+  // Défis résolus en salle : classement « CTF multi », pas « CTF solo »
+  const ctfMine = await myBoard(ana, 'ctfMulti', (e) => e?.points === done.totalPoints);
+  assert.equal(ctfMine?.points, done.totalPoints);
+  assert.equal((await ana.call('GET', '/api/leaderboard?board=ctfSolo')).data.me.rank, null);
 
   // Rejouer avec le même code : mêmes défis, NOUVEAUX drapeaux pour chacun, scores à zéro, hôte seul
   assert.equal((await ben.call('POST', `${CTF}/restart`, { code })).status, 403);

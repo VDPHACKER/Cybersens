@@ -267,7 +267,7 @@ export const DeepfakeTester: React.FC = () => {
           : { kind: mediaType, file: selectedFile as File },
       );
       setAnalysisResult(result);
-      addPoints(25);
+      addPoints(25, 'deepfake');
     } catch (err) {
       setAnalysisError(
         err instanceof Error && err.message
@@ -306,7 +306,7 @@ export const DeepfakeTester: React.FC = () => {
       (answer === 'real' && !currentChallenge.isDeepfake);
     if (isCorrect) {
       setChallengeScore((prev) => prev + 100);
-      addPoints(50);
+      addPoints(50, 'deepfake');
     }
   };
 
