@@ -65,7 +65,15 @@ export const TERMS_VERSION = '2026-09-30';
 const QUIZ_MODES = new Set(['Solo', 'Multi']);
 const TOPICS = new Set(['general', 'question', 'astuce', 'alerte']);
 // Points qu'un membre peut déclarer par jour via l'API (quiz, jeux, leçons). Les examens créditent leurs points côté serveur.
-const DAILY_POINTS_CAP = 1500;
+// Le navigateur ne peut pas être cru sur parole : plafond global, puis plafond par activité (« other » = sans source reconnue).
+const DAILY_POINTS_CAP = 600;
+const SOURCE_DAILY_CAPS = { game: 250, deepfake: 150, lab: 150, practice: 60, other: 400 };
+// Points importés une seule fois depuis les données locales d'un ancien compte
+const MIGRATED_POINTS_CAP = 1000;
+// Doublons d'e-mail tolérés par heure et par IP avant de bloquer les inscriptions (limite l'énumération des comptes)
+const REGISTER_CONFLICTS_PER_HOUR = 10;
+// Code d'installation (ADMIN_SETUP_CODE) exigé pour définir le mot de passe administrateur depuis le site
+const MIN_SETUP_CODE = 16;
 
 // Les salles (CTF et quiz) vivent en mémoire : leurs résultats sont conservés en base pour les classements
 setCtfSolveListener((userId, challengeId, points) => {
@@ -216,6 +224,52 @@ const rateLimit = (key, max, windowMs) => {
     return;
   }
   if (++b.count > max) throw new HttpError(429, 'Trop de requêtes, réessayez plus tard');
+};
+
+// Exécute les tâches d'une même clé l'une après l'autre : un contrôle de plafond suivi d'une écriture ne doit pas
+// être entrecoupé par une requête simultanée du même membre (instance unique, comme les salles et les limites).
+const keyLocks = new Map();
+const withKeyLock = async (key, task) => {
+  const previous = keyLocks.get(key) ?? Promise.resolve();
+  let release;
+  const tail = previous.then(() => new Promise((resolve) => (release = resolve)));
+  keyLocks.set(key, tail);
+  await previous;
+  try {
+    return await task();
+  } finally {
+    release();
+    if (keyLocks.get(key) === tail) keyLocks.delete(key);
+  }
+};
+
+// Plafond global par adresse IP, toutes routes confondues (les limites par route restent plus strictes).
+// Large par défaut : un réseau partagé (classe, entreprise) doit passer ; réglable via API_RATE_LIMIT_PER_MIN.
+const GLOBAL_WINDOW_MS = 60_000;
+const GLOBAL_LIMIT_PER_MIN = (() => {
+  const n = Number.parseInt(process.env.API_RATE_LIMIT_PER_MIN ?? '', 10);
+  return Number.isFinite(n) && n > 0 ? n : 900;
+})();
+
+/** Compte une requête pour cette IP ; retourne le délai d'attente en secondes si le plafond est dépassé, sinon 0. */
+const globalRetryAfter = (ip) => {
+  const key = `global:${ip}`;
+  const now = Date.now();
+  const b = buckets.get(key);
+  if (!b || now - b.start > GLOBAL_WINDOW_MS) {
+    buckets.set(key, { start: now, count: 1 });
+    if (buckets.size > 50_000) buckets.clear();
+    return 0;
+  }
+  if (++b.count <= GLOBAL_LIMIT_PER_MIN) return 0;
+  return Math.max(1, Math.ceil((b.start + GLOBAL_WINDOW_MS - now) / 1000));
+};
+
+/** Lève 429 si la clé a déjà atteint `max` sans la compter (contrôle avant l'action, le décompte se fait ailleurs). */
+const rateLimitPeek = (key, max, windowMs) => {
+  const b = buckets.get(key);
+  if (b && Date.now() - b.start <= windowMs && b.count >= max)
+    throw new HttpError(429, 'Trop de tentatives depuis cette adresse, réessayez plus tard');
 };
 
 /** Réservé aux tests : remet à zéro les limites de débit dont la clé commence par ce préfixe. */
@@ -404,6 +458,17 @@ const getAdminHash = async () => {
 };
 
 const adminPasswordConfigured = async () => ADMIN_HASH_FORMAT.test(await getAdminHash());
+
+const setupCodeConfigured = () => (process.env.ADMIN_SETUP_CODE || '').length >= MIN_SETUP_CODE;
+
+/** Comparaison à durée constante (empreintes de longueur identique). */
+const setupCodeMatches = (provided) =>
+  typeof provided === 'string' &&
+  provided.length <= 200 &&
+  crypto.timingSafeEqual(
+    Buffer.from(sha256(provided)),
+    Buffer.from(sha256(process.env.ADMIN_SETUP_CODE || '')),
+  );
 
 const sessionToken = (req) => parseCookies(req.headers.cookie)[SESSION_COOKIE] || '';
 
@@ -602,6 +667,7 @@ const routes = {
 
   'POST /api/auth/register': async ({ req, res, body, ip, trustProxy }) => {
     rateLimit(`register:${ip}`, REGISTER_PER_HOUR, 60 * 60_000);
+    rateLimitPeek(`register-conflict:${ip}`, REGISTER_CONFLICTS_PER_HOUR, 60 * 60_000);
     const name = str(body.name, { min: 2, max: 60, field: 'Nom' });
     const mail = email(body.email);
     const plain = password(body.password, { name, mail });
@@ -633,8 +699,12 @@ const routes = {
         );
       resetMembersCache(); // le nombre de membres affiché sur l'accueil doit suivre les inscriptions
     } catch (err) {
-      if (err.code === '23505')
+      if (err.code === '23505') {
+        // Sans vérification d'e-mail, ce message révèle qu'un compte existe : on borne le sondage par adresse IP
+        await logSecurity('register_conflict', req, trustProxy);
+        rateLimit(`register-conflict:${ip}`, REGISTER_CONFLICTS_PER_HOUR, 60 * 60_000);
         throw new HttpError(409, 'Un compte existe déjà avec cet e-mail. Connectez-vous.');
+      }
       throw err;
     }
     await logSecurity('register', req, trustProxy, created.id);
@@ -973,31 +1043,55 @@ const routes = {
     const user = await requireUser(req);
     rateLimit(`points:${user.id}`, 120, 60_000);
     const delta = int(body.delta, 1, 200, 'Points');
-    // Le navigateur déclare ses points : le serveur en plafonne le total quotidien pour que le classement reste fiable
-    const day = new Date().toISOString().slice(0, 10);
-    const used =
-      (
+    // Le navigateur déclare ses points : le serveur en plafonne le total quotidien, global puis par activité,
+    // pour que le classement reste fiable. Une activité inconnue ou absente tombe dans « other ».
+    const result = await withKeyLock(`points:${user.id}`, async () => {
+      const known = POINT_SOURCES.has(body.source);
+      const source = known ? body.source : 'other';
+      const day = new Date().toISOString().slice(0, 10);
+      const used =
+        (
+          await db
+            .prepare('SELECT total FROM points_daily WHERE user_id = ? AND day = ?')
+            .get(user.id, day)
+        )?.total ?? 0;
+      const usedBySource =
+        (
+          await db
+            .prepare(
+              'SELECT total FROM points_daily_source WHERE user_id = ? AND day = ? AND source = ?',
+            )
+            .get(user.id, day, source)
+        )?.total ?? 0;
+      const granted = Math.max(
+        0,
+        Math.min(delta, DAILY_POINTS_CAP - used, SOURCE_DAILY_CAPS[source] - usedBySource),
+      );
+      if (granted > 0) {
         await db
-          .prepare('SELECT total FROM points_daily WHERE user_id = ? AND day = ?')
-          .get(user.id, day)
-      )?.total ?? 0;
-    const granted = Math.max(0, Math.min(delta, DAILY_POINTS_CAP - used));
-    if (granted > 0)
-      await db
-        .prepare(
-          `INSERT INTO points_daily (user_id, day, total) VALUES (?, ?, ?)
-           ON CONFLICT(user_id, day) DO UPDATE SET total = points_daily.total + excluded.total`,
-        )
-        .run(user.id, day, granted);
-    // Activité d'origine (classement par onglet) : seules les valeurs connues sont retenues
-    if (granted > 0 && POINT_SOURCES.has(body.source))
-      await db
-        .prepare(
-          `INSERT INTO points_by_source (user_id, source, total) VALUES (?, ?, ?)
-           ON CONFLICT(user_id, source) DO UPDATE SET total = points_by_source.total + excluded.total`,
-        )
-        .run(user.id, body.source, granted);
-    send(res, 200, { points: await addPoints(user.id, granted), granted });
+          .prepare(
+            `INSERT INTO points_daily (user_id, day, total) VALUES (?, ?, ?)
+             ON CONFLICT(user_id, day) DO UPDATE SET total = points_daily.total + excluded.total`,
+          )
+          .run(user.id, day, granted);
+        await db
+          .prepare(
+            `INSERT INTO points_daily_source (user_id, day, source, total) VALUES (?, ?, ?, ?)
+             ON CONFLICT(user_id, day, source) DO UPDATE SET total = points_daily_source.total + excluded.total`,
+          )
+          .run(user.id, day, source, granted);
+      }
+      // Activité d'origine (classement par onglet) : seules les valeurs connues sont retenues
+      if (granted > 0 && known)
+        await db
+          .prepare(
+            `INSERT INTO points_by_source (user_id, source, total) VALUES (?, ?, ?)
+             ON CONFLICT(user_id, source) DO UPDATE SET total = points_by_source.total + excluded.total`,
+          )
+          .run(user.id, source, granted);
+      return { points: await addPoints(user.id, granted), granted };
+    });
+    send(res, 200, result);
   },
 
   // CTF solo : défis et drapeaux générés par le serveur, drapeaux vérifiés ici (comme pour les salles)
@@ -1143,7 +1237,9 @@ const routes = {
         }
       }
 
-      const points = Number.isInteger(body.points) ? Math.min(Math.max(body.points, 0), 5000) : 0;
+      const points = Number.isInteger(body.points)
+        ? Math.min(Math.max(body.points, 0), MIGRATED_POINTS_CAP)
+        : 0;
       if (points > 0) await addPoints(user.id, points);
       if (body.settings) {
         await db
@@ -1524,13 +1620,25 @@ const routes = {
 
   // Première configuration : seulement tant qu'aucun mot de passe administrateur n'est encore défini.
   // Au-delà, passer par /api/admin/change-password (exige l'ancien mot de passe).
-  'POST /api/admin/bootstrap': async ({ req, res, body, trustProxy }) => {
+  // L'inscription ne vérifie pas l'e-mail : le code d'installation (ADMIN_SETUP_CODE, connu du seul exploitant) prouve
+  // que l'auteur de la requête est bien le propriétaire du serveur et pas quelqu'un qui s'est inscrit avec l'e-mail admin.
+  'POST /api/admin/bootstrap': async ({ req, res, body, ip, trustProxy }) => {
     const user = await requireAdminAccount(req);
     if (await adminPasswordConfigured())
       throw new HttpError(
         409,
         'Un mot de passe administrateur est déjà configuré. Utilisez le changement de mot de passe.',
       );
+    rateLimit(`admin-bootstrap:${ip}`, 10, 60 * 60_000);
+    if (!setupCodeConfigured())
+      throw new HttpError(
+        403,
+        `Première configuration impossible : définissez ADMIN_SETUP_CODE (${MIN_SETUP_CODE} caractères minimum) sur le serveur, ou ADMIN_PASSWORD_HASH.`,
+      );
+    if (!setupCodeMatches(body.setupCode)) {
+      await logSecurity('admin_bootstrap_refused', req, trustProxy, user.id);
+      throw new HttpError(403, 'Code d’installation incorrect.');
+    }
     if (typeof body.password !== 'string' || body.password.length < MIN_PASSWORD)
       throw new HttpError(
         400,
@@ -1708,6 +1816,21 @@ const routes = {
 export const handleApi = async (req, res, { trustProxy = false } = {}) => {
   const url = new URL(req.url || '/', 'http://localhost');
   if (!url.pathname.startsWith('/api/') || url.pathname.startsWith('/api/gemini/')) return false;
+
+  const retryAfter = globalRetryAfter(clientIp(req, trustProxy));
+  if (retryAfter) {
+    // Corps non lu : on ferme la connexion pour ne pas laisser un client envoyer des données inutiles.
+    send(
+      res,
+      429,
+      { error: 'Trop de requêtes, réessayez plus tard' },
+      {
+        'Retry-After': String(retryAfter),
+        Connection: 'close',
+      },
+    );
+    return true;
+  }
 
   const handler = routes[`${req.method} ${url.pathname}`];
   try {

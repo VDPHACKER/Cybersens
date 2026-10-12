@@ -206,13 +206,13 @@ test('migration unique des données locales', async () => {
   });
   assert.equal(mig.data.progress['module-2'].length, 2);
   assert.equal(mig.data.quizHistory.length, 2);
-  assert.equal(mig.data.user.points, 175 + 5000, 'points plafonnés');
+  assert.equal(mig.data.user.points, 175 + 1000, 'points plafonnés');
   assert.ok(
     mig.data.certificates.find((c) => c.courseId === 'module-3').issuer.includes('importé'),
   );
   assert.equal(
     (await call('POST', '/api/migrate', { points: 5000 })).data.user.points,
-    5175,
+    1175,
     'migration unique',
   );
 });
@@ -620,12 +620,76 @@ test('mot de passe administrateur : première configuration depuis le Centre Dev
   );
   process.env.ADMIN_EMAILS = 'boss@test.bf';
 
+  // Pas de prise de contrôle par inscription : sans le code d'installation connu du seul exploitant,
+  // le titulaire de l'e-mail administrateur ne peut pas définir le mot de passe (aucune vérification d'e-mail à l'inscription)
+  const NEW_ADMIN_PASSWORD = 'premiere-config-admin-123';
+  const SETUP_CODE = 'code-installation-test-2026';
+  const notConfigured = { configured: false, unlocked: false };
+  delete process.env.ADMIN_SETUP_CODE;
+  assert.equal(
+    (await call('POST', '/api/admin/bootstrap', { password: NEW_ADMIN_PASSWORD })).status,
+    403,
+    'refusé tant que le serveur n’a pas de code d’installation',
+  );
+  process.env.ADMIN_SETUP_CODE = 'trop-court';
+  assert.equal(
+    (
+      await call('POST', '/api/admin/bootstrap', {
+        password: NEW_ADMIN_PASSWORD,
+        setupCode: 'trop-court',
+      })
+    ).status,
+    403,
+    'un code d’installation trop court est ignoré',
+  );
+  process.env.ADMIN_SETUP_CODE = SETUP_CODE;
+  assert.equal(
+    (await call('POST', '/api/admin/bootstrap', { password: NEW_ADMIN_PASSWORD })).status,
+    403,
+    'code absent',
+  );
+  assert.equal(
+    (
+      await call('POST', '/api/admin/bootstrap', {
+        password: NEW_ADMIN_PASSWORD,
+        setupCode: 'mauvais-code-installation',
+      })
+    ).status,
+    403,
+    'mauvais code',
+  );
+  assert.deepEqual((await call('GET', '/api/admin/status')).data, notConfigured);
+  assert.equal((await call('GET', '/api/admin/users')).status, 503, 'rien n’a été défini');
+
+  // Le code d'installation ne peut pas être deviné par force brute
+  resetRateLimits('admin-bootstrap:');
+  let tries = 0;
+  let lastStatus = 0;
+  while (lastStatus !== 429 && tries < 40) {
+    tries++;
+    lastStatus = (
+      await call('POST', '/api/admin/bootstrap', {
+        password: NEW_ADMIN_PASSWORD,
+        setupCode: `essai-${tries}-code-installation`,
+      })
+    ).status;
+  }
+  assert.equal(lastStatus, 429, 'les essais finissent par être limités');
+  assert.ok(tries <= 15, `limité après ${tries} essais`);
+  resetRateLimits('admin-bootstrap:');
+
   // Mot de passe trop court refusé
-  assert.equal((await call('POST', '/api/admin/bootstrap', { password: 'court' })).status, 400);
+  assert.equal(
+    (await call('POST', '/api/admin/bootstrap', { password: 'court', setupCode: SETUP_CODE }))
+      .status,
+    400,
+  );
 
   // Première configuration : déverrouille immédiatement la session en cours
-  const NEW_ADMIN_PASSWORD = 'premiere-config-admin-123';
-  const boot = await call('POST', '/api/admin/bootstrap', { password: NEW_ADMIN_PASSWORD });
+  const boot = await call('POST', '/api/admin/bootstrap', {
+    password: NEW_ADMIN_PASSWORD,
+    setupCode: SETUP_CODE,
+  });
   assert.equal(boot.status, 200);
   assert.deepEqual(boot.data, { configured: true, unlocked: true, minutes: 30 });
   assert.deepEqual((await call('GET', '/api/admin/status')).data, {
@@ -688,6 +752,7 @@ test('mot de passe administrateur : première configuration depuis le Centre Dev
 
   await call('POST', '/api/auth/logout');
   delete process.env.ADMIN_EMAILS;
+  delete process.env.ADMIN_SETUP_CODE;
   await db.prepare("DELETE FROM meta WHERE key = 'admin_password_hash'").run();
 });
 
@@ -933,6 +998,48 @@ test('points déclarés : plafond quotidien (le classement ne peut pas être tru
   // Le classement reflète le total plafonné, pas le total demandé
   const board = await call('GET', '/api/leaderboard');
   assert.ok(board.data.entries.find((e) => e.isMe).points <= before + 1500);
+});
+
+test('inscription : les doublons répétés sont limités (pas d’énumération d’e-mails en masse)', async () => {
+  resetRateLimits('register');
+  const duplicate = () =>
+    call(
+      'POST',
+      '/api/auth/register',
+      {
+        acceptTerms: true,
+        name: 'Sondeur',
+        email: 'awa@test.bf',
+        password: 'lune-cactus-orage-12',
+        role: 'Étudiant',
+      },
+      { jar: false },
+    );
+  const statuses = [];
+  for (let i = 0; i < 13; i++) statuses.push((await duplicate()).status);
+  // Les premiers doublons reçoivent l'explication habituelle, puis l'adresse est bloquée
+  assert.deepEqual(statuses.slice(0, 10), Array(10).fill(409));
+  assert.deepEqual(statuses.slice(10), [429, 429, 429]);
+  // Une fois bloquée, l'adresse ne peut plus distinguer e-mail connu et inconnu : toute inscription est refusée
+  const fresh = await call(
+    'POST',
+    '/api/auth/register',
+    {
+      acceptTerms: true,
+      name: 'Sondeur',
+      email: 'inconnu@test.bf',
+      password: 'lune-cactus-orage-12',
+      role: 'Étudiant',
+    },
+    { jar: false },
+  );
+  assert.equal(fresh.status, 429);
+  // La journalisation garde la trace des tentatives
+  const logged = await db
+    .prepare("SELECT COUNT(*) AS n FROM security_log WHERE event = 'register_conflict'")
+    .get();
+  assert.ok(Number(logged.n) >= 10, 'doublons journalisés');
+  resetRateLimits('register-conflict:'); // le quota d’inscription reste consommé pour le test suivant
 });
 
 test('inscription : limite de 30 par heure et par adresse IP', async () => {

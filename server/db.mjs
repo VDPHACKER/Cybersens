@@ -198,6 +198,16 @@ const MIGRATIONS = [
   ALTER TABLE ctf_solves ADD COLUMN mode TEXT NOT NULL DEFAULT 'multi';
   CREATE UNIQUE INDEX idx_ctf_solves_solo ON ctf_solves(user_id, challenge_id) WHERE mode = 'solo';
   `,
+  // Points déclarés par le navigateur : plafond quotidien par activité (en plus du plafond global de points_daily)
+  `
+  CREATE TABLE points_daily_source (
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    day     TEXT NOT NULL,
+    source  TEXT NOT NULL,
+    total   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, day, source)
+  );
+  `,
 ];
 
 // ---------- Pilotes ----------
@@ -343,6 +353,7 @@ const EXPORT_TABLES = [
   'post_likes',
   'post_reports',
   'points_daily',
+  'points_daily_source',
   'security_log',
   'meta',
 ];

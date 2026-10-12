@@ -76,6 +76,7 @@ export const DevOpsCenter: React.FC = () => {
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminPasswordConfirm, setAdminPasswordConfirm] = useState('');
+  const [setupCode, setSetupCode] = useState('');
   const [unlockError, setUnlockError] = useState('');
   const [unlocking, setUnlocking] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -252,9 +253,10 @@ export const DevOpsCenter: React.FC = () => {
     }
     setUnlocking(true);
     try {
-      await api('POST', '/api/admin/bootstrap', { password: adminPassword });
+      await api('POST', '/api/admin/bootstrap', { password: adminPassword, setupCode });
       setAdminPassword('');
       setAdminPasswordConfirm('');
+      setSetupCode('');
       setConfigured(true);
       setUnlocked(true);
     } catch (err: any) {
@@ -377,10 +379,22 @@ export const DevOpsCenter: React.FC = () => {
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Première ouverture du Centre DevOps : choisissez un mot de passe administrateur,
             différent de celui de votre compte. Il sera demandé à chaque session (30 minutes),
-            jamais stocké en clair.
+            jamais stocké en clair. Le code d’installation (variable ADMIN_SETUP_CODE du serveur)
+            prouve que vous êtes le propriétaire du site.
           </p>
         </div>
         <form onSubmit={handleBootstrap} className="space-y-3" noValidate>
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder="Code d’installation (ADMIN_SETUP_CODE)"
+            value={setupCode}
+            onChange={(e) => setSetupCode(e.target.value)}
+            maxLength={200}
+            required
+            autoFocus
+            className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500"
+          />
           <input
             type="password"
             autoComplete="new-password"
@@ -390,7 +404,6 @@ export const DevOpsCenter: React.FC = () => {
             minLength={12}
             maxLength={200}
             required
-            autoFocus
             className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500"
           />
           <input
@@ -414,7 +427,7 @@ export const DevOpsCenter: React.FC = () => {
           )}
           <button
             type="submit"
-            disabled={unlocking || adminPassword.length < 12 || !adminPasswordConfirm}
+            disabled={unlocking || adminPassword.length < 12 || !adminPasswordConfirm || !setupCode}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-sky-700 hover:bg-sky-600 disabled:opacity-60 text-white text-sm font-black"
           >
             {unlocking ? (
