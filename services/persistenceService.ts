@@ -552,6 +552,8 @@ export const applyServerSnapshot = (snap: ServerSnapshot): UserPreferences => {
     onboarded: user.settings.onboarded ?? current.onboarded,
     isAuthenticated: true,
     isAdmin: !!user.isAdmin,
+    emailVerified: user.emailVerified ?? true,
+    verificationRequired: !!user.verificationRequired,
     communityPosts: user.communityPosts ?? 0,
   };
   lastSyncedProfile = JSON.stringify(profilePayload(updated));

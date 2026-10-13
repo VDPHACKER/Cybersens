@@ -224,9 +224,10 @@ test('mot de passe oublié : désactivé sans e-mail, puis lien à usage unique'
     const known = await call('POST', '/api/auth/forgot', { email: 'oubli@test.bf', lang: 'en' });
     const unknown = await call('POST', '/api/auth/forgot', { email: 'inconnu@test.bf' });
     assert.deepEqual(known.data, unknown.data);
-    assert.equal(outbox.length, 1);
-    assert.match(outbox[0].subject, /reset/i);
-    const token = /\?reset=([\w-]+)/.exec(outbox[0].text)?.[1];
+    // L'inscription a aussi envoyé un lien de confirmation : un seul e-mail de réinitialisation part
+    const resets = outbox.filter((m) => /reset/i.test(m.subject));
+    assert.equal(resets.length, 1);
+    const token = /\?reset=([\w-]+)/.exec(resets[0].text)?.[1];
     assert.ok(token, 'le lien contient le jeton');
 
     const weak = await call('POST', '/api/auth/reset', { token, password: 'court' });

@@ -182,6 +182,14 @@ export const translations: Record<Language, Record<string, string>> = {
     'app.offline':
       'Impossible de joindre le serveur CyberSens. Connectez-vous une première fois avec une connexion Internet : l’application fonctionnera ensuite aussi hors ligne sur cet appareil.',
     'app.retry': 'Réessayer',
+    'app.verify.pending':
+      'Confirmez votre adresse e-mail : un lien vous a été envoyé. Tant qu’elle n’est pas confirmée, certaines fonctions restent limitées.',
+    'app.verify.resend': 'Renvoyer le lien',
+    'app.verify.sent': 'Lien envoyé, vérifiez votre boîte de réception.',
+    'app.verify.ok': 'Adresse e-mail confirmée, merci !',
+    'app.verify.invalid':
+      'Lien invalide ou expiré. Utilisez « Renvoyer le lien » depuis votre compte.',
+    'app.verify.dismiss': 'Fermer',
     'quiz.title': 'Quiz CyberSens',
     'quiz.subtitle': 'Teste tes connaissances et renforce tes réflexes de défense.',
     'quiz.loading_title': 'Préparation du Quiz...',
@@ -470,6 +478,13 @@ export const translations: Record<Language, Record<string, string>> = {
     'app.offline':
       'Unable to reach the CyberSens server. Sign in once with an internet connection: the app will also work offline on this device.',
     'app.retry': 'Retry',
+    'app.verify.pending':
+      'Confirm your email address: a link was sent to you. Until it is confirmed, some features stay limited.',
+    'app.verify.resend': 'Resend the link',
+    'app.verify.sent': 'Link sent, check your inbox.',
+    'app.verify.ok': 'Email address confirmed, thank you!',
+    'app.verify.invalid': 'Invalid or expired link. Use “Resend the link” from your account.',
+    'app.verify.dismiss': 'Close',
     'quiz.title': 'CyberSens Quiz',
     'quiz.subtitle': 'Test your knowledge and strengthen your defense reflexes.',
     'quiz.loading_title': 'Preparing the Quiz...',
@@ -755,6 +770,13 @@ export const translations: Record<Language, Record<string, string>> = {
     'app.offline':
       'No se puede contactar con el servidor de CyberSens. Inicia sesión una vez con conexión a Internet: la aplicación también funcionará sin conexión en este dispositivo.',
     'app.retry': 'Reintentar',
+    'app.verify.pending':
+      'Confirme su correo electrónico: se le envió un enlace. Hasta entonces, algunas funciones siguen limitadas.',
+    'app.verify.resend': 'Reenviar el enlace',
+    'app.verify.sent': 'Enlace enviado, revise su bandeja de entrada.',
+    'app.verify.ok': '¡Correo electrónico confirmado, gracias!',
+    'app.verify.invalid': 'Enlace no válido o caducado. Use «Reenviar el enlace» desde su cuenta.',
+    'app.verify.dismiss': 'Cerrar',
     'quiz.title': 'Quiz CyberSens',
     'quiz.subtitle': 'Pon a prueba tus conocimientos y refuerza tus reflejos defensivos.',
     'quiz.loading_title': 'Preparando el Quiz...',

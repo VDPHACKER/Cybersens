@@ -208,6 +208,19 @@ const MIGRATIONS = [
     PRIMARY KEY (user_id, day, source)
   );
   `,
+  // Confirmation d'e-mail : date de confirmation du compte et liens à usage unique.
+  // Les comptes existants sont considérés confirmés (ils n'ont jamais reçu de lien).
+  `
+  ALTER TABLE users ADD COLUMN email_verified_at TEXT;
+  UPDATE users SET email_verified_at = created_at;
+
+  CREATE TABLE email_verifications (
+    token_hash TEXT PRIMARY KEY,
+    user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (${NOW})
+  );
+  `,
 ];
 
 // ---------- Pilotes ----------

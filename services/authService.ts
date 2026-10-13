@@ -122,7 +122,13 @@ export const registerAccount = async (input: {
   password: string;
   role: AccountRole;
   acceptTerms: boolean;
-}) => finishLogin(await api<ServerSnapshot>('POST', '/api/auth/register', input));
+}) =>
+  finishLogin(
+    await api<ServerSnapshot>('POST', '/api/auth/register', {
+      ...input,
+      lang: getPreferences().language || 'fr', // langue de l’e-mail de confirmation
+    }),
+  );
 
 export const loginAccount = async (email: string, password: string) => {
   try {
@@ -201,6 +207,11 @@ export const loginWithGoogle = async (credential: string, role: AccountRole, acc
   finishLogin(
     await api<ServerSnapshot>('POST', '/api/auth/google', { credential, role, acceptTerms }),
   );
+
+export const confirmEmail = (token: string) => api('POST', '/api/auth/verify', { token });
+
+export const resendEmailConfirmation = (lang: string) =>
+  api('POST', '/api/auth/verify/resend', { lang });
 
 export const requestPasswordReset = (email: string, lang: string) =>
   api('POST', '/api/auth/forgot', { email, lang });

@@ -101,6 +101,10 @@ export interface UserPreferences {
   onboarded?: boolean;
   isAuthenticated?: boolean;
   isAdmin?: boolean;
+  /** Adresse e-mail confirmée par le lien reçu (false : en attente) */
+  emailVerified?: boolean;
+  /** Le site envoie des e-mails de confirmation (sinon aucun bandeau) */
+  verificationRequired?: boolean;
   communityPosts?: number;
   registeredAt?: string;
   certificates?: Certificate[];

@@ -22,7 +22,8 @@ import { getPreferences, savePreferences } from './services/persistenceService';
 import { I18nProvider, useI18n } from './services/i18n';
 import { Auth } from './features/Auth';
 import { Landing } from './features/Landing';
-import { restoreSession } from './services/authService';
+import { restoreSession, confirmEmail } from './services/authService';
+import EmailVerificationBanner from './components/EmailVerificationBanner';
 import { clearUserCache } from './services/persistenceService';
 import { SESSION_EXPIRED_EVENT } from './services/apiClient';
 import { PWAUpdatePrompt } from './components/PWAUpdatePrompt';
@@ -74,6 +75,24 @@ const AppShell: React.FC = () => {
       !!sessionStorage.getItem('cybersens-join-ctf');
     return hasResetLink || hasRoomInvite ? 'login' : null;
   });
+  // Lien de confirmation d'e-mail (?verify=…) : consommé une fois, puis retiré de l'adresse affichée
+  const [verifyResult, setVerifyResult] = useState<'ok' | 'invalid' | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('verify');
+    if (!token) return;
+    params.delete('verify');
+    const rest = params.toString();
+    window.history.replaceState(null, '', window.location.pathname + (rest ? `?${rest}` : ''));
+    confirmEmail(token)
+      .then(() => {
+        setVerifyResult('ok');
+        return restoreSession();
+      })
+      .then((restored) => restored && setPrefs(restored.prefs))
+      .catch(() => setVerifyResult((r) => r ?? 'invalid'));
+  }, []);
+
   // État de session : vérifié auprès du serveur au démarrage (cookie HttpOnly)
   const [session, setSession] = useState<'loading' | 'anonymous' | 'authenticated' | 'offline'>(
     'loading',
@@ -275,6 +294,11 @@ const AppShell: React.FC = () => {
           theme={prefs.theme}
           onToggleTheme={toggleTheme}
         >
+          <EmailVerificationBanner
+            linkResult={verifyResult}
+            pending={!!prefs.verificationRequired && prefs.emailVerified === false}
+            onDismissResult={() => setVerifyResult(null)}
+          />
           <div className="animate-in fade-in duration-300">{renderContent()}</div>
         </Layout>
       )}

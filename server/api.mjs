@@ -163,6 +163,43 @@ CyberSens`,
 };
 const resetMessage = (lang, link) => RESET_MESSAGES[lang](link);
 
+const VERIFY_MESSAGES = {
+  fr: (link) => ({
+    subject: 'CyberSens : confirmez votre adresse e-mail',
+    text: `Bonjour,
+
+Pour confirmer votre adresse e-mail, ouvrez ce lien (valable 24 heures, à usage unique) :
+${link}
+
+Si vous n'êtes pas à l'origine de cette inscription, ignorez ce message : n'ouvrez pas le lien.
+
+CyberSens`,
+  }),
+  en: (link) => ({
+    subject: 'CyberSens: confirm your email address',
+    text: `Hello,
+
+To confirm your email address, open this link (valid for 24 hours, single use):
+${link}
+
+If you did not sign up, ignore this message and do not open the link.
+
+CyberSens`,
+  }),
+  es: (link) => ({
+    subject: 'CyberSens: confirme su correo electrónico',
+    text: `Hola,
+
+Para confirmar su correo electrónico, abra este enlace (válido 24 horas, de un solo uso):
+${link}
+
+Si no se registró usted, ignore este mensaje y no abra el enlace.
+
+CyberSens`,
+  }),
+};
+const verifyMessage = (lang, link) => VERIFY_MESSAGES[lang](link);
+
 // ---------- Utilitaires HTTP ----------
 const send = (res, status, data, headers = {}) => {
   res.writeHead(status, {
@@ -428,7 +465,26 @@ const adminEmails = () =>
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-const isAdmin = (user) => adminEmails().includes(user.email.toLowerCase());
+const isAdminEmail = (user) => adminEmails().includes(user.email.toLowerCase());
+
+// Confirmation d'e-mail : exigée seulement quand le site sait envoyer des e-mails (sinon aucun lien ne peut partir
+// et les comptes resteraient bloqués). Un compte non confirmé n'a aucun droit d'administration.
+const VERIFY_TTL_MS = 24 * 3_600_000;
+const isVerified = (user) => !mailConfigured() || !!user.email_verified_at;
+const isAdmin = (user) => isAdminEmail(user) && isVerified(user);
+
+/** Envoie un lien de confirmation (les liens précédents du compte sont invalidés). */
+const sendVerification = async (user, lang = 'fr') => {
+  const token = crypto.randomBytes(32).toString('base64url');
+  await transaction(async () => {
+    await db.prepare('DELETE FROM email_verifications WHERE user_id = ?').run(user.id);
+    await db
+      .prepare('INSERT INTO email_verifications (token_hash, user_id, expires_at) VALUES (?, ?, ?)')
+      .run(sha256(token), user.id, new Date(Date.now() + VERIFY_TTL_MS).toISOString());
+  });
+  const safeLang = ['fr', 'en', 'es'].includes(lang) ? lang : 'fr';
+  await sendMail({ to: user.email, ...verifyMessage(safeLang, `${publicUrl()}/?verify=${token}`) });
+};
 
 // Mot de passe administrateur : second verrou, distinct du mot de passe du compte.
 // Stocké haché (scrypt) dans la table meta, défini depuis le Centre DevOps (bouton « Définir » la première
@@ -605,6 +661,8 @@ const snapshot = async (user) => {
       createdAt: user.created_at.slice(0, 10),
       migrated: !!user.migrated_at,
       isAdmin: isAdmin(user),
+      emailVerified: !!user.email_verified_at,
+      verificationRequired: mailConfigured(),
       communityPosts,
       settings: JSON.parse(user.settings || '{}'),
     },
@@ -708,6 +766,13 @@ const routes = {
       throw err;
     }
     await logSecurity('register', req, trustProxy, created.id);
+    if (mailConfigured()) {
+      try {
+        await sendVerification(created, body.lang);
+      } catch (err) {
+        console.error('[api] Envoi de l’e-mail de confirmation impossible :', err.message);
+      }
+    }
     await createSession(res, req, created.id, trustProxy);
     send(res, 201, await snapshot(created));
   },
@@ -766,12 +831,34 @@ const routes = {
       const hash = await hashPassword(crypto.randomBytes(32).toString('base64url'));
       user = await db
         .prepare(
-          `INSERT INTO users (email, name, role, title, password_hash, terms_accepted_at, terms_version)
-           VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+          `INSERT INTO users (email, name, role, title, password_hash, terms_accepted_at, terms_version, email_verified_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
         )
-        .get(googleMail, name.trim(), role, `${role} certifié`, hash, nowSql(), TERMS_VERSION);
+        .get(
+          googleMail,
+          name.trim(),
+          role,
+          `${role} certifié`,
+          hash,
+          nowSql(),
+          TERMS_VERSION,
+          nowSql(),
+        );
       resetMembersCache();
       created = true;
+    } else if (mailConfigured() && !user.email_verified_at) {
+      // Compte jamais confirmé : celui qui l'a créé n'a pas prouvé posséder l'adresse, alors que Google vient de
+      // le prouver. On reprend le compte : mot de passe choisi à l'inscription et sessions ouvertes sont révoqués.
+      const hash = await hashPassword(crypto.randomBytes(32).toString('base64url'));
+      await transaction(async () => {
+        await db
+          .prepare('UPDATE users SET password_hash = ?, email_verified_at = ? WHERE id = ?')
+          .run(hash, nowSql(), user.id);
+        await db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
+        await db.prepare('DELETE FROM email_verifications WHERE user_id = ?').run(user.id);
+      });
+      await logSecurity('account_claimed_google', req, trustProxy, user.id);
+      user = await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
     }
     await logSecurity(created ? 'register_google' : 'login_google', req, trustProxy, user.id);
     await createSession(res, req, user.id, trustProxy);
@@ -809,6 +896,35 @@ const routes = {
     send(res, 200, { ok: true });
   },
 
+  // Lien de confirmation reçu par e-mail : valable depuis n'importe quel appareil (pas besoin d'être connecté)
+  'POST /api/auth/verify': async ({ req, res, body, ip, trustProxy }) => {
+    rateLimit(`email-verify:${ip}`, 20, 60 * 60_000);
+    if (typeof body.token !== 'string' || body.token.length > 100)
+      throw new HttpError(400, 'Lien invalide ou expiré.');
+    const row = await db
+      .prepare('SELECT user_id FROM email_verifications WHERE token_hash = ? AND expires_at > ?')
+      .get(sha256(body.token), new Date().toISOString());
+    if (!row) throw new HttpError(400, 'Lien invalide ou expiré. Demandez un nouveau lien.');
+    await transaction(async () => {
+      await db
+        .prepare('UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?) WHERE id = ?')
+        .run(nowSql(), row.user_id);
+      await db.prepare('DELETE FROM email_verifications WHERE user_id = ?').run(row.user_id);
+    });
+    await logSecurity('email_verified', req, trustProxy, row.user_id);
+    send(res, 200, { ok: true });
+  },
+
+  'POST /api/auth/verify/resend': async ({ req, res, body }) => {
+    if (!mailConfigured())
+      throw new HttpError(501, 'La confirmation par e-mail n’est pas activée sur ce site.');
+    const user = await requireUser(req);
+    if (user.email_verified_at) return send(res, 200, { ok: true, alreadyVerified: true });
+    rateLimit(`verify-resend:${user.id}`, 3, 60 * 60_000);
+    await sendVerification(user, body.lang);
+    send(res, 200, { ok: true });
+  },
+
   'POST /api/auth/reset': async ({ req, res, body, ip, trustProxy }) => {
     rateLimit(`reset:${ip}`, 10, 60 * 60_000);
     if (typeof body.token !== 'string' || body.token.length > 100)
@@ -823,7 +939,11 @@ const routes = {
     const next = password(body.password, { name: row.name, mail: row.email });
     const hash = await hashPassword(next);
     await transaction(async () => {
-      await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, row.id);
+      await db
+        .prepare(
+          'UPDATE users SET password_hash = ?, email_verified_at = COALESCE(email_verified_at, ?) WHERE id = ?',
+        )
+        .run(hash, nowSql(), row.id);
       await db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(row.id);
       await db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.id);
     });
@@ -1770,7 +1890,7 @@ const routes = {
     const id = int(body.userId, 1, Number.MAX_SAFE_INTEGER, 'Membre');
     const target = await db.prepare('SELECT id, email FROM users WHERE id = ?').get(id);
     if (!target) throw new HttpError(404, 'Membre introuvable');
-    if (isAdmin(target))
+    if (isAdminEmail(target))
       throw new HttpError(
         400,
         'Le mot de passe d’un administrateur se réinitialise en ligne de commande (npm run admin:reset-password).',

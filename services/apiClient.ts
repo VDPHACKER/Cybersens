@@ -155,6 +155,8 @@ export interface ServerSnapshot {
     createdAt: string;
     migrated: boolean;
     isAdmin?: boolean;
+    emailVerified?: boolean;
+    verificationRequired?: boolean;
     communityPosts?: number;
     settings: {
       theme?: 'dark' | 'light';
