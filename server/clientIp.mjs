@@ -19,3 +19,16 @@ export const clientIp = (req, trustProxy) => {
     .filter(Boolean);
   return chain[chain.length - 1] || req.socket.remoteAddress || 'inconnu';
 };
+
+/**
+ * Détecte la mauvaise configuration la plus courante : un proxy est devant le serveur (en-têtes de proxy présents)
+ * mais TRUST_PROXY n'est pas activé. Tous les visiteurs partageraient alors l'adresse du proxy : les limites de
+ * débit et le blocage des connexions s'appliqueraient à tout le monde à la fois, et les cookies ne seraient pas `Secure`.
+ * Retourne le message à journaliser, ou null.
+ */
+export const proxyConfigWarning = (req, trustProxy) => {
+  if (trustProxy) return null;
+  const h = req.headers;
+  if (!h['x-forwarded-for'] && !h['cf-connecting-ip'] && !h['x-forwarded-proto']) return null;
+  return 'Des en-têtes de proxy sont reçus mais TRUST_PROXY n’est pas activé : tous les visiteurs partagent la même adresse IP pour les limites de débit (définissez TRUST_PROXY=1 derrière un proxy HTTPS de confiance).';
+};

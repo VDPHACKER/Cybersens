@@ -9,6 +9,7 @@ import { handleApi, getSessionUser } from './api.mjs';
 import { closeLiveStreams, startNewsWatcher } from './liveFeed.mjs';
 import { DB_LABEL, closeDb } from './db.mjs';
 import { SECURITY_HEADERS, HSTS_HEADER } from './securityHeaders.mjs';
+import { proxyConfigWarning } from './clientIp.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist');
@@ -71,8 +72,17 @@ const logAccess = (req, res, start) => {
   );
 };
 
+let proxyWarned = false;
+
 const server = http.createServer(async (req, res) => {
   const start = performance.now();
+  if (!proxyWarned) {
+    const warning = proxyConfigWarning(req, TRUST_PROXY);
+    if (warning) {
+      proxyWarned = true; // une seule fois : inutile de saturer les journaux
+      console.warn(`[config] ${warning}`);
+    }
+  }
   res.on('finish', () => logAccess(req, res, start));
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
   if (TRUST_PROXY && req.headers['x-forwarded-proto'] === 'https') {

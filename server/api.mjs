@@ -59,6 +59,9 @@ const RESET_TTL_MS = 30 * 60_000;
 const REGISTER_PER_HOUR = 30;
 const LOGIN_MAX_FAILURES = 5;
 const LOGIN_LOCK_MS = 15 * 60_000;
+// Seuil global par compte, toutes adresses confondues : volontairement plus haut que celui par adresse, pour
+// qu'un inconnu seul ne puisse pas bloquer le propriétaire, mais qu'une attaque répartie finisse par être stoppée.
+const LOGIN_WIDE_MAX_FAILURES = 25;
 const ROLES = new Set(['Particulier', 'Étudiant', 'Professionnel', 'Entreprise']);
 // Version des conditions d'utilisation : à changer (avec la date de features/Legal/termsContent.ts) à chaque révision du texte.
 export const TERMS_VERSION = '2026-09-30';
@@ -582,12 +585,12 @@ const checkLock = async (mail) => {
       `Trop de tentatives. Réessayez dans ${Math.ceil(remaining / 60)} min.`,
     );
 };
-const recordFailure = async (mail) => {
+const recordFailure = async (mail, maxFailures = LOGIN_MAX_FAILURES) => {
   const row = await db
     .prepare('SELECT failures FROM login_attempts WHERE key = ?')
     .get(lockKey(mail));
   const failures = (row?.failures || 0) + 1;
-  const locked = failures >= LOGIN_MAX_FAILURES;
+  const locked = failures >= maxFailures;
   await db
     .prepare(
       `INSERT INTO login_attempts (key, failures, locked_until) VALUES (?, ?, ?)
@@ -595,8 +598,18 @@ const recordFailure = async (mail) => {
     )
     .run(lockKey(mail), locked ? 0 : failures, locked ? Date.now() + LOGIN_LOCK_MS : 0);
 };
-const clearFailures = (mail) =>
-  db.prepare('DELETE FROM login_attempts WHERE key = ?').run(lockKey(mail));
+const clearFailureKey = (key) =>
+  db.prepare('DELETE FROM login_attempts WHERE key = ?').run(lockKey(key));
+
+// Efface le compteur du compte ET ceux par adresse (`login:<e-mail>|<ip>`) : le propriétaire qui prouve son accès
+// (réinitialisation, changement de mot de passe) repart sans blocage résiduel.
+const clearFailures = async (mail) => {
+  const prefix = `${lockKey(mail)}|`;
+  await db.prepare('DELETE FROM login_attempts WHERE key = ?').run(lockKey(mail));
+  await db
+    .prepare('DELETE FROM login_attempts WHERE substr(key, 1, ?) = ?')
+    .run(prefix.length, prefix);
+};
 
 // ---------- Représentation renvoyée au navigateur ----------
 const levelFor = (points) => Math.max(1, Math.floor(points / 200) + 1);
@@ -730,9 +743,9 @@ const routes = {
     const mail = email(body.email);
     const plain = password(body.password, { name, mail });
     const role = ROLES.has(body.role) ? body.role : 'Étudiant';
-    // Consentement explicite obligatoire, sauf recréation d'un ancien compte local (aucune acceptation enregistrée)
-    const legacy = body.legacyMigration === true;
-    if (!legacy && body.acceptTerms !== true)
+    // Consentement explicite obligatoire, sans exception : le serveur ne peut pas vérifier qu'un compte « ancien »
+    // existe (il n'était stocké que dans le navigateur), donc aucun indicateur envoyé par le client n'en dispense.
+    if (body.acceptTerms !== true)
       throw new HttpError(
         400,
         'Vous devez accepter les conditions d’utilisation pour vous inscrire.',
@@ -746,15 +759,7 @@ const routes = {
           `INSERT INTO users (email, name, role, title, password_hash, terms_accepted_at, terms_version)
            VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *`,
         )
-        .get(
-          mail,
-          name,
-          role,
-          `${role} certifié`,
-          hash,
-          legacy ? null : nowSql(),
-          legacy ? null : TERMS_VERSION,
-        );
+        .get(mail, name, role, `${role} certifié`, hash, nowSql(), TERMS_VERSION);
       resetMembersCache(); // le nombre de membres affiché sur l'accueil doit suivre les inscriptions
     } catch (err) {
       if (err.code === '23505') {
@@ -782,6 +787,10 @@ const routes = {
     const mail = email(body.email);
     if (typeof body.password !== 'string' || body.password.length > 128)
       throw new HttpError(400, 'Mot de passe invalide');
+    // Deux verrous : par couple compte + adresse (5 échecs : un inconnu ne bloque que lui-même) et par compte
+    // toutes adresses confondues (25 échecs : une attaque répartie est stoppée)
+    const ipLock = `${mail}|${ip}`;
+    await checkLock(ipLock);
     await checkLock(mail);
 
     const user = await db.prepare('SELECT * FROM users WHERE lower(email) = ?').get(mail);
@@ -790,11 +799,14 @@ const routes = {
       user ? user.password_hash : await getDummyHash(),
     );
     if (!user || !ok) {
-      await recordFailure(mail);
+      await recordFailure(ipLock);
+      await recordFailure(mail, LOGIN_WIDE_MAX_FAILURES);
       await logSecurity(`login_failed:${mail}`, req, trustProxy, user?.id ?? null);
       throw new HttpError(401, 'E-mail ou mot de passe incorrect.');
     }
-    await clearFailures(mail);
+    // Succès : on efface le compteur du compte et celui de cette adresse, pas ceux des autres adresses
+    await clearFailureKey(ipLock);
+    await clearFailureKey(mail);
     await logSecurity('login', req, trustProxy, user.id);
     await createSession(res, req, user.id, trustProxy);
     send(res, 200, await snapshot(user));
@@ -1159,6 +1171,107 @@ const routes = {
     send(res, 200, { ok: true });
   },
 
+  // Portabilité (RGPD) : toutes les données du membre dans un fichier JSON. Jamais d'empreinte de mot de passe,
+  // de jeton ni de donnée appartenant à un autre membre.
+  'GET /api/me/export': async ({ req, res }) => {
+    const user = await requireUser(req);
+    rateLimit(`export:${user.id}`, 3, 60 * 60_000);
+    const rows = (sql, ...args) => db.prepare(sql).all(...args);
+    const data = {
+      exportedAt: new Date().toISOString(),
+      profile: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        title: user.title,
+        avatar: user.avatar,
+        points: user.points,
+        settings: JSON.parse(user.settings || '{}'),
+        createdAt: user.created_at,
+        termsAcceptedAt: user.terms_accepted_at,
+        termsVersion: user.terms_version,
+        emailVerifiedAt: user.email_verified_at,
+      },
+      progress: await rows(
+        'SELECT course_id, lesson_id, completed_at FROM lesson_progress WHERE user_id = ? ORDER BY completed_at',
+        user.id,
+      ),
+      certificates: await rows(
+        `SELECT course_id, course_title, score, certificate_number, imported, issued_at
+         FROM certificates WHERE user_id = ? ORDER BY issued_at`,
+        user.id,
+      ),
+      quizResults: await rows(
+        'SELECT score, total, mode, difficulty, played_at FROM quiz_results WHERE user_id = ? ORDER BY played_at',
+        user.id,
+      ),
+      ctfSolves: await rows(
+        'SELECT challenge_id, points, mode, solved_at FROM ctf_solves WHERE user_id = ? ORDER BY solved_at',
+        user.id,
+      ),
+      pointsBySource: await rows(
+        'SELECT source, total FROM points_by_source WHERE user_id = ? ORDER BY source',
+        user.id,
+      ),
+      posts: await rows(
+        'SELECT id, topic, body, created_at FROM posts WHERE user_id = ? ORDER BY id',
+        user.id,
+      ),
+      comments: await rows(
+        'SELECT post_id, body, created_at FROM post_comments WHERE user_id = ? ORDER BY id',
+        user.id,
+      ),
+      reviews: await rows(
+        'SELECT rating, body, created_at, updated_at FROM reviews WHERE user_id = ?',
+        user.id,
+      ),
+      pushDevices: Number(
+        (
+          await db
+            .prepare('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?')
+            .get(user.id)
+        ).n,
+      ),
+      securityEvents: await rows(
+        'SELECT event, ip, created_at FROM security_log WHERE user_id = ? ORDER BY id DESC LIMIT 500',
+        user.id,
+      ),
+    };
+    send(res, 200, data, {
+      'Content-Disposition': 'attachment; filename="cybersens-mes-donnees.json"',
+    });
+  },
+
+  // Effacement (RGPD) : exige le mot de passe, supprime le compte et tout ce qui s'y rattache (cascade en base),
+  // y compris le journal de sécurité du membre. Un compte administrateur se retire depuis ADMIN_EMAILS.
+  'POST /api/me/delete': async ({ req, res, body, trustProxy }) => {
+    const user = await requireUser(req);
+    rateLimit(`account-delete:${user.id}`, 5, 15 * 60_000);
+    if (typeof body.password !== 'string' || !body.password || body.password.length > 128)
+      throw new HttpError(400, 'Saisissez votre mot de passe pour confirmer la suppression.');
+    if (isAdminEmail(user))
+      throw new HttpError(
+        403,
+        'Un compte administrateur ne peut pas être supprimé depuis le site : retirez d’abord son e-mail de ADMIN_EMAILS.',
+      );
+    if (!(await verifyPassword(body.password, user.password_hash))) {
+      await logSecurity('account_delete_failed', req, trustProxy, user.id);
+      throw new HttpError(403, 'Le mot de passe est incorrect.');
+    }
+    await transaction(async () => {
+      await db.prepare('DELETE FROM security_log WHERE user_id = ?').run(user.id);
+      await db
+        .prepare('DELETE FROM login_attempts WHERE key = ?')
+        .run(lockKey(user.email.toLowerCase()));
+      await db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
+    });
+    resetMembersCache();
+    await logSecurity('account_deleted', req, trustProxy); // sans identité : seul l'événement est conservé
+    clearSessionCookie(res);
+    send(res, 200, { ok: true });
+  },
+
   'POST /api/me/points': async ({ req, res, body }) => {
     const user = await requireUser(req);
     rateLimit(`points:${user.id}`, 120, 60_000);
@@ -1419,7 +1532,11 @@ const routes = {
     const boardName = url.searchParams.get('board') ?? 'xp';
     if (!Object.hasOwn(LEADERBOARDS, boardName)) throw new HttpError(400, 'Classement inconnu');
     const { value, detail } = LEADERBOARDS[boardName];
-    const visible = "COALESCE((u.settings::jsonb) ->> 'showInLeaderboard', 'true') <> 'false'";
+    // Quand les e-mails sont confirmés, seuls les comptes confirmés comptent : des comptes jetables créés en série
+    // ne peuvent pas fausser les classements (le coût d'un faux compte n'est plus nul).
+    const visible = `COALESCE((u.settings::jsonb) ->> 'showInLeaderboard', 'true') <> 'false'${
+      mailConfigured() ? ' AND u.email_verified_at IS NOT NULL' : ''
+    }`;
     const rows = await db
       .prepare(
         `SELECT * FROM (

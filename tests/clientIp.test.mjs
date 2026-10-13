@@ -1,7 +1,7 @@
 // Adresse IP retenue pour les limites de débit : ne doit jamais être une valeur que le client peut choisir.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { clientIp } from '../server/clientIp.mjs';
+import { clientIp, proxyConfigWarning } from '../server/clientIp.mjs';
 
 const req = (headers, remoteAddress = '10.0.0.1') => ({ headers, socket: { remoteAddress } });
 
@@ -42,4 +42,21 @@ test('en-têtes absents malgré trustProxy : repli sur l’adresse de connexion'
 test('aucune adresse disponible : repli sur « inconnu »', () => {
   // null, et non le 2e paramètre omis : un argument explicite undefined réactiverait la valeur par défaut
   assert.equal(clientIp(req({}, null), true), 'inconnu');
+});
+
+test('TRUST_PROXY absent alors que les requêtes arrivent via un proxy : avertissement explicite', () => {
+  for (const headers of [
+    { 'x-forwarded-for': '203.0.113.9' },
+    { 'cf-connecting-ip': '203.0.113.9' },
+    { 'x-forwarded-proto': 'https' },
+  ]) {
+    const warning = proxyConfigWarning(req(headers), false);
+    assert.match(warning ?? '', /TRUST_PROXY/, JSON.stringify(headers));
+  }
+});
+
+test('aucun avertissement quand la configuration est cohérente', () => {
+  assert.equal(proxyConfigWarning(req({}), false), null, 'accès direct sans proxy');
+  assert.equal(proxyConfigWarning(req({ 'x-forwarded-for': '203.0.113.9' }), true), null);
+  assert.equal(proxyConfigWarning(req({}), true), null);
 });

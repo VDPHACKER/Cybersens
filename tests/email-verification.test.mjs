@@ -193,3 +193,27 @@ test('sans service d’e-mail configuré, rien ne change : comptes utilisables, 
     setMailTransport(async (mail) => outbox.push(mail));
   }
 });
+
+test('classement : un compte non confirmé n’y apparaît pas tant que son e-mail n’est pas confirmé', async () => {
+  const c = await h.register('Fantome', 'fantome@test.bf');
+  await c.call('POST', '/api/me/points', { delta: 100, source: 'game' });
+  const before = await c.call('GET', '/api/leaderboard');
+  assert.equal(before.status, 200);
+  assert.equal(
+    before.data.entries.some((e) => e.isMe),
+    false,
+    'absent du classement avant confirmation',
+  );
+  assert.equal(before.data.me.visible, false);
+
+  await h
+    .client()
+    .call('POST', '/api/auth/verify', { token: tokenFrom(lastMailTo('fantome@test.bf')) });
+  const after = await c.call('GET', '/api/leaderboard');
+  assert.equal(
+    after.data.entries.some((e) => e.isMe),
+    true,
+    'présent après confirmation',
+  );
+  assert.equal(after.data.me.visible, true);
+});

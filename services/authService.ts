@@ -136,7 +136,7 @@ export const loginAccount = async (email: string, password: string) => {
       await api<ServerSnapshot>('POST', '/api/auth/login', { email, password }),
     );
   } catch (err) {
-    // Compte créé avec l'ancienne version (stocké dans ce navigateur) : on le recrée sur le serveur
+    // Compte créé avec l'ancienne version (stocké dans ce navigateur) : le mot de passe est reconnu localement
     const legacy = readLegacyAccounts().find((a) => a.email === email.trim().toLowerCase());
     if (
       err instanceof ApiError &&
@@ -144,14 +144,10 @@ export const loginAccount = async (email: string, password: string) => {
       legacy &&
       (await verifyLegacyPassword(legacy, password))
     ) {
-      return finishLogin(
-        await api<ServerSnapshot>('POST', '/api/auth/register', {
-          name: legacy.name,
-          email: legacy.email,
-          password,
-          role: legacy.role,
-          legacyMigration: true,
-        }),
+      // Le serveur n'accepte plus de recréer un compte sans consentement : on guide vers l'inscription normale,
+      // qui récupère aussi les données locales de cet appareil
+      throw new Error(
+        'Ce compte date d’une ancienne version. Cliquez sur « Créer un compte » avec la même adresse e-mail : vos données de cet appareil seront reprises.',
       );
     }
     throw err;

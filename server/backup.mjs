@@ -1,6 +1,6 @@
 // Sauvegarde des données au format JSON (possible pendant que le serveur tourne) : npm run db:backup
 // Les sauvegardes sont écrites dans backups/ (dossier exclu de Git) et contiennent les empreintes de mots de passe :
-// à conserver comme un secret, hors du serveur. Avec Neon, la restauration à un instant donné est aussi disponible dans la console.
+// à conserver comme un secret, hors du serveur. Définissez BACKUP_ENCRYPTION_KEY pour les chiffrer (AES-256-GCM). Avec Neon, la restauration à un instant donné est aussi disponible dans la console.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { backupTo, closeDb, DB_LABEL } from './db.mjs';
@@ -12,6 +12,6 @@ const destination = path.join(
   `cybersens-${stamp}.json`,
 );
 
-await backupTo(destination);
+const written = await backupTo(destination);
 await closeDb();
-console.log(`Sauvegarde de ${DB_LABEL} créée : ${destination}`);
+console.log(`Sauvegarde de ${DB_LABEL} créée : ${written}`);

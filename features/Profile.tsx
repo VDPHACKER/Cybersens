@@ -43,6 +43,7 @@ import { PWAInstallButton } from '../components/PWAInstallButton';
 import { CertificateModal } from '../components/CertificateModal';
 import { BadgeIcon } from '../components/BadgeIcon';
 import { PasswordChangeCard } from '../components/PasswordChangeCard';
+import { AccountDataCard } from '../components/AccountDataCard';
 import { LiveNotificationsCard } from '../components/LiveNotificationsCard';
 import { MyReviewCard } from '../components/MyReviewCard';
 import { useI18n } from '../services/i18n';
@@ -1478,6 +1479,7 @@ export const Profile: React.FC<ProfileProps> = ({ onNavigate, onOpenAIChat, onOp
           <MyReviewCard />
           <LiveNotificationsCard />
           <PasswordChangeCard />
+          <AccountDataCard />
         </div>
       )}
 

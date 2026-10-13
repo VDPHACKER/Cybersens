@@ -331,6 +331,14 @@ test('inscription : les conditions d’utilisation doivent être acceptées', as
     const res = await call('POST', '/api/auth/register', { ...body, acceptTerms }, { jar: false });
     assert.equal(res.status, 400, `acceptTerms=${String(acceptTerms)} refusé`);
   }
+  // L'ancien indicateur « legacyMigration » ne dispense plus de rien : un client ne peut pas se décharger du consentement
+  const legacy = await call(
+    'POST',
+    '/api/auth/register',
+    { ...body, legacyMigration: true },
+    { jar: false },
+  );
+  assert.equal(legacy.status, 400, 'legacyMigration ne contourne pas l’acceptation des conditions');
   const ok = await call('POST', '/api/auth/register', { ...body, acceptTerms: true });
   assert.equal(ok.status, 201);
   await call('POST', '/api/auth/logout');

@@ -35,6 +35,49 @@ const RATE_WINDOW_MS = 60_000;
 
 const hits = new Map();
 
+// Plafonds quotidiens (jour UTC) pour protéger le quota et la facture Gemini : chaque compte a sa part, et le site
+// entier un total. Compteurs en mémoire (instance unique) : un redémarrage les remet à zéro.
+const intEnv = (name, fallback) => {
+  const n = Number.parseInt(process.env[name] ?? '', 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+const DAILY_PER_USER = intEnv('GEMINI_DAILY_PER_USER', 150);
+const DAILY_GLOBAL = intEnv('GEMINI_DAILY_GLOBAL', 3000);
+// Longueur maximale d'une réponse, appliquée même si le navigateur en demande davantage
+const MAX_OUTPUT_TOKENS = intEnv('GEMINI_MAX_OUTPUT_TOKENS', 8192);
+const daily = { day: '', global: 0, perKey: new Map() };
+
+const today = () => new Date().toISOString().slice(0, 10);
+const rollDay = () => {
+  const day = today();
+  if (daily.day !== day) Object.assign(daily, { day, global: 0, perKey: new Map() });
+};
+
+/** Réservé aux tests : remet les compteurs du jour à zéro. */
+export const resetGeminiQuota = () => {
+  daily.day = '';
+  rollDay();
+};
+
+/** Compte un appel ; retourne un message d'erreur et son statut si un plafond du jour est atteint. */
+const consumeDailyQuota = (key) => {
+  rollDay();
+  if (daily.global >= DAILY_GLOBAL)
+    return {
+      status: 503,
+      message: 'L’assistant IA a atteint sa capacité du jour, réessayez demain.',
+    };
+  const used = daily.perKey.get(key) ?? 0;
+  if (used >= DAILY_PER_USER)
+    return {
+      status: 429,
+      message: `Vous avez atteint la limite de ${DAILY_PER_USER} questions à l’assistant IA aujourd’hui. Elle se renouvelle demain.`,
+    };
+  daily.perKey.set(key, used + 1);
+  daily.global += 1;
+  return null;
+};
+
 const isRateLimited = (ip) => {
   const now = Date.now();
   const entry = hits.get(ip);
@@ -133,10 +176,25 @@ export const handleGeminiProxy = async (
   let body;
   try {
     body = await readBody(req);
-    JSON.parse(body.toString('utf8'));
+    const parsed = JSON.parse(body.toString('utf8'));
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      // Longueur de réponse bornée : une valeur absente ou trop grande est ramenée au plafond
+      const cfg = parsed.generationConfig;
+      const config = cfg && typeof cfg === 'object' && !Array.isArray(cfg) ? cfg : {};
+      const asked = Number(config.maxOutputTokens);
+      config.maxOutputTokens =
+        Number.isFinite(asked) && asked > 0
+          ? Math.min(asked, MAX_OUTPUT_TOKENS)
+          : MAX_OUTPUT_TOKENS;
+      parsed.generationConfig = config;
+      body = Buffer.from(JSON.stringify(parsed));
+    }
   } catch (err) {
     return (sendJson(res, err.status || 400, err.status ? err.message : 'JSON invalide'), true);
   }
+
+  const over = consumeDailyQuota(rateKey);
+  if (over) return (sendJson(res, over.status, over.message), true);
 
   // Seul le paramètre alt=sse (streaming) est transmis ; aucune clé venant du client n'est acceptée
   const buildUrl = (model) => {

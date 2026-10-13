@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { backupKey, encryptBackup } from './backupCrypto.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DATABASE_URL = process.env.DATABASE_URL || '';
@@ -378,8 +379,15 @@ export const exportAll = async () => {
   return { exportedAt: new Date().toISOString(), tables };
 };
 
-/** Sauvegarde dans un fichier JSON (utilisable pendant que le serveur tourne). */
+/**
+ * Sauvegarde dans un fichier (utilisable pendant que le serveur tourne). Avec BACKUP_ENCRYPTION_KEY, le fichier est
+ * chiffré (extension .enc) et aucun clair n'est écrit. Retourne le chemin réellement créé.
+ */
 export const backupTo = async (destination) => {
   fs.mkdirSync(path.dirname(destination), { recursive: true });
-  fs.writeFileSync(destination, JSON.stringify(await exportAll()), { mode: 0o600 });
+  const json = JSON.stringify(await exportAll());
+  const key = backupKey();
+  const file = key ? `${destination}.enc` : destination;
+  fs.writeFileSync(file, key ? encryptBackup(json, key) : json, { mode: 0o600 });
+  return file;
 };
