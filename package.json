@@ -10,6 +10,7 @@
     "start": "node --env-file-if-exists=.env.local server/index.mjs",
     "db:backup": "node server/backup.mjs",
     "db:backup-decrypt": "node server/backupDecrypt.mjs",
+    "db:migrate-data": "node server/migrateDatabase.mjs",
     "admin:reset-password": "node --env-file-if-exists=.env.local server/resetPassword.mjs",
     "admin:hash-password": "node server/hashAdminPassword.mjs",
     "typecheck": "tsc --noEmit -p .",

@@ -22,7 +22,7 @@ export const DB_LABEL = DATABASE_URL
 const NOW = `to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`;
 
 // Migrations successives : ne jamais modifier une migration déjà livrée, en ajouter une nouvelle.
-const MIGRATIONS = [
+export const MIGRATIONS = [
   `
   CREATE TABLE users (
     id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

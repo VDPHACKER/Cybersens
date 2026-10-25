@@ -45,7 +45,7 @@ Copier `.env.example` vers `.env` (Docker) ou `.env.local` (`npm start`). **Ne j
 
 1. Créer un projet Railway relié au dépôt GitHub. Railway utilise `railway.toml` (build via le `Dockerfile`, contrôle de santé `/api/health`).
 2. Créer deux environnements : `staging` (branche `staging`) et `production` (branche `main`).
-3. **Pour chaque environnement**, fournir `DATABASE_URL` (PostgreSQL managé) **ou** ajouter un **volume** monté sur `/app/data` (base PGlite). Sans l'un des deux, les comptes sont perdus à chaque redéploiement.
+3. **Pour chaque environnement**, fournir `DATABASE_URL` (PostgreSQL managé) **ou** ajouter un **volume** monté sur `/app/data` (base PGlite). Sans l'un des deux, les comptes sont perdus à chaque redéploiement. Pour changer de base sans perdre les données (Neon → Supabase, etc.), voir [MIGRATION-BASE.md](MIGRATION-BASE.md).
 4. Renseigner les variables du § 2, avec un `CERT_SECRET` **différent** par environnement, et `TRUST_PROXY=1`.
 5. Déployer d'abord `staging`, dérouler les tests de fumée du § 5, puis fusionner `staging` dans `main`.
 6. Associer un domaine personnalisé (le certificat HTTPS est fourni par Railway).
