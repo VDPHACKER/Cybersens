@@ -23,31 +23,43 @@ Dans la console Neon : _Connection Details_, adresse **directe** (sans `-pooler`
 > Si votre quota Neon est dépassé, la base est suspendue et la connexion échouera. Attendez le renouvellement du quota ou
 > repassez temporairement sur une offre payante : **les données ne sont pas supprimées par la pause**.
 
-## 3. Vérifier d'abord (lecture seule, rien n'est écrit)
+## 3. Renseigner les deux adresses
+
+Créez à la racine du projet un fichier **`.env.migration.local`** (ignoré par Git et par Docker) :
+
+```
+SOURCE_DATABASE_URL=postgresql://…neon…
+TARGET_DATABASE_URL=postgresql://…supabase…
+TARGET_DATABASE_CA_CERT_FILE=server/certs/supabase-prod-ca-2021.crt
+```
+
+La dernière ligne indique le certificat de l'autorité de Supabase (fourni dans le projet) : sans lui, Node refuse la connexion
+(`SELF_SIGNED_CERT_IN_CHAIN`). La vérification du chiffrement n'est jamais désactivée. N'ajoutez pas `sslmode` à l'adresse.
+
+La commande le lit automatiquement : les mots de passe ne passent ni par l'historique du terminal ni par une conversation.
+Supprimez ce fichier une fois la migration terminée. (Vous pouvez aussi définir les deux variables dans le terminal.)
+
+## 4. Vérifier d'abord (lecture seule, rien n'est écrit)
 
 ```bash
-SOURCE_DATABASE_URL='postgresql://…neon…' \
-TARGET_DATABASE_URL='postgresql://…supabase…' \
 npm run db:migrate-data -- --check
 ```
 
 Vous obtenez le nombre de lignes par table dans chaque base. La cible doit être vide ou sans table.
 
-## 4. Copier
+## 5. Copier
 
 ```bash
-SOURCE_DATABASE_URL='postgresql://…neon…' \
-TARGET_DATABASE_URL='postgresql://…supabase…' \
 npm run db:migrate-data
 ```
 
 La commande crée le schéma de l'application dans la cible, copie les données, compare les comptages et affiche le total.
 En cas d'échec, la cible est laissée vide et la source n'a pas été touchée : vous pouvez corriger puis relancer.
 
-## 5. Contrôler puis basculer
+## 6. Contrôler puis basculer
 
 1. Relancez la commande `--check` et comparez les nombres de lignes des deux bases (`users`, `certificates`, `posts`, `quiz_results`).
-2. Sur l'hébergeur, remplacez `DATABASE_URL` par l'adresse de la **cible** et **gardez le même `CERT_SECRET`** : sinon les certificats déjà délivrés ne seront plus reconnus comme valides.
+2. Sur l'hébergeur, remplacez `DATABASE_URL` par l'adresse de la **cible**, ajoutez `DATABASE_CA_CERT_FILE=server/certs/supabase-prod-ca-2021.crt` et **gardez le même `CERT_SECRET`** : sinon les certificats déjà délivrés ne seront plus reconnus comme valides.
 3. Redéployez et vérifiez : connexion avec un compte existant, certificats, classement.
 4. **Conservez l'ancienne base quelques jours** avant de la supprimer, comme filet de sécurité.
 

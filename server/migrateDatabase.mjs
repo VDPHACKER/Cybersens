@@ -6,6 +6,7 @@
 // La source n'est jamais modifiée. La cible doit être une base VIDE : le schéma de l'application y est créé
 // automatiquement, puis les données sont copiées en une seule transaction (tout ou rien).
 import { copyData } from './migrateData.mjs';
+import { loadCa, pgConnectionConfig } from './dbSsl.mjs';
 
 const source = process.env.SOURCE_DATABASE_URL;
 const target = process.env.TARGET_DATABASE_URL;
@@ -24,9 +25,34 @@ if (source === target) {
 
 const hostOf = (url) => new URL(url).host; // jamais le mot de passe dans les messages
 
+// Adresses incomplètes (emplacement « [...] » encore présent, texte qui n'est pas une adresse) : message clair
+for (const [name, value] of [
+  ['SOURCE_DATABASE_URL', source],
+  ['TARGET_DATABASE_URL', target],
+]) {
+  let valid = !/\[[^\]]*\]/.test(value);
+  try {
+    new URL(value);
+  } catch {
+    valid = false;
+  }
+  if (!valid) {
+    console.error(
+      `${name} est incomplète : remplacez l'emplacement entre crochets par la vraie adresse (voir docs/MIGRATION-BASE.md).`,
+    );
+    process.exit(1);
+  }
+}
+
 const { default: pg } = await import('pg');
+// Certificat d'autorité propre à chaque base (ex. TARGET_DATABASE_CA_CERT_FILE pour Supabase), jamais de TLS désactivé
+const caOf = (label) =>
+  loadCa(process.env, label === 'source' ? 'SOURCE_DATABASE' : 'TARGET_DATABASE');
 const connect = async (url, label) => {
-  const client = new pg.Client({ connectionString: url, connectionTimeoutMillis: 30_000 });
+  const client = new pg.Client({
+    ...pgConnectionConfig(url, caOf(label)),
+    connectionTimeoutMillis: 30_000,
+  });
   try {
     await client.connect();
   } catch (err) {
@@ -67,6 +93,9 @@ if (checkOnly) {
 
 // Crée le schéma de l'application dans la cible (migrations), sans y mettre de données
 process.env.DATABASE_URL = target;
+for (const suffix of ['CA_CERT', 'CA_CERT_FILE'])
+  if (process.env[`TARGET_DATABASE_${suffix}`])
+    process.env[`DATABASE_${suffix}`] = process.env[`TARGET_DATABASE_${suffix}`];
 const { closeDb } = await import('./db.mjs');
 await closeDb();
 

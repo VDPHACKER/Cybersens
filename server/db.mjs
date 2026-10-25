@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { backupKey, encryptBackup } from './backupCrypto.mjs';
+import { loadCa, pgConnectionConfig } from './dbSsl.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DATABASE_URL = process.env.DATABASE_URL || '';
@@ -228,8 +229,9 @@ export const MIGRATIONS = [
 const connectPostgres = async () => {
   const { default: pg } = await import('pg');
   pg.types.setTypeParser(20, (v) => Number(v)); // int8 (COUNT, identifiants) en nombre JavaScript
+  // Certificat d'autorité optionnel (Supabase…) : le chiffrement reste vérifié, voir server/dbSsl.mjs
   const pool = new pg.Pool({
-    connectionString: DATABASE_URL,
+    ...pgConnectionConfig(DATABASE_URL, loadCa()),
     max: 5,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 20_000, // laisse le temps à une base serverless de se réveiller
