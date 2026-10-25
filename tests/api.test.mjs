@@ -73,11 +73,30 @@ const wrongAnswers = Object.fromEntries(
   exam.map((q) => [q.id, (q.correctAnswer + 1) % q.options.length]),
 );
 
-test('santé du service', async () => {
+test('santé du service : la sonde ordinaire ne touche pas la base, ?db=1 la vérifie', async () => {
   const r = await call('GET', '/api/health');
   assert.equal(r.status, 200);
   assert.equal(r.data.status, 'ok');
-  assert.equal(r.data.database, 'ok');
+  assert.equal(r.data.database, 'unchecked');
+
+  const deep = await call('GET', '/api/health?db=1');
+  assert.equal(deep.status, 200);
+  assert.equal(deep.data.database, 'ok');
+
+  // Base injoignable : la sonde ordinaire reste verte (elle tourne toutes les 30 s et réveillerait la base),
+  // seule la vérification explicite le signale
+  const original = db.prepare;
+  db.prepare = () => {
+    throw new Error('base indisponible (test)');
+  };
+  try {
+    assert.equal((await call('GET', '/api/health')).status, 200);
+    const down = await call('GET', '/api/health?db=1');
+    assert.equal(down.status, 503);
+    assert.equal(down.data.database, 'error');
+  } finally {
+    db.prepare = original;
+  }
 });
 
 test('inscription : validation et création de session', async () => {

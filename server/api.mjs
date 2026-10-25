@@ -425,12 +425,32 @@ const getDummyHash = async () =>
 // ---------- Sessions ----------
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
+// Purge des sessions expirées : déclenchée par une connexion, au plus une fois par heure. Pas de minuteur : sur une
+// base serverless (Neon, Supabase…), une requête toutes les heures sans visiteur empêche la mise en veille et
+// consomme le quota de calcul du mois pour rien.
+const SESSION_PURGE_EVERY_MS = 3_600_000;
+let lastSessionPurge = 0;
+/** Réservé aux tests : oublie la dernière purge. */
+export const resetSessionPurge = () => {
+  lastSessionPurge = 0;
+};
+const purgeExpiredSessions = async () => {
+  if (Date.now() - lastSessionPurge < SESSION_PURGE_EVERY_MS) return;
+  lastSessionPurge = Date.now();
+  try {
+    await db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(new Date().toISOString());
+  } catch (err) {
+    console.error('[api] Purge des sessions impossible :', err.message);
+  }
+};
+
 const createSession = async (res, req, userId, trustProxy) => {
   const token = crypto.randomBytes(32).toString('base64url');
   const expires = new Date(Date.now() + SESSION_DAYS * 86_400_000);
   await db
     .prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)')
     .run(sha256(token), userId, expires.toISOString());
+  await purgeExpiredSessions();
   const secure = isHttps(req, trustProxy) ? '; Secure' : '';
   res.setHeader(
     'Set-Cookie',
@@ -722,15 +742,21 @@ const STARTED_AT = Date.now();
 
 const routes = {
   // Santé du service (utilisé par le HEALTHCHECK Docker et la supervision) : aucune donnée sensible
-  'GET /api/health': async ({ res }) => {
-    let database = 'ok';
-    try {
-      await db.prepare('SELECT 1').get();
-    } catch {
-      database = 'error';
+  // Sonde de santé. Par défaut elle ne touche PAS la base : les hébergeurs et Docker l'appellent toutes les 30 s,
+  // et chaque requête SQL empêcherait une base serverless (Neon, Supabase…) de se mettre en veille, ce qui
+  // consomme tout le quota de calcul du mois. `?db=1` ajoute la vérification de la base, pour un contrôle manuel.
+  'GET /api/health': async ({ res, url }) => {
+    let database = 'unchecked';
+    if (url.searchParams.get('db') === '1') {
+      database = 'ok';
+      try {
+        await db.prepare('SELECT 1').get();
+      } catch {
+        database = 'error';
+      }
     }
-    send(res, database === 'ok' ? 200 : 503, {
-      status: database === 'ok' ? 'ok' : 'degraded',
+    send(res, database === 'error' ? 503 : 200, {
+      status: database === 'error' ? 'degraded' : 'ok',
       database,
       uptimeSeconds: Math.round((Date.now() - STARTED_AT) / 1000),
     });
@@ -2097,13 +2123,3 @@ export const handleApi = async (req, res, { trustProxy = false } = {}) => {
   }
   return true;
 };
-
-// Nettoyage périodique des sessions expirées
-setInterval(
-  () =>
-    db
-      .prepare('DELETE FROM sessions WHERE expires_at < ?')
-      .run(new Date().toISOString())
-      .catch((err) => console.error('[api] Purge des sessions impossible :', err.message)),
-  3_600_000,
-).unref();

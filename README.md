@@ -95,7 +95,7 @@ Déploiement basé sur `railway.toml` (build via le `Dockerfile` existant, healt
 
 ## Exploitation
 
-- **Santé** : `GET /api/health` renvoie `{"status":"ok","database":"ok",...}`, ou 503 si la base est indisponible.
+- **Santé** : `GET /api/health` renvoie `{"status":"ok","database":"unchecked",...}` sans interroger la base (la sonde tourne toutes les 30 s et empêcherait une base serverless de se mettre en veille). `GET /api/health?db=1` vérifie aussi la base : `"database":"ok"`, ou 503 si elle est indisponible.
 - **Journaux** : une ligne JSON par requête sur la sortie standard (méthode, chemin, statut, durée), sans corps ni cookie.
 - **Sécurité** : la table `security_log` enregistre inscriptions, connexions et échecs de connexion.
 - **Sauvegardes** : `npm run db:backup` (ou `npm run docker:backup`) crée une copie cohérente sans arrêter le service. Copiez-les hors du serveur (planification conseillée : quotidienne, via cron).

@@ -72,7 +72,7 @@ Le conteneur tourne sans privilèges (utilisateur non root, système de fichiers
 
 1. **Créer le compte administrateur** : s'inscrire sur le site avec l'e-mail voulu, puis ajouter cet e-mail dans `ADMIN_EMAILS` et redémarrer. Le Centre DevOps apparaît alors dans le menu : à la première ouverture, il propose de **définir le mot de passe administrateur** (stocké haché dans la base). Il demande le **code d'installation** : définissez `ADMIN_SETUP_CODE` (16 caractères minimum) sur l'hébergeur avant cette étape, puis retirez-le.
 2. Vérifier, dans l'ordre :
-   - [ ] `GET /api/health` répond `{"status":"ok","database":"ok"}`
+   - [ ] `GET /api/health?db=1` répond `{"status":"ok","database":"ok"}` (sans `?db=1`, la sonde ne touche pas la base)
    - [ ] La page se charge en HTTPS ; les en-têtes contiennent HSTS, CSP et `X-Frame-Options: DENY`
    - [ ] Inscription, déconnexion, connexion
    - [ ] Ouverture d'un cours, leçon terminée, progression conservée après rechargement
